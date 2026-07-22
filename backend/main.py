@@ -3,6 +3,7 @@ import io
 import json
 import os
 import re
+import secrets
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,7 +23,9 @@ from pydantic import BaseModel
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+# 本地开发默认用项目里的 data/ 文件夹；部署到 Railway 之类的平台时，把 DATA_DIR
+# 这个环境变量指到挂载的持久化磁盘（比如 /data），数据才不会在每次重新部署时丢掉。
+DATA_DIR = Path(os.environ.get("DATA_DIR") or (BASE_DIR / "data"))
 DOCUMENTS_FILE = DATA_DIR / "documents.json"
 VOCAB_FILE = DATA_DIR / "vocab.json"
 SENTENCE_NOTES_FILE = DATA_DIR / "sentence_notes.json"
@@ -61,6 +64,31 @@ def _write_json(path: Path, data):
 # 简化设计：邀请码本身就是凭证，每次请求都带在 X-Invite-Code 请求头里，后端直接查表核对。
 # 没有做 session/token 过期这些，对"发给几个朋友用"这个规模来说没必要，换取实现简单。
 
+
+def _bootstrap_owner_if_needed():
+    """全新部署(数据盘上还没有 users.json)时，用环境变量自动建主账号，不用登录服务器手动跑脚本。"""
+    if USERS_FILE.exists():
+        return
+    owner_name = os.environ.get("BOOTSTRAP_OWNER_NAME")
+    if not owner_name:
+        return
+    invite_code = os.environ.get("BOOTSTRAP_INVITE_CODE") or secrets.token_hex(4)
+    owner = {
+        "id": "u_" + uuid.uuid4().hex[:10],
+        "name": owner_name,
+        "invite_code": invite_code,
+        "is_owner": True,
+        "ai_provider": "deepseek",
+        "ai_api_keys": {},
+        "sheets_sync_enabled": False,
+    }
+    _write_json(USERS_FILE, [owner])
+    print(f"[bootstrap] 已自动创建主账号「{owner_name}」，邀请码：{invite_code}")
+
+
+_bootstrap_owner_if_needed()
+
+
 async def get_current_user(x_invite_code: str = Header(default="", alias="X-Invite-Code")):
     if not x_invite_code:
         raise HTTPException(401, "缺少邀请码")
@@ -74,6 +102,42 @@ async def get_current_user(x_invite_code: str = Header(default="", alias="X-Invi
 @app.get("/api/me")
 async def get_me(user: dict = Depends(get_current_user)):
     return {"id": user["id"], "name": user.get("name", ""), "is_owner": user.get("is_owner", False)}
+
+
+class CreateInviteRequest(BaseModel):
+    name: str
+
+
+@app.post("/api/admin/create-user")
+async def create_invited_user(req: CreateInviteRequest, user: dict = Depends(get_current_user)):
+    if not user.get("is_owner"):
+        raise HTTPException(403, "只有主账号能生成邀请码")
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(400, "名字不能为空")
+
+    users = _read_json(USERS_FILE, [])
+    invite_code = secrets.token_hex(4)
+    new_user = {
+        "id": "u_" + uuid.uuid4().hex[:10],
+        "name": name,
+        "invite_code": invite_code,
+        "is_owner": False,
+        "ai_provider": "deepseek",
+        "ai_api_keys": {},
+        "sheets_sync_enabled": False,
+    }
+    users.append(new_user)
+    _write_json(USERS_FILE, users)
+    return {"name": name, "invite_code": invite_code}
+
+
+@app.get("/api/admin/users")
+async def list_invited_users(user: dict = Depends(get_current_user)):
+    if not user.get("is_owner"):
+        raise HTTPException(403, "只有主账号能查看用户列表")
+    users = _read_json(USERS_FILE, [])
+    return [{"name": u.get("name", ""), "is_owner": u.get("is_owner", False)} for u in users]
 
 
 # ---------- 文档管理(粘贴文本 / 网址导入 / PDF·DOCX 上传，最终都存成统一的文字文档) ----------

@@ -66,6 +66,12 @@ const btnSettingsSave = document.getElementById("btnSettingsSave");
 const settingsSaveStatus = document.getElementById("settingsSaveStatus");
 const btnLogout = document.getElementById("btnLogout");
 
+const inviteBlock = document.getElementById("inviteBlock");
+const invitedUsersList = document.getElementById("invitedUsersList");
+const inviteNameInput = document.getElementById("inviteNameInput");
+const btnCreateInvite = document.getElementById("btnCreateInvite");
+const inviteResult = document.getElementById("inviteResult");
+
 const loginOverlay = document.getElementById("loginOverlay");
 const loginInviteCodeInput = document.getElementById("loginInviteCodeInput");
 const loginError = document.getElementById("loginError");
@@ -1000,7 +1006,41 @@ async function loadSettingsIntoPanel() {
 
   sheetsSyncBlock.classList.toggle("hidden", !data.is_owner);
   sheetsSyncToggle.checked = !!data.sheets_sync_enabled;
+
+  inviteBlock.classList.toggle("hidden", !data.is_owner);
+  inviteResult.textContent = "";
+  inviteNameInput.value = "";
+  if (data.is_owner) loadInvitedUsers();
 }
+
+async function loadInvitedUsers() {
+  const res = await apiFetch("/api/admin/users");
+  if (!res.ok) return;
+  const users = await res.json();
+  invitedUsersList.textContent = users.map((u) => u.name + (u.is_owner ? "（你）" : "")).join("、");
+}
+
+btnCreateInvite.addEventListener("click", async () => {
+  const name = inviteNameInput.value.trim();
+  if (!name) return;
+  btnCreateInvite.disabled = true;
+  try {
+    const res = await apiFetch("/api/admin/create-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    inviteResult.textContent = `已生成「${data.name}」的邀请码：${data.invite_code}（发给对方，对方登录后自己去设置里填 AI Key）`;
+    inviteNameInput.value = "";
+    loadInvitedUsers();
+  } catch (err) {
+    inviteResult.textContent = "生成失败: " + err.message;
+  } finally {
+    btnCreateInvite.disabled = false;
+  }
+});
 
 function updateKeyHint() {
   if (!settingsDataCache) return;
