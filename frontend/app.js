@@ -1,13 +1,8 @@
-let authUsername = localStorage.getItem("authUsername") || "";
-let authPassword = localStorage.getItem("authPassword") || "";
+let authToken = localStorage.getItem("authToken") || "";
 let currentUser = null; // {id, name, is_owner}
 
-function authHeader(username, password) {
-  return "Basic " + btoa(unescape(encodeURIComponent(`${username}:${password}`)));
-}
-
 function apiFetch(url, opts = {}) {
-  const headers = { ...(opts.headers || {}), Authorization: authHeader(authUsername, authPassword) };
+  const headers = { ...(opts.headers || {}), Authorization: `Bearer ${authToken}` };
   // GET 请求默认可能被浏览器按 URL 缓存，Authorization header 不同也可能命中旧缓存，
   // 导致登出/换账号后读到别人或者已登出状态下的数据 —— 强制不缓存。
   return fetch(url, { ...opts, headers, cache: "no-store" });
@@ -73,6 +68,11 @@ const btnSettingsSave = document.getElementById("btnSettingsSave");
 const settingsSaveStatus = document.getElementById("settingsSaveStatus");
 const btnLogout = document.getElementById("btnLogout");
 
+const changePasswordLabel = document.getElementById("changePasswordLabel");
+const newPasswordInput = document.getElementById("newPasswordInput");
+const btnChangePassword = document.getElementById("btnChangePassword");
+const changePasswordStatus = document.getElementById("changePasswordStatus");
+
 const inviteBlock = document.getElementById("inviteBlock");
 const invitedUsersList = document.getElementById("invitedUsersList");
 
@@ -82,6 +82,7 @@ const loginPasswordInput = document.getElementById("loginPasswordInput");
 const loginError = document.getElementById("loginError");
 const btnLoginSubmit = document.getElementById("btnLoginSubmit");
 const btnRegisterSubmit = document.getElementById("btnRegisterSubmit");
+const btnGoogleLogin = document.getElementById("btnGoogleLogin");
 
 // ---------- 文档列表 / 加载 ----------
 
@@ -1013,9 +1014,35 @@ async function loadSettingsIntoPanel() {
   sheetsSyncBlock.classList.toggle("hidden", !data.is_owner);
   sheetsSyncToggle.checked = !!data.sheets_sync_enabled;
 
+  changePasswordLabel.textContent = data.has_password ? "修改密码" : "设置密码（当前用 Google 登录，还没设密码）";
+  newPasswordInput.value = "";
+  changePasswordStatus.textContent = "";
+
   inviteBlock.classList.toggle("hidden", !data.is_owner);
   if (data.is_owner) loadInvitedUsers();
 }
+
+btnChangePassword.addEventListener("click", async () => {
+  const newPassword = newPasswordInput.value;
+  if (!newPassword) return;
+  btnChangePassword.disabled = true;
+  changePasswordStatus.textContent = "保存中...";
+  try {
+    const res = await apiFetch("/api/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_password: newPassword }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    newPasswordInput.value = "";
+    changePasswordStatus.textContent = "密码已更新，下次登录用新密码";
+    changePasswordLabel.textContent = "修改密码";
+  } catch (err) {
+    changePasswordStatus.textContent = "修改失败: " + err.message;
+  } finally {
+    btnChangePassword.disabled = false;
+  }
+});
 
 async function loadInvitedUsers() {
   const res = await apiFetch("/api/admin/users");
@@ -1058,18 +1085,22 @@ btnSettingsSave.addEventListener("click", async () => {
   }
 });
 
-btnLogout.addEventListener("click", () => {
-  localStorage.removeItem("authUsername");
-  localStorage.removeItem("authPassword");
+btnLogout.addEventListener("click", async () => {
+  try {
+    await apiFetch("/api/logout", { method: "POST" });
+  } catch (err) {
+    // 服务端撤销失败也没关系，本地照样清掉登录状态
+  }
+  localStorage.removeItem("authToken");
   location.reload();
 });
 
-// ---------- 登录 / 注册(用户名 + 密码) ----------
+// ---------- 登录 / 注册(用户名密码 或 Google) ----------
 
-async function checkCredentials(username, password) {
+async function checkToken(token) {
   try {
     const res = await fetch("/api/me", {
-      headers: { Authorization: authHeader(username, password) },
+      headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
     if (!res.ok) return null;
@@ -1085,11 +1116,9 @@ async function initApp() {
   loadUsage();
 }
 
-function enterApp(username, password, me) {
-  authUsername = username;
-  authPassword = password;
-  localStorage.setItem("authUsername", username);
-  localStorage.setItem("authPassword", password);
+function enterApp(token, me) {
+  authToken = token;
+  localStorage.setItem("authToken", token);
   currentUser = me;
   loginOverlay.classList.add("hidden");
   initApp();
@@ -1102,15 +1131,23 @@ btnLoginSubmit.addEventListener("click", async () => {
   btnLoginSubmit.disabled = true;
   btnRegisterSubmit.disabled = true;
   loginError.classList.add("hidden");
-  const me = await checkCredentials(username, password);
-  btnLoginSubmit.disabled = false;
-  btnRegisterSubmit.disabled = false;
-  if (!me) {
-    loginError.textContent = "用户名或密码不对，再检查一下";
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error("用户名或密码不对，再检查一下");
+    const data = await res.json();
+    enterApp(data.token, data);
+  } catch (err) {
+    loginError.textContent = err.message;
     loginError.classList.remove("hidden");
-    return;
+  } finally {
+    btnLoginSubmit.disabled = false;
+    btnRegisterSubmit.disabled = false;
   }
-  enterApp(username, password, me);
 });
 
 btnRegisterSubmit.addEventListener("click", async () => {
@@ -1129,10 +1166,11 @@ btnRegisterSubmit.addEventListener("click", async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
+      cache: "no-store",
     });
     if (!res.ok) throw new Error(await res.text());
-    const me = await res.json();
-    enterApp(username, password, me);
+    const data = await res.json();
+    enterApp(data.token, data);
   } catch (err) {
     loginError.textContent = "注册失败: " + err.message;
     loginError.classList.remove("hidden");
@@ -1146,18 +1184,32 @@ loginPasswordInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") btnLoginSubmit.click();
 });
 
+btnGoogleLogin.addEventListener("click", () => {
+  location.href = "/api/auth/google/login";
+});
+
 (async () => {
-  if (authUsername && authPassword) {
-    const me = await checkCredentials(authUsername, authPassword);
+  // Google 登录跳回来的时候，token 会带在地址栏的 #token=... 里
+  const hashMatch = location.hash.match(/token=([^&]+)/);
+  if (hashMatch) {
+    const token = decodeURIComponent(hashMatch[1]);
+    history.replaceState(null, "", location.pathname + location.search);
+    const me = await checkToken(token);
+    if (me) {
+      enterApp(token, me);
+      return;
+    }
+  }
+
+  if (authToken) {
+    const me = await checkToken(authToken);
     if (me) {
       currentUser = me;
       initApp();
       return;
     }
-    localStorage.removeItem("authUsername");
-    localStorage.removeItem("authPassword");
-    authUsername = "";
-    authPassword = "";
+    localStorage.removeItem("authToken");
+    authToken = "";
   }
   loginOverlay.classList.remove("hidden");
   loginUsernameInput.focus();

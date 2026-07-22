@@ -118,6 +118,15 @@
         <input type="checkbox" id="sheetsSyncToggle" />
       </div>
 
+      <div class="settingsBlock">
+        <span id="changePasswordLabel" class="settingsBlockLabel">修改密码</span>
+        <input type="password" id="newPasswordInput" placeholder="填新密码" />
+        <div class="pasteActions">
+          <button id="btnChangePassword" class="btn btn-ghost btn-small">确认修改</button>
+        </div>
+        <p id="changePasswordStatus" class="urlHint"></p>
+      </div>
+
       <div class="pasteActions">
         <button id="btnLogout" class="btn btn-ghost">退出登录</button>
         <button id="btnSettingsSave" class="btn btn-primary">保存</button>
@@ -142,6 +151,8 @@
         <button id="btnRegisterSubmit" class="btn btn-ghost">注册新账号</button>
         <button id="btnLoginSubmit" class="btn btn-primary">登录</button>
       </div>
+      <div class="loginDivider"><span>或</span></div>
+      <button id="btnGoogleLogin" class="btn btn-ghost loginGoogleBtn">用 Google 登录</button>
     </div>
   </div>
 

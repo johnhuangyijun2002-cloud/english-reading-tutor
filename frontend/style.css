@@ -1173,3 +1173,24 @@ body {
 .loginError.hidden {
   display: none;
 }
+
+.loginDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.loginDivider::before,
+.loginDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.loginGoogleBtn {
+  width: 100%;
+}

@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlencode
 
 import feedparser
 import httpx
@@ -17,9 +18,10 @@ import pdfplumber
 import trafilatura
 from docx import Document as DocxDocument
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -34,12 +36,16 @@ VOCAB_FILE = DATA_DIR / "vocab.json"
 SENTENCE_NOTES_FILE = DATA_DIR / "sentence_notes.json"
 USAGE_FILE = DATA_DIR / "api_usage.json"
 USERS_FILE = DATA_DIR / "users.json"
+SESSIONS_FILE = DATA_DIR / "sessions.json"
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 SHEETS_WEBHOOK_URL = os.environ.get("SHEETS_WEBHOOK_URL", "")
 SHEETS_TOKEN = os.environ.get("SHEETS_TOKEN", "")
+
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 
 app = FastAPI(title="English Reader")
 
@@ -73,16 +79,32 @@ def _write_json(path: Path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# ---------- 用户 / 账号注册登录 ----------
-# 谁都能自己注册用户名 + 密码，用户名/密码没有任何格式限制。第一个注册的账号自动成为
-# 主账号(唯一能开 Google Sheets 同步的账号)。用标准 HTTP Basic Auth 传凭证(浏览器自带
-# 支持，FastAPI 自带解析)，没有做 session/token 过期这些，对这个规模来说没必要。
+# ---------- 用户 / 账号注册登录(用户名密码 + Google 登录，登录后发一个 session token) ----------
+# 谁都能自己注册用户名 + 密码，用户名/密码没有任何格式限制。第一个注册/登录的账号自动成为
+# 主账号(唯一能开 Google Sheets 同步的账号)。登录成功后发一个 token，之后每次请求带
+# Authorization: Bearer <token>；token 存在 data/sessions.json 里，不设过期时间(对这个
+# 规模来说没必要)，退出登录时会把对应的 token 删掉。
 
-security = HTTPBasic()
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def _hash_password(password: str, salt: str) -> str:
     return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000).hex()
+
+
+def _create_session(user_id: str) -> str:
+    sessions = _read_json(SESSIONS_FILE, [])
+    token = secrets.token_urlsafe(32)
+    sessions.append({"token": token, "user_id": user_id, "created_at": datetime.now(timezone.utc).isoformat()})
+    _write_json(SESSIONS_FILE, sessions)
+    return token
+
+
+def _delete_session(token: str):
+    sessions = _read_json(SESSIONS_FILE, [])
+    remaining = [s for s in sessions if s.get("token") != token]
+    if len(remaining) != len(sessions):
+        _write_json(SESSIONS_FILE, remaining)
 
 
 def _migrate_legacy_invite_users():
@@ -145,17 +167,46 @@ async def register(req: RegisterRequest):
     }
     users.append(new_user)
     _write_json(USERS_FILE, users)
-    return {"id": new_user["id"], "name": username, "is_owner": new_user["is_owner"]}
+    token = _create_session(new_user["id"])
+    return {"token": token, "id": new_user["id"], "name": username, "is_owner": new_user["is_owner"]}
 
 
-async def get_current_user(credentials: HTTPBasicCredentials = Depends(security)):
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/login")
+async def login(req: LoginRequest):
     users = _read_json(USERS_FILE, [])
-    user = next((u for u in users if u.get("username") == credentials.username), None)
+    user = next((u for u in users if u.get("username") == req.username.strip()), None)
     if not user or not user.get("password_hash"):
         raise HTTPException(401, "用户名或密码不对")
-    expected = _hash_password(credentials.password, user.get("password_salt", ""))
+    expected = _hash_password(req.password, user.get("password_salt", ""))
     if not hmac.compare_digest(expected, user["password_hash"]):
         raise HTTPException(401, "用户名或密码不对")
+    token = _create_session(user["id"])
+    return {"token": token, "id": user["id"], "name": user.get("name", ""), "is_owner": user.get("is_owner", False)}
+
+
+@app.post("/api/logout")
+async def logout(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    if credentials:
+        _delete_session(credentials.credentials)
+    return {"ok": True}
+
+
+async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+    if not credentials:
+        raise HTTPException(401, "未登录")
+    sessions = _read_json(SESSIONS_FILE, [])
+    session = next((s for s in sessions if s.get("token") == credentials.credentials), None)
+    if not session:
+        raise HTTPException(401, "登录状态已失效，重新登录一下")
+    users = _read_json(USERS_FILE, [])
+    user = next((u for u in users if u["id"] == session["user_id"]), None)
+    if not user:
+        raise HTTPException(401, "账号不存在")
     return user
 
 
@@ -164,12 +215,120 @@ async def get_me(user: dict = Depends(get_current_user)):
     return {"id": user["id"], "name": user.get("name", ""), "is_owner": user.get("is_owner", False)}
 
 
+class ChangePasswordRequest(BaseModel):
+    new_password: str
+
+
+@app.post("/api/change-password")
+async def change_password(req: ChangePasswordRequest, user: dict = Depends(get_current_user)):
+    if not req.new_password:
+        raise HTTPException(400, "新密码不能为空")
+    users = _read_json(USERS_FILE, [])
+    for u in users:
+        if u["id"] == user["id"]:
+            salt = secrets.token_hex(16)
+            u["password_salt"] = salt
+            u["password_hash"] = _hash_password(req.new_password, salt)
+    _write_json(USERS_FILE, users)
+    return {"ok": True}
+
+
 @app.get("/api/admin/users")
 async def list_registered_users(user: dict = Depends(get_current_user)):
     if not user.get("is_owner"):
         raise HTTPException(403, "只有主账号能查看用户列表")
     users = _read_json(USERS_FILE, [])
     return [{"name": u.get("name", ""), "is_owner": u.get("is_owner", False)} for u in users]
+
+
+# ---------- Google 登录 ----------
+
+_pending_oauth_states: dict = {}  # state -> 生成时间，用来防 CSRF，顺手清理超过 10 分钟的旧记录
+
+
+def _new_oauth_state() -> str:
+    now = datetime.now(timezone.utc)
+    stale = [s for s, ts in _pending_oauth_states.items() if (now - ts).total_seconds() > 600]
+    for s in stale:
+        _pending_oauth_states.pop(s, None)
+    state = secrets.token_urlsafe(16)
+    _pending_oauth_states[state] = now
+    return state
+
+
+@app.get("/api/auth/google/login")
+async def google_login(request: Request):
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(500, "这个部署还没配置 Google 登录(缺 GOOGLE_CLIENT_ID)")
+    state = _new_oauth_state()
+    redirect_uri = str(request.base_url) + "api/auth/google/callback"
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "prompt": "select_account",
+    }
+    return RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
+
+
+@app.get("/api/auth/google/callback")
+async def google_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    if error:
+        raise HTTPException(400, f"Google 登录失败: {error}")
+    if not state or state not in _pending_oauth_states:
+        raise HTTPException(400, "登录状态已过期，重新点一次「用 Google 登录」")
+    _pending_oauth_states.pop(state, None)
+
+    redirect_uri = str(request.base_url) + "api/auth/google/callback"
+    async with httpx.AsyncClient(timeout=15) as client:
+        token_resp = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+        )
+    if token_resp.status_code != 200:
+        raise HTTPException(400, f"Google 登录换取 token 失败: {token_resp.text}")
+    google_access_token = token_resp.json().get("access_token", "")
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        profile_resp = await client.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {google_access_token}"},
+        )
+    if profile_resp.status_code != 200:
+        raise HTTPException(400, "拿不到 Google 账号信息")
+    profile = profile_resp.json()
+    google_id = profile.get("sub", "")
+    email = profile.get("email", "")
+    name = profile.get("name") or email or "Google 用户"
+    if not google_id:
+        raise HTTPException(400, "Google 账号信息里没有用户 ID")
+
+    users = _read_json(USERS_FILE, [])
+    user = next((u for u in users if u.get("google_id") == google_id), None)
+    if not user:
+        user = {
+            "id": "u_" + uuid.uuid4().hex[:10],
+            "name": name,
+            "google_id": google_id,
+            "google_email": email,
+            "is_owner": len(users) == 0,
+            "ai_provider": "deepseek",
+            "ai_api_keys": {},
+            "sheets_sync_enabled": False,
+        }
+        users.append(user)
+        _write_json(USERS_FILE, users)
+
+    token = _create_session(user["id"])
+    return RedirectResponse(f"/#token={token}")
 
 
 # ---------- 文档管理(粘贴文本 / 网址导入 / PDF·DOCX 上传，最终都存成统一的文字文档) ----------
@@ -567,6 +726,7 @@ async def get_settings(user: dict = Depends(get_current_user)):
     return {
         "name": user.get("name", ""),
         "is_owner": user.get("is_owner", False),
+        "has_password": bool(user.get("password_hash")),
         "ai_provider": user.get("ai_provider", "deepseek"),
         "ai_key_status": {
             k: {"has_key": bool(keys.get(k)), "masked": mask_key(keys.get(k, ""))}
