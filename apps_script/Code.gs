@@ -1,6 +1,8 @@
 // 部署步骤见项目根目录 README.md 的"配置 Google Sheets 同步"部分
-// 这个 token 要和 backend/.env 里的 SHEETS_TOKEN 保持一致，已经帮你对好了，不用改
-var TOKEN = "f39fbb5b4e0046c38435b25c6a2759ab";
+// 把下面这个占位符换成你自己随便打的一串字符，并且要跟 backend/.env 里的
+// SHEETS_TOKEN 填一样的值——这是用来防止陌生人乱写你的表格的密钥，每个人部署
+// 自己的副本时都应该换成自己的值，不要沿用别人的。
+var TOKEN = "换成你自己的随机字符串";
 
 function doPost(e) {
   var result = { ok: false };
