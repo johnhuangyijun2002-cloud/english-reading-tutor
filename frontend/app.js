@@ -8,7 +8,9 @@ function authHeader(username, password) {
 
 function apiFetch(url, opts = {}) {
   const headers = { ...(opts.headers || {}), Authorization: authHeader(authUsername, authPassword) };
-  return fetch(url, { ...opts, headers });
+  // GET 请求默认可能被浏览器按 URL 缓存，Authorization header 不同也可能命中旧缓存，
+  // 导致登出/换账号后读到别人或者已登出状态下的数据 —— 强制不缓存。
+  return fetch(url, { ...opts, headers, cache: "no-store" });
 }
 
 let allDocs = [];
@@ -1066,7 +1068,10 @@ btnLogout.addEventListener("click", () => {
 
 async function checkCredentials(username, password) {
   try {
-    const res = await fetch("/api/me", { headers: { Authorization: authHeader(username, password) } });
+    const res = await fetch("/api/me", {
+      headers: { Authorization: authHeader(username, password) },
+      cache: "no-store",
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {

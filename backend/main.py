@@ -51,6 +51,16 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def no_store_api_responses(request, call_next):
+    # /api/* 响应带的是登录凭证鉴权后的个人数据，不能被浏览器/中间代理按 URL 缓存，
+    # 不然换账号登录或者退出登录之后，可能还读到上一个人登录时缓存下来的响应。
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 def _read_json(path: Path, default):
     if not path.exists():
         return default
