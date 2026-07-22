@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>英语阅读学习器</title>
 <link rel="stylesheet" href="style.css" />
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
   <div id="topbar">
@@ -129,11 +130,19 @@
 
       <div class="settingsBlock">
         <span id="changePasswordLabel" class="settingsBlockLabel">修改密码</span>
-        <input type="password" id="newPasswordInput" placeholder="填新密码" />
+        <input type="password" id="newPasswordInput" placeholder="填新密码，至少 8 位" />
         <div class="pasteActions">
           <button id="btnChangePassword" class="btn btn-ghost btn-small">确认修改</button>
         </div>
         <p id="changePasswordStatus" class="urlHint"></p>
+      </div>
+
+      <div class="settingsBlock">
+        <span class="settingsBlockLabel">Google 账号关联</span>
+        <p id="googleLinkStatus" class="urlHint"></p>
+        <div class="pasteActions">
+          <button id="btnLinkGoogle" class="btn btn-ghost btn-small">关联 Google 账号</button>
+        </div>
       </div>
 
       <div class="pasteActions">
@@ -146,22 +155,35 @@
         <span class="settingsBlockLabel">已注册用户</span>
         <div id="invitedUsersList" class="invitedUsersList"></div>
       </div>
+
+      <div class="settingsBlock settingsDangerZone">
+        <span class="settingsBlockLabel">账号数据</span>
+        <div class="pasteActions">
+          <button id="btnExportData" class="btn btn-ghost btn-small">导出我的数据</button>
+          <button id="btnDeleteAccount" class="btn btn-danger btn-small">删除账号</button>
+        </div>
+        <p id="accountDataStatus" class="urlHint"></p>
+      </div>
     </div>
   </div>
 
   <div id="loginOverlay" class="hidden">
     <div id="loginPanel">
       <h2 id="loginPanelTitle">登录</h2>
-      <p class="urlHint">用户名和密码随便填，第一个注册的账号会自动成为主账号</p>
+      <p class="urlHint">用户名随便填，密码至少 8 位；第一个注册的账号会自动成为主账号</p>
       <input type="text" id="loginUsernameInput" placeholder="用户名" autocomplete="username" />
       <input type="password" id="loginPasswordInput" placeholder="密码" autocomplete="current-password" />
       <p id="loginError" class="loginError hidden"></p>
+      <div id="turnstileWidget" class="cf-turnstile" data-sitekey=""></div>
       <div class="pasteActions">
         <button id="btnRegisterSubmit" class="btn btn-ghost">注册新账号</button>
         <button id="btnLoginSubmit" class="btn btn-primary">登录</button>
       </div>
       <div class="loginDivider"><span>或</span></div>
       <button id="btnGoogleLogin" class="btn btn-ghost loginGoogleBtn">用 Google 登录</button>
+      <p class="loginLegalLinks">
+        继续即表示你同意<a href="/terms.html" target="_blank">服务条款</a>和<a href="/privacy.html" target="_blank">隐私政策</a>
+      </p>
     </div>
   </div>
 

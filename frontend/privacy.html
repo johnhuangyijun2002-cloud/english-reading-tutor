@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>隐私政策 - 英语阅读学习器</title>
+<link rel="stylesheet" href="style.css" />
+<style>
+  body.legalPage {
+    display: block;
+    padding: 40px 20px 80px;
+  }
+  .legalDoc {
+    max-width: 680px;
+    margin: 0 auto;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 40px 44px;
+  }
+  .legalDoc h1 {
+    font-size: 26px;
+    margin: 0 0 4px;
+  }
+  .legalDoc .legalMeta {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin: 0 0 28px;
+  }
+  .legalDoc h2 {
+    font-size: 17px;
+    margin: 28px 0 10px;
+  }
+  .legalDoc p, .legalDoc li {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text);
+  }
+  .legalDoc ul {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .legalDoc a {
+    color: var(--accent);
+  }
+  .legalBack {
+    display: inline-block;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--accent);
+    text-decoration: none;
+  }
+</style>
+</head>
+<body class="legalPage">
+  <div class="legalDoc">
+    <a class="legalBack" href="/">&larr; 返回应用</a>
+    <h1>隐私政策</h1>
+    <p class="legalMeta">最后更新：2026-07-22</p>
+
+    <p>英语阅读学习器（下称"本工具"）是一个个人开发、非商业性质的英语阅读辅助小工具，目前主要供开发者本人及身边朋友使用。本页说明我们收集哪些数据、怎么用、以及你能做什么。</p>
+
+    <h2>我们收集什么数据</h2>
+    <ul>
+      <li>账号信息：用户名和密码（密码经过加密处理后存储，我们本身也看不到明文），或者你用 Google 登录时的账号 ID 和邮箱</li>
+      <li>你自己填写的 AI 服务商 API Key（加密存储）</li>
+      <li>你上传/粘贴/导入的文章内容，以及你保存的生词、句子笔记</li>
+      <li>AI 功能的调用次数和估算花销，用于给你自己看用量</li>
+    </ul>
+
+    <h2>数据怎么用</h2>
+    <ul>
+      <li>你选中单词或句子请求解析时，对应的文本会被发送给你自己在设置里选择、并填写了 Key 的 AI 服务商（DeepSeek / OpenAI / Claude / Gemini 之一），用来生成解释内容。这是唯一会把你的内容发给第三方的场景。</li>
+      <li>如果你是主账号并且开启了 Google Sheets 同步，保存的生词/笔记会额外同步一份到你自己配置的 Google 表格。</li>
+      <li>除上述两种情况外，你的数据不会被分享给任何其他第三方，也不会被用于广告或其他与本工具无关的用途。</li>
+    </ul>
+
+    <h2>数据存储与安全</h2>
+    <ul>
+      <li>账号密码使用加盐哈希存储，AI Key 使用加密方式存储，均不是明文</li>
+      <li>数据存储在 Supabase 提供的 Postgres 数据库中</li>
+      <li>登录状态（session）30 天后自动失效，需要重新登录</li>
+    </ul>
+
+    <h2>你的权利</h2>
+    <ul>
+      <li>你可以随时在设置里修改用户名、密码</li>
+      <li>你可以联系我们要求删除账号和相关数据，或导出你自己的数据</li>
+      <li>本工具目前主要面向开发者本人及朋友使用，不会主动索取超出功能所需的信息</li>
+    </ul>
+
+    <h2>条款可能的变化</h2>
+    <p>本工具目前免费提供，未来可能会调整功能范围或引入付费能力，我们不承诺服务永久免费。如条款有重大变更，会在本页面更新并尽量提前告知使用者。</p>
+
+    <h2>联系方式</h2>
+    <p>如果你对隐私政策有任何疑问，或想要删除账号/导出数据，可以联系：<a href="mailto:johnhuangyijun2002@gmail.com">johnhuangyijun2002@gmail.com</a></p>
+  </div>
+</body>
+</html>

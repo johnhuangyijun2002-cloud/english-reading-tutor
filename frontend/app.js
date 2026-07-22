@@ -5,7 +5,16 @@ function apiFetch(url, opts = {}) {
   const headers = { ...(opts.headers || {}), Authorization: `Bearer ${authToken}` };
   // GET 请求默认可能被浏览器按 URL 缓存，Authorization header 不同也可能命中旧缓存，
   // 导致登出/换账号后读到别人或者已登出状态下的数据 —— 强制不缓存。
-  return fetch(url, { ...opts, headers, cache: "no-store" });
+  return fetch(url, { ...opts, headers, cache: "no-store" }).then((res) => {
+    // session token 现在有过期时间了(30天)，正常使用中途过期的话，服务端会返回 401，
+    // 这里统一兜底：清掉本地 token 并刷新页面，回到登录页重新登录，而不是让后续操作
+    // 一直报奇怪的错。
+    if (res.status === 401 && authToken) {
+      localStorage.removeItem("authToken");
+      location.reload();
+    }
+    return res;
+  });
 }
 
 let allDocs = [];
@@ -80,8 +89,15 @@ const newPasswordInput = document.getElementById("newPasswordInput");
 const btnChangePassword = document.getElementById("btnChangePassword");
 const changePasswordStatus = document.getElementById("changePasswordStatus");
 
+const googleLinkStatus = document.getElementById("googleLinkStatus");
+const btnLinkGoogle = document.getElementById("btnLinkGoogle");
+
 const inviteBlock = document.getElementById("inviteBlock");
 const invitedUsersList = document.getElementById("invitedUsersList");
+
+const btnExportData = document.getElementById("btnExportData");
+const btnDeleteAccount = document.getElementById("btnDeleteAccount");
+const accountDataStatus = document.getElementById("accountDataStatus");
 
 const loginOverlay = document.getElementById("loginOverlay");
 const loginUsernameInput = document.getElementById("loginUsernameInput");
@@ -90,6 +106,32 @@ const loginError = document.getElementById("loginError");
 const btnLoginSubmit = document.getElementById("btnLoginSubmit");
 const btnRegisterSubmit = document.getElementById("btnRegisterSubmit");
 const btnGoogleLogin = document.getElementById("btnGoogleLogin");
+
+let turnstileWidgetId = null;
+let turnstileToken = "";
+
+function initTurnstile(retries = 25) {
+  if (window.turnstile) {
+    fetch("/api/config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (!cfg.turnstile_site_key || turnstileWidgetId !== null) return;
+        turnstileWidgetId = window.turnstile.render("#turnstileWidget", {
+          sitekey: cfg.turnstile_site_key,
+          callback: (token) => { turnstileToken = token; },
+          "expired-callback": () => { turnstileToken = ""; },
+        });
+      })
+      .catch(() => {});
+  } else if (retries > 0) {
+    setTimeout(() => initTurnstile(retries - 1), 200);
+  }
+}
+
+function resetTurnstile() {
+  turnstileToken = "";
+  if (window.turnstile && turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+}
 
 // ---------- 文档列表 / 加载 ----------
 
@@ -1213,9 +1255,26 @@ async function loadSettingsIntoPanel() {
   newUsernameInput.value = "";
   changeUsernameStatus.textContent = "";
 
+  googleLinkStatus.textContent = data.has_google ? `已关联：${data.google_email}` : "还没关联，只能用用户名密码登录";
+  btnLinkGoogle.textContent = data.has_google ? "重新关联/换绑" : "关联 Google 账号";
+
   inviteBlock.classList.toggle("hidden", !data.is_owner);
   if (data.is_owner) loadInvitedUsers();
 }
+
+btnLinkGoogle.addEventListener("click", async () => {
+  btnLinkGoogle.disabled = true;
+  googleLinkStatus.textContent = "跳转到 Google 授权页...";
+  try {
+    const res = await apiFetch("/api/auth/google/link-init", { method: "POST" });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    location.href = "/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce);
+  } catch (err) {
+    googleLinkStatus.textContent = "关联失败: " + err.message;
+    btnLinkGoogle.disabled = false;
+  }
+});
 
 btnChangeUsername.addEventListener("click", async () => {
   const newUsername = newUsernameInput.value.trim();
@@ -1260,6 +1319,52 @@ btnChangePassword.addEventListener("click", async () => {
     changePasswordStatus.textContent = "修改失败: " + err.message;
   } finally {
     btnChangePassword.disabled = false;
+  }
+});
+
+btnExportData.addEventListener("click", async () => {
+  btnExportData.disabled = true;
+  accountDataStatus.textContent = "导出中...";
+  try {
+    const res = await apiFetch("/api/account/export");
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(settingsDataCache && settingsDataCache.name) || "my"}-data-export.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    accountDataStatus.textContent = "已导出";
+  } catch (err) {
+    accountDataStatus.textContent = "导出失败: " + err.message;
+  } finally {
+    btnExportData.disabled = false;
+  }
+});
+
+btnDeleteAccount.addEventListener("click", async () => {
+  const step1 = confirm(
+    "确定要删除账号吗？这会永久删除你保存的所有文章、生词、句子笔记，且无法恢复。\n\n建议先点「导出我的数据」备份一份。"
+  );
+  if (!step1) return;
+  const step2 = prompt('删除操作无法撤销。请输入"删除"两个字确认：');
+  if (step2 !== "删除") return;
+
+  btnDeleteAccount.disabled = true;
+  accountDataStatus.textContent = "删除中...";
+  try {
+    const res = await apiFetch("/api/account", { method: "DELETE" });
+    if (!res.ok) throw new Error(await res.text());
+    localStorage.removeItem("authToken");
+    alert("账号已删除");
+    location.reload();
+  } catch (err) {
+    accountDataStatus.textContent = "删除失败: " + err.message;
+    btnDeleteAccount.disabled = false;
   }
 });
 
@@ -1354,15 +1459,16 @@ btnLoginSubmit.addEventListener("click", async () => {
     const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, turnstile_token: turnstileToken }),
       cache: "no-store",
     });
-    if (!res.ok) throw new Error("用户名或密码不对，再检查一下");
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.detail || "用户名或密码不对，再检查一下");
     const data = await res.json();
     enterApp(data.token, data);
   } catch (err) {
     loginError.textContent = err.message;
     loginError.classList.remove("hidden");
+    resetTurnstile();
   } finally {
     btnLoginSubmit.disabled = false;
     btnRegisterSubmit.disabled = false;
@@ -1384,15 +1490,21 @@ btnRegisterSubmit.addEventListener("click", async () => {
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, turnstile_token: turnstileToken }),
       cache: "no-store",
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      const bodyText = await res.text();
+      let detail = bodyText;
+      try { detail = JSON.parse(bodyText).detail || bodyText; } catch (e) { /* 不是 JSON 就原样显示 */ }
+      throw new Error(detail);
+    }
     const data = await res.json();
     enterApp(data.token, data);
   } catch (err) {
     loginError.textContent = "注册失败: " + err.message;
     loginError.classList.remove("hidden");
+    resetTurnstile();
   } finally {
     btnLoginSubmit.disabled = false;
     btnRegisterSubmit.disabled = false;
@@ -1408,14 +1520,19 @@ btnGoogleLogin.addEventListener("click", () => {
 });
 
 (async () => {
-  // Google 登录跳回来的时候，token 会带在地址栏的 #token=... 里
+  // Google 登录/关联跳回来的时候，token 会带在地址栏的 #token=... 里
   const hashMatch = location.hash.match(/token=([^&]+)/);
+  const justLinkedGoogle = /(^|&)google_linked=1/.test(location.hash);
   if (hashMatch) {
     const token = decodeURIComponent(hashMatch[1]);
     history.replaceState(null, "", location.pathname + location.search);
     const me = await checkToken(token);
     if (me) {
       enterApp(token, me);
+      if (justLinkedGoogle) {
+        alert("Google 账号关联成功，以后用 Google 登录也能看到这个账号下的内容");
+        btnAccountSettings.click();
+      }
       return;
     }
   }
@@ -1432,4 +1549,5 @@ btnGoogleLogin.addEventListener("click", () => {
   }
   loginOverlay.classList.remove("hidden");
   loginUsernameInput.focus();
+  initTurnstile();
 })();

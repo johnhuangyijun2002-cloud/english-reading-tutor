@@ -108,6 +108,23 @@ body {
   color: var(--accent);
 }
 
+.btn-danger {
+  background: var(--surface);
+  color: #ff3b30;
+  border: 1px solid rgba(255, 59, 48, 0.35);
+}
+
+.btn-danger:hover {
+  background: rgba(255, 59, 48, 0.1);
+  border-color: transparent;
+}
+
+.settingsDangerZone {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  margin-top: 4px;
+}
+
 .btn:disabled {
   opacity: 0.45;
   cursor: default;
@@ -1188,6 +1205,24 @@ body {
 
 .loginError.hidden {
   display: none;
+}
+
+#turnstileWidget {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.loginLegalLinks {
+  margin: 10px 0 0;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.loginLegalLinks a {
+  color: var(--text-secondary);
+  text-decoration: underline;
 }
 
 .loginDivider {

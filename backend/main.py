@@ -7,12 +7,14 @@ import os
 import re
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 
+import asyncpg
 import feedparser
+from cryptography.fernet import Fernet, InvalidToken
 import httpx
 import pdfplumber
 import trafilatura
@@ -24,12 +26,16 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 # 本地开发默认用项目里的 data/ 文件夹；部署到 Railway 之类的平台时，把 DATA_DIR
-# 这个环境变量指到挂载的持久化磁盘（比如 /data），数据才不会在每次重新部署时丢掉。
+# 这个环境变量指到挂载的持久化磁盘（比如 /data）。这些 JSON 文件现在只在启动时
+# 用来做"迁移到 Postgres"的一次性数据源，迁移完之后正常读写都走数据库了。
 DATA_DIR = Path(os.environ.get("DATA_DIR") or (BASE_DIR / "data"))
 DOCUMENTS_FILE = DATA_DIR / "documents.json"
 VOCAB_FILE = DATA_DIR / "vocab.json"
@@ -47,7 +53,52 @@ SHEETS_TOKEN = os.environ.get("SHEETS_TOKEN", "")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 
+TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
+TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
+if not ENCRYPTION_KEY:
+    raise RuntimeError(
+        "没有配置 ENCRYPTION_KEY，没法加密存储用户的 AI API Key。"
+        "用 `python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"` 生成一个，"
+        "配到环境变量里(本地 .env / Railway variables)。"
+    )
+_fernet = Fernet(ENCRYPTION_KEY.encode())
+
+
+def _encrypt_key(value: str) -> str:
+    if not value:
+        return value
+    return _fernet.encrypt(value.encode()).decode()
+
+
+def _decrypt_key(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        return _fernet.decrypt(value.encode()).decode()
+    except InvalidToken:
+        return ""
+
+
+def _is_encrypted(value: str) -> bool:
+    if not value:
+        return True
+    try:
+        _fernet.decrypt(value.encode())
+        return True
+    except InvalidToken:
+        return False
+
 app = FastAPI(title="English Reader")
+
+# 限流：按客户端 IP 算(uvicorn 已经配了 --proxy-headers，Railway 边缘代理转发的真实 IP
+# 能正确识别到)。主要防的是注册/登录被脚本刷，以及 AI 解析接口被刷导致 API 账单暴涨。
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,20 +126,460 @@ def _read_json(path: Path, default):
 
 
 def _write_json(path: Path, data):
-    # 写到临时文件再原子替换，不直接在原文件上截断写——不然如果写到一半进程被杀掉
-    # (比如部署时旧容器收到 SIGTERM，这个每次发布都会发生)，文件可能被截断/写坏，
-    # 下次读到的就是损坏或者丢了一部分内容的数据。
     tmp_path = path.with_name(path.name + f".tmp{os.getpid()}")
     with tmp_path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     tmp_path.replace(path)
 
 
+# ---------- 数据库(Postgres/Supabase) ----------
+# 账号密码、文档、生词、句子笔记、AI 用量都存在 Postgres 里，不再落地成 JSON 文件。
+# 第一次启动、且数据库还是空的时候，会自动把 data/*.json 里的旧数据搬进去(见 init_db)。
+
+_pool: Optional[asyncpg.Pool] = None
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
+    username TEXT UNIQUE,
+    password_salt TEXT,
+    password_hash TEXT,
+    google_id TEXT UNIQUE,
+    google_email TEXT,
+    is_owner BOOLEAN NOT NULL DEFAULT FALSE,
+    ai_provider TEXT NOT NULL DEFAULT 'deepseek',
+    ai_api_keys TEXT NOT NULL DEFAULT '{}',
+    sheets_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    filename TEXT,
+    type TEXT,
+    content TEXT,
+    source_url TEXT,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS vocab (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word TEXT,
+    sentence TEXT,
+    chinese_meaning TEXT,
+    ipa TEXT,
+    pos TEXT,
+    source_doc TEXT,
+    date TEXT,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS sentence_notes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sentence TEXT,
+    analysis TEXT,
+    source_doc TEXT,
+    date TEXT,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS api_usage (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    month TEXT NOT NULL,
+    calls INTEGER NOT NULL DEFAULT 0,
+    cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, month)
+);
+"""
+
+
+async def get_pool() -> asyncpg.Pool:
+    global _pool
+    if _pool is None:
+        if not DATABASE_URL:
+            raise RuntimeError("没有配置 DATABASE_URL，数据库连接不上")
+        # statement_cache_size=0：Supabase 的连接池(pgbouncer)在部分模式下不支持
+        # 服务端 prepared statement 缓存，关掉这个更保险，不容易踩坑。
+        _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5, statement_cache_size=0)
+    return _pool
+
+
+def _serialize_row(row) -> dict:
+    d = dict(row)
+    for k, v in d.items():
+        if isinstance(v, datetime):
+            d[k] = v.isoformat()
+    return d
+
+
+def _row_to_user(row) -> Optional[dict]:
+    if row is None:
+        return None
+    d = _serialize_row(row)
+    try:
+        raw_keys = json.loads(d.get("ai_api_keys") or "{}")
+    except json.JSONDecodeError:
+        raw_keys = {}
+    # AI key 在数据库里是加密存的，读出来这一层统一解密成明文，业务代码不用关心加密细节。
+    d["ai_api_keys"] = {k: _decrypt_key(v) for k, v in raw_keys.items()}
+    return d
+
+
+def _parse_dt(s) -> datetime:
+    if not s:
+        return datetime.now(timezone.utc)
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return datetime.now(timezone.utc)
+
+
+async def db_get_user_by_id(user_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE id=$1", user_id))
+
+
+async def db_get_user_by_username(username: str) -> Optional[dict]:
+    pool = await get_pool()
+    return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE username=$1", username))
+
+
+async def db_get_user_by_google_id(google_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE google_id=$1", google_id))
+
+
+async def db_count_users() -> int:
+    pool = await get_pool()
+    return await pool.fetchval("SELECT count(*) FROM users")
+
+
+async def db_create_user(
+    id: str,
+    name: str = "",
+    username: Optional[str] = None,
+    password_salt: Optional[str] = None,
+    password_hash: Optional[str] = None,
+    google_id: Optional[str] = None,
+    google_email: Optional[str] = None,
+    is_owner: bool = False,
+    ai_provider: str = "deepseek",
+    ai_api_keys: Optional[dict] = None,
+    sheets_sync_enabled: bool = False,
+) -> dict:
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO users (id, name, username, password_salt, password_hash, google_id, google_email,
+                               is_owner, ai_provider, ai_api_keys, sheets_sync_enabled)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)""",
+        id, name, username, password_salt, password_hash, google_id, google_email,
+        is_owner, ai_provider, json.dumps({k: _encrypt_key(v) for k, v in (ai_api_keys or {}).items()}),
+        sheets_sync_enabled,
+    )
+    return await db_get_user_by_id(id)
+
+
+async def db_update_user_fields(user_id: str, **fields):
+    if not fields:
+        return
+    pool = await get_pool()
+    set_parts = []
+    values = []
+    i = 1
+    for k, v in fields.items():
+        if k == "ai_api_keys":
+            v = json.dumps({pk: _encrypt_key(pv) for pk, pv in v.items()})
+        set_parts.append(f"{k}=${i}")
+        values.append(v)
+        i += 1
+    values.append(user_id)
+    await pool.execute(f"UPDATE users SET {', '.join(set_parts)} WHERE id=${i}", *values)
+
+
+SESSION_TTL_DAYS = 30
+
+
+async def db_create_session(user_id: str, ttl_days: int = SESSION_TTL_DAYS) -> str:
+    pool = await get_pool()
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=ttl_days)
+    # 顺手清掉已经过期的旧 session，不用单独搞个定时任务——这张表本来也没多少行。
+    await pool.execute("DELETE FROM sessions WHERE expires_at < now()")
+    await pool.execute(
+        "INSERT INTO sessions (token, user_id, expires_at) VALUES ($1,$2,$3)", token, user_id, expires_at,
+    )
+    return token
+
+
+async def db_delete_session(token: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM sessions WHERE token=$1", token)
+
+
+async def db_get_session_user(token: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
+           WHERE s.token=$1 AND s.expires_at > now()""",
+        token,
+    )
+    return _row_to_user(row)
+
+
+async def db_create_document(record: dict):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO documents (id, user_id, filename, type, content, source_url, uploaded_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+        record["id"], record["user_id"], record.get("filename"), record.get("type"),
+        record.get("content"), record.get("source_url"), _parse_dt(record.get("uploaded_at")),
+    )
+
+
+async def db_list_documents(user_id: str) -> list:
+    pool = await get_pool()
+    rows = await pool.fetch("SELECT * FROM documents WHERE user_id=$1 ORDER BY uploaded_at", user_id)
+    return [_serialize_row(r) for r in rows]
+
+
+async def db_delete_documents_for_user(user_id: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM documents WHERE user_id=$1", user_id)
+
+
+async def db_create_vocab(record: dict):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO vocab (id, user_id, word, sentence, chinese_meaning, ipa, pos, source_doc, date, added_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
+        record["id"], record["user_id"], record.get("word"), record.get("sentence"),
+        record.get("chinese_meaning"), record.get("ipa"), record.get("pos"),
+        record.get("source_doc"), record.get("date"), _parse_dt(record.get("added_at")),
+    )
+
+
+async def db_find_vocab_by_word(user_id: str, word: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT * FROM vocab WHERE user_id=$1 AND lower(word)=lower($2)", user_id, word.strip(),
+    )
+    return _serialize_row(row) if row else None
+
+
+async def db_list_vocab(user_id: str) -> list:
+    pool = await get_pool()
+    rows = await pool.fetch("SELECT * FROM vocab WHERE user_id=$1 ORDER BY added_at", user_id)
+    return [_serialize_row(r) for r in rows]
+
+
+async def db_get_vocab(item_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM vocab WHERE id=$1", item_id)
+    return _serialize_row(row) if row else None
+
+
+async def db_delete_vocab(item_id: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM vocab WHERE id=$1", item_id)
+
+
+async def db_delete_vocab_for_user(user_id: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM vocab WHERE user_id=$1", user_id)
+
+
+async def db_create_sentence_note(record: dict):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO sentence_notes (id, user_id, sentence, analysis, source_doc, date, added_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+        record["id"], record["user_id"], record.get("sentence"), record.get("analysis"),
+        record.get("source_doc"), record.get("date"), _parse_dt(record.get("added_at")),
+    )
+
+
+async def db_list_sentence_notes(user_id: str) -> list:
+    pool = await get_pool()
+    rows = await pool.fetch("SELECT * FROM sentence_notes WHERE user_id=$1 ORDER BY added_at", user_id)
+    return [_serialize_row(r) for r in rows]
+
+
+async def db_get_sentence_note(item_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM sentence_notes WHERE id=$1", item_id)
+    return _serialize_row(row) if row else None
+
+
+async def db_delete_sentence_note(item_id: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM sentence_notes WHERE id=$1", item_id)
+
+
+async def db_delete_sentence_notes_for_user(user_id: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM sentence_notes WHERE user_id=$1", user_id)
+
+
+async def db_get_usage(user_id: str, month: str) -> dict:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT calls, cost_usd FROM api_usage WHERE user_id=$1 AND month=$2", user_id, month)
+    if not row:
+        return {"calls": 0, "cost_usd": 0.0}
+    return {"calls": row["calls"], "cost_usd": row["cost_usd"]}
+
+
+async def db_record_api_call(user_id: str, month: str, cost: float):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO api_usage (user_id, month, calls, cost_usd) VALUES ($1,$2,1,$3)
+           ON CONFLICT (user_id, month) DO UPDATE
+           SET calls = api_usage.calls + 1, cost_usd = api_usage.cost_usd + EXCLUDED.cost_usd""",
+        user_id, month, cost,
+    )
+
+
+async def db_delete_user(user_id: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM users WHERE id=$1", user_id)
+
+
+async def db_get_another_user_ordered(exclude_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT * FROM users WHERE id != $1 ORDER BY created_at ASC LIMIT 1", exclude_id,
+    )
+    return _row_to_user(row)
+
+
+def _normalize_month_usage(month_usage):
+    # 兼容改版前的旧格式(以前 month_usage 直接是一个调用次数的数字)——只在从 JSON 迁移时用得到。
+    if isinstance(month_usage, (int, float)):
+        return {"calls": month_usage, "cost_usd": 0.0}
+    return month_usage
+
+
+async def _migrate_json_to_postgres(conn):
+    existing = await conn.fetchval("SELECT count(*) FROM users")
+    if existing and existing > 0:
+        print("[db] users 表已有数据，跳过 JSON -> Postgres 迁移", flush=True)
+        return
+
+    users = _read_json(USERS_FILE, [])
+    if not users:
+        print("[db] 没有旧的 users.json 数据，数据库从空开始", flush=True)
+        return
+
+    print(f"[db] 开始把 {len(users)} 个账号从 JSON 迁移到 Postgres...", flush=True)
+    for u in users:
+        await conn.execute(
+            """INSERT INTO users (id, name, username, password_salt, password_hash, google_id, google_email,
+                                   is_owner, ai_provider, ai_api_keys, sheets_sync_enabled)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+               ON CONFLICT (id) DO NOTHING""",
+            u["id"], u.get("name", ""), u.get("username"), u.get("password_salt"), u.get("password_hash"),
+            u.get("google_id"), u.get("google_email"), bool(u.get("is_owner", False)),
+            u.get("ai_provider", "deepseek"), json.dumps(u.get("ai_api_keys", {})),
+            bool(u.get("sheets_sync_enabled", False)),
+        )
+
+    documents = _read_json(DOCUMENTS_FILE, [])
+    for d in documents:
+        await conn.execute(
+            """INSERT INTO documents (id, user_id, filename, type, content, source_url, uploaded_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING""",
+            d["id"], d["user_id"], d.get("filename"), d.get("type"), d.get("content"),
+            d.get("source_url"), _parse_dt(d.get("uploaded_at")),
+        )
+
+    vocab = _read_json(VOCAB_FILE, [])
+    for v in vocab:
+        await conn.execute(
+            """INSERT INTO vocab (id, user_id, word, sentence, chinese_meaning, ipa, pos, source_doc, date, added_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING""",
+            v["id"], v["user_id"], v.get("word"), v.get("sentence"), v.get("chinese_meaning"),
+            v.get("ipa"), v.get("pos"), v.get("source_doc"), v.get("date"), _parse_dt(v.get("added_at")),
+        )
+
+    notes = _read_json(SENTENCE_NOTES_FILE, [])
+    for n in notes:
+        await conn.execute(
+            """INSERT INTO sentence_notes (id, user_id, sentence, analysis, source_doc, date, added_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING""",
+            n["id"], n["user_id"], n.get("sentence"), n.get("analysis"), n.get("source_doc"),
+            n.get("date"), _parse_dt(n.get("added_at")),
+        )
+
+    usage = _read_json(USAGE_FILE, {})
+    for user_id, months in usage.items():
+        for month, month_usage in months.items():
+            mu = _normalize_month_usage(month_usage)
+            await conn.execute(
+                """INSERT INTO api_usage (user_id, month, calls, cost_usd) VALUES ($1,$2,$3,$4)
+                   ON CONFLICT (user_id, month) DO NOTHING""",
+                user_id, month, int(mu.get("calls", 0)), float(mu.get("cost_usd", 0.0)),
+            )
+
+    print(
+        f"[db] 迁移完成：{len(users)} 账号, {len(documents)} 文档, {len(vocab)} 生词, {len(notes)} 句子笔记",
+        flush=True,
+    )
+
+    # 迁移完成后把旧 JSON 文件改名备份，不删除——留个痕迹，也避免下次启动误判。
+    for f in [USERS_FILE, DOCUMENTS_FILE, VOCAB_FILE, SENTENCE_NOTES_FILE, USAGE_FILE, SESSIONS_FILE]:
+        if f.exists():
+            f.rename(f.with_suffix(f.suffix + ".migrated"))
+
+
+async def _migrate_encrypt_existing_keys(conn):
+    # 一次性/幂等的补丁：把 users.ai_api_keys 里还没加密过的明文 key 加密。已经加密过的
+    # 值直接能被 _fernet.decrypt 解出来，会跳过，所以这个函数每次启动跑一遍也没问题。
+    rows = await conn.fetch("SELECT id, ai_api_keys FROM users")
+    changed = 0
+    for row in rows:
+        try:
+            keys = json.loads(row["ai_api_keys"] or "{}")
+        except json.JSONDecodeError:
+            continue
+        new_keys = {}
+        row_changed = False
+        for k, v in keys.items():
+            if not v or _is_encrypted(v):
+                new_keys[k] = v
+            else:
+                new_keys[k] = _encrypt_key(v)
+                row_changed = True
+        if row_changed:
+            await conn.execute("UPDATE users SET ai_api_keys=$1 WHERE id=$2", json.dumps(new_keys), row["id"])
+            changed += 1
+    if changed:
+        print(f"[db] 把 {changed} 个账号的 AI key 从明文改成加密存储", flush=True)
+
+
+async def init_db():
+    _migrate_legacy_invite_users()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(SCHEMA_SQL)
+        await _migrate_json_to_postgres(conn)
+        await _migrate_encrypt_existing_keys(conn)
+
+
+@app.on_event("startup")
+async def on_startup():
+    await init_db()
+
+
 # ---------- 用户 / 账号注册登录(用户名密码 + Google 登录，登录后发一个 session token) ----------
 # 谁都能自己注册用户名 + 密码，用户名/密码没有任何格式限制。第一个注册/登录的账号自动成为
 # 主账号(唯一能开 Google Sheets 同步的账号)。登录成功后发一个 token，之后每次请求带
-# Authorization: Bearer <token>；token 存在 data/sessions.json 里，不设过期时间(对这个
-# 规模来说没必要)，退出登录时会把对应的 token 删掉。
+# Authorization: Bearer <token>；token 存在 Postgres 的 sessions 表里，退出登录时会把
+# 对应的 token 删掉。
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -97,23 +588,39 @@ def _hash_password(password: str, salt: str) -> str:
     return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000).hex()
 
 
-def _create_session(user_id: str) -> str:
-    sessions = _read_json(SESSIONS_FILE, [])
-    token = secrets.token_urlsafe(32)
-    sessions.append({"token": token, "user_id": user_id, "created_at": datetime.now(timezone.utc).isoformat()})
-    _write_json(SESSIONS_FILE, sessions)
-    return token
+@app.get("/api/config")
+async def get_public_config():
+    # Turnstile site key 本来就是要贴到前端页面里的公开值，不是敏感信息，
+    # 走接口发而不是写死在 HTML 里，只是为了配置还是统一走环境变量。
+    return {"turnstile_site_key": TURNSTILE_SITE_KEY}
 
 
-def _delete_session(token: str):
-    sessions = _read_json(SESSIONS_FILE, [])
-    remaining = [s for s in sessions if s.get("token") != token]
-    if len(remaining) != len(sessions):
-        _write_json(SESSIONS_FILE, remaining)
+async def _verify_turnstile(token: str, remote_ip: str = "") -> bool:
+    if not TURNSTILE_SECRET_KEY:
+        return True  # 没配置密钥就跳过校验(本地开发环境没必要强制装验证码)
+    if not token:
+        return False
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            data={"secret": TURNSTILE_SECRET_KEY, "response": token, "remoteip": remote_ip},
+        )
+    if resp.status_code != 200:
+        return False
+    return bool(resp.json().get("success"))
+
+
+MIN_PASSWORD_LENGTH = 8
+
+
+def _validate_password_strength(password: str):
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(400, f"密码至少要 {MIN_PASSWORD_LENGTH} 位")
 
 
 def _migrate_legacy_invite_users():
-    """把改版前"邀请码即凭证"的老账号，自动补上 username/password(初始密码沿用原邀请码)。"""
+    """把改版前"邀请码即凭证"的老账号，自动补上 username/password(初始密码沿用原邀请码)。
+    这个函数只操作 JSON 文件，在 Postgres 迁移之前跑，保证迁移过去的数据里没有这种老格式。"""
     users = _read_json(USERS_FILE, [])
     if not users:
         return
@@ -155,80 +662,75 @@ def _audit(event: str, **fields):
     print(f"[audit] {datetime.now(timezone.utc).isoformat()} {event} {parts}", flush=True)
 
 
-_migrate_legacy_invite_users()
-
-
 class RegisterRequest(BaseModel):
     username: str
     password: str
+    turnstile_token: str = ""
 
 
 @app.post("/api/register")
-async def register(req: RegisterRequest):
+@limiter.limit("10/minute")
+async def register(request: Request, req: RegisterRequest):
     username = req.username.strip()
     password = req.password
     if not username or not password:
         raise HTTPException(400, "用户名和密码不能为空")
+    if not await _verify_turnstile(req.turnstile_token, get_remote_address(request)):
+        raise HTTPException(400, "人机验证没通过，刷新页面重试一下")
+    _validate_password_strength(password)
 
-    users = _read_json(USERS_FILE, [])
-    if any(u.get("username") == username for u in users):
+    if await db_get_user_by_username(username):
         raise HTTPException(400, "这个用户名已经被注册了，换一个")
 
     salt = secrets.token_hex(16)
-    new_user = {
-        "id": "u_" + uuid.uuid4().hex[:10],
-        "name": username,
-        "username": username,
-        "password_salt": salt,
-        "password_hash": _hash_password(password, salt),
-        "is_owner": len(users) == 0,
-        "ai_provider": "deepseek",
-        "ai_api_keys": {},
-        "sheets_sync_enabled": False,
-    }
-    users.append(new_user)
-    _write_json(USERS_FILE, users)
+    user_count = await db_count_users()
+    new_user = await db_create_user(
+        id="u_" + uuid.uuid4().hex[:10],
+        name=username,
+        username=username,
+        password_salt=salt,
+        password_hash=_hash_password(password, salt),
+        is_owner=(user_count == 0),
+    )
     _audit("register", user_id=new_user["id"], username=username)
-    token = _create_session(new_user["id"])
+    token = await db_create_session(new_user["id"])
     return {"token": token, "id": new_user["id"], "name": username, "is_owner": new_user["is_owner"]}
 
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+    turnstile_token: str = ""
 
 
 @app.post("/api/login")
-async def login(req: LoginRequest):
-    users = _read_json(USERS_FILE, [])
-    user = next((u for u in users if u.get("username") == req.username.strip()), None)
+@limiter.limit("10/minute")
+async def login(request: Request, req: LoginRequest):
+    if not await _verify_turnstile(req.turnstile_token, get_remote_address(request)):
+        raise HTTPException(400, "人机验证没通过，刷新页面重试一下")
+    user = await db_get_user_by_username(req.username.strip())
     if not user or not user.get("password_hash"):
         raise HTTPException(401, "用户名或密码不对")
-    expected = _hash_password(req.password, user.get("password_salt", ""))
+    expected = _hash_password(req.password, user.get("password_salt") or "")
     if not hmac.compare_digest(expected, user["password_hash"]):
         raise HTTPException(401, "用户名或密码不对")
-    token = _create_session(user["id"])
+    token = await db_create_session(user["id"])
     return {"token": token, "id": user["id"], "name": user.get("name", ""), "is_owner": user.get("is_owner", False)}
 
 
 @app.post("/api/logout")
 async def logout(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     if credentials:
-        _delete_session(credentials.credentials)
+        await db_delete_session(credentials.credentials)
     return {"ok": True}
 
 
 async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     if not credentials:
         raise HTTPException(401, "未登录")
-    sessions = _read_json(SESSIONS_FILE, [])
-    session = next((s for s in sessions if s.get("token") == credentials.credentials), None)
-    if not session:
-        raise HTTPException(401, "登录状态已失效，重新登录一下")
-    users = _read_json(USERS_FILE, [])
-    user = next((u for u in users if u["id"] == session["user_id"]), None)
+    user = await db_get_session_user(credentials.credentials)
     if not user:
-        raise HTTPException(401, "账号不存在")
+        raise HTTPException(401, "登录状态已失效，重新登录一下")
     return user
 
 
@@ -242,16 +744,11 @@ class ChangePasswordRequest(BaseModel):
 
 
 @app.post("/api/change-password")
-async def change_password(req: ChangePasswordRequest, user: dict = Depends(get_current_user)):
-    if not req.new_password:
-        raise HTTPException(400, "新密码不能为空")
-    users = _read_json(USERS_FILE, [])
-    for u in users:
-        if u["id"] == user["id"]:
-            salt = secrets.token_hex(16)
-            u["password_salt"] = salt
-            u["password_hash"] = _hash_password(req.new_password, salt)
-    _write_json(USERS_FILE, users)
+@limiter.limit("10/minute")
+async def change_password(request: Request, req: ChangePasswordRequest, user: dict = Depends(get_current_user)):
+    _validate_password_strength(req.new_password)
+    salt = secrets.token_hex(16)
+    await db_update_user_fields(user["id"], password_salt=salt, password_hash=_hash_password(req.new_password, salt))
     _audit("change_password", user_id=user["id"], username=user.get("username"))
     return {"ok": True}
 
@@ -265,14 +762,10 @@ async def change_username(req: ChangeUsernameRequest, user: dict = Depends(get_c
     new_username = req.new_username.strip()
     if not new_username:
         raise HTTPException(400, "新用户名不能为空")
-    users = _read_json(USERS_FILE, [])
-    if any(u.get("username") == new_username and u["id"] != user["id"] for u in users):
+    existing = await db_get_user_by_username(new_username)
+    if existing and existing["id"] != user["id"]:
         raise HTTPException(400, "这个用户名已经被占用了，换一个")
-    for u in users:
-        if u["id"] == user["id"]:
-            u["username"] = new_username
-            u["name"] = new_username
-    _write_json(USERS_FILE, users)
+    await db_update_user_fields(user["id"], username=new_username, name=new_username)
     _audit("change_username", user_id=user["id"], old_username=user.get("username"), new_username=new_username)
     return {"ok": True, "username": new_username, "name": new_username}
 
@@ -281,30 +774,101 @@ async def change_username(req: ChangeUsernameRequest, user: dict = Depends(get_c
 async def list_registered_users(user: dict = Depends(get_current_user)):
     if not user.get("is_owner"):
         raise HTTPException(403, "只有主账号能查看用户列表")
-    users = _read_json(USERS_FILE, [])
-    return [{"name": u.get("name", ""), "is_owner": u.get("is_owner", False)} for u in users]
+    pool = await get_pool()
+    rows = await pool.fetch("SELECT name, is_owner FROM users ORDER BY name")
+    return [{"name": r["name"], "is_owner": r["is_owner"]} for r in rows]
 
 
-# ---------- Google 登录 ----------
+@app.get("/api/account/export")
+@limiter.limit("5/minute")
+async def export_account_data(request: Request, user: dict = Depends(get_current_user)):
+    # 导出的是"你自己能看到的数据"，不包含密码哈希、AI key 这类凭证信息——没必要导出，
+    # 导出反而多一份泄露风险。
+    documents = await db_list_documents(user["id"])
+    vocab = await db_list_vocab(user["id"])
+    notes = await db_list_sentence_notes(user["id"])
+    month_key = datetime.now().strftime("%Y-%m")
+    usage = await db_get_usage(user["id"], month_key)
+    return {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "account": {
+            "id": user["id"],
+            "username": user.get("username"),
+            "name": user.get("name"),
+            "google_email": user.get("google_email") or None,
+            "is_owner": user.get("is_owner", False),
+            "ai_provider": user.get("ai_provider"),
+            "sheets_sync_enabled": user.get("sheets_sync_enabled", False),
+        },
+        "documents": documents,
+        "vocab": vocab,
+        "sentence_notes": notes,
+        "usage_this_month": usage,
+    }
 
-_pending_oauth_states: dict = {}  # state -> 生成时间，用来防 CSRF，顺手清理超过 10 分钟的旧记录
+
+@app.delete("/api/account")
+@limiter.limit("5/minute")
+async def delete_account(request: Request, user: dict = Depends(get_current_user)):
+    # 主账号删号的话先把主账号身份转给另一个还在的账号(按注册时间挑最早的那个)，
+    # 不然 Google Sheets 同步开关这些主账号专属功能就没人能用了。
+    if user.get("is_owner"):
+        successor = await db_get_another_user_ordered(user["id"])
+        if successor:
+            await db_update_user_fields(successor["id"], is_owner=True)
+            _audit("owner_transfer", from_user_id=user["id"], to_user_id=successor["id"])
+    await db_delete_user(user["id"])
+    _audit("account_deleted", user_id=user["id"], username=user.get("username"))
+    return {"ok": True}
 
 
-def _new_oauth_state() -> str:
+# ---------- Google 登录 / 关联 ----------
+# 谷歌登录默认按 google_id 查/建账号，跟用户名密码账号是分开的。要让"同一个账号既能用
+# 用户名密码登录、也能用 Google 登录"，需要显式关联：已登录用户在设置面板点"关联 Google
+# 账号"，走一遍 OAuth，把拿到的 google_id 写到当前账号上，而不是新建/登录到别的账号。
+# 由于 OAuth 是整页跳转，中途拿不到 Authorization header，所以先用一个短期一次性 nonce
+# (通过已登录状态的 POST 请求换到)把"是谁在发起关联"这件事传过去，再带着 nonce 跳转。
+
+_pending_oauth_states: dict = {}  # state -> {"ts": 时间, "link_user_id": 关联目标账号id或None}
+_pending_link_nonces: dict = {}  # nonce -> {"ts": 时间, "user_id": ...}
+
+
+def _cleanup_stale(d: dict, max_age_seconds: int = 600):
     now = datetime.now(timezone.utc)
-    stale = [s for s, ts in _pending_oauth_states.items() if (now - ts).total_seconds() > 600]
-    for s in stale:
-        _pending_oauth_states.pop(s, None)
+    stale = [k for k, v in d.items() if (now - v["ts"]).total_seconds() > max_age_seconds]
+    for k in stale:
+        d.pop(k, None)
+
+
+def _new_oauth_state(link_user_id: Optional[str] = None) -> str:
+    _cleanup_stale(_pending_oauth_states)
     state = secrets.token_urlsafe(16)
-    _pending_oauth_states[state] = now
+    _pending_oauth_states[state] = {"ts": datetime.now(timezone.utc), "link_user_id": link_user_id}
     return state
 
 
+@app.post("/api/auth/google/link-init")
+@limiter.limit("10/minute")
+async def google_link_init(request: Request, user: dict = Depends(get_current_user)):
+    _cleanup_stale(_pending_link_nonces)
+    nonce = secrets.token_urlsafe(24)
+    _pending_link_nonces[nonce] = {"ts": datetime.now(timezone.utc), "user_id": user["id"]}
+    return {"nonce": nonce}
+
+
 @app.get("/api/auth/google/login")
-async def google_login(request: Request):
+async def google_login(request: Request, link_nonce: str = ""):
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(500, "这个部署还没配置 Google 登录(缺 GOOGLE_CLIENT_ID)")
-    state = _new_oauth_state()
+
+    link_user_id = None
+    if link_nonce:
+        entry = _pending_link_nonces.pop(link_nonce, None)
+        if not entry:
+            raise HTTPException(400, "关联请求已过期，回设置里重新点一次")
+        link_user_id = entry["user_id"]
+
+    state = _new_oauth_state(link_user_id=link_user_id)
     redirect_uri = str(request.base_url) + "api/auth/google/callback"
     params = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -323,7 +887,8 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         raise HTTPException(400, f"Google 登录失败: {error}")
     if not state or state not in _pending_oauth_states:
         raise HTTPException(400, "登录状态已过期，重新点一次「用 Google 登录」")
-    _pending_oauth_states.pop(state, None)
+    state_entry = _pending_oauth_states.pop(state)
+    link_user_id = state_entry.get("link_user_id")
 
     redirect_uri = str(request.base_url) + "api/auth/google/callback"
     async with httpx.AsyncClient(timeout=15) as client:
@@ -355,24 +920,36 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
     if not google_id:
         raise HTTPException(400, "Google 账号信息里没有用户 ID")
 
-    users = _read_json(USERS_FILE, [])
-    user = next((u for u in users if u.get("google_id") == google_id), None)
+    if link_user_id:
+        # 关联流程：把这个 google_id 绑到当前登录的账号上，而不是新建/登录到别的账号。
+        # 如果这个 google_id 之前绑在另一个账号上(比如之前误建了个空的 Google 账号)，
+        # 就把它从旧账号上摘下来，改绑到这次要关联的账号——反正 Google 身份认证本身
+        # 已经证明了操作者对这个 Google 账号有控制权，重新指向不算越权。
+        target = await db_get_user_by_id(link_user_id)
+        if not target:
+            raise HTTPException(400, "要关联的账号不存在了，重新登录后再试一次")
+        existing_owner = await db_get_user_by_google_id(google_id)
+        if existing_owner and existing_owner["id"] != link_user_id:
+            await db_update_user_fields(existing_owner["id"], google_id=None, google_email=None)
+            _audit("google_unlink", user_id=existing_owner["id"], google_email=email)
+        await db_update_user_fields(link_user_id, google_id=google_id, google_email=email)
+        _audit("google_link", user_id=link_user_id, google_email=email)
+        token = await db_create_session(link_user_id)
+        return RedirectResponse(f"/#token={token}&google_linked=1")
+
+    user = await db_get_user_by_google_id(google_id)
     if not user:
-        user = {
-            "id": "u_" + uuid.uuid4().hex[:10],
-            "name": name,
-            "google_id": google_id,
-            "google_email": email,
-            "is_owner": len(users) == 0,
-            "ai_provider": "deepseek",
-            "ai_api_keys": {},
-            "sheets_sync_enabled": False,
-        }
-        users.append(user)
-        _write_json(USERS_FILE, users)
+        user_count = await db_count_users()
+        user = await db_create_user(
+            id="u_" + uuid.uuid4().hex[:10],
+            name=name,
+            google_id=google_id,
+            google_email=email,
+            is_owner=(user_count == 0),
+        )
         _audit("google_register", user_id=user["id"], google_email=email)
 
-    token = _create_session(user["id"])
+    token = await db_create_session(user["id"])
     return RedirectResponse(f"/#token={token}")
 
 
@@ -409,7 +986,6 @@ async def upload_document(file: UploadFile = File(...), user: dict = Depends(get
         raise HTTPException(400, "没能从这个文件里提取出文字，可能是扫描版 PDF(图片形式，没有文字层)")
 
     doc_id = uuid.uuid4().hex[:12]
-    documents = _read_json(DOCUMENTS_FILE, [])
     record = {
         "id": doc_id,
         "user_id": user["id"],
@@ -418,8 +994,7 @@ async def upload_document(file: UploadFile = File(...), user: dict = Depends(get
         "content": content,
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
-    documents.append(record)
-    _write_json(DOCUMENTS_FILE, documents)
+    await db_create_document(record)
     return record
 
 
@@ -434,7 +1009,6 @@ async def paste_document(req: PasteRequest, user: dict = Depends(get_current_use
         raise HTTPException(400, "文章内容不能为空")
 
     doc_id = uuid.uuid4().hex[:12]
-    documents = _read_json(DOCUMENTS_FILE, [])
     record = {
         "id": doc_id,
         "user_id": user["id"],
@@ -443,8 +1017,7 @@ async def paste_document(req: PasteRequest, user: dict = Depends(get_current_use
         "content": req.content,
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
-    documents.append(record)
-    _write_json(DOCUMENTS_FILE, documents)
+    await db_create_document(record)
     return record
 
 
@@ -481,7 +1054,6 @@ async def fetch_url_document(req: UrlFetchRequest, user: dict = Depends(get_curr
         raise HTTPException(400, "没有提取到正文内容")
 
     doc_id = uuid.uuid4().hex[:12]
-    documents = _read_json(DOCUMENTS_FILE, [])
     record = {
         "id": doc_id,
         "user_id": user["id"],
@@ -491,15 +1063,13 @@ async def fetch_url_document(req: UrlFetchRequest, user: dict = Depends(get_curr
         "source_url": url,
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
-    documents.append(record)
-    _write_json(DOCUMENTS_FILE, documents)
+    await db_create_document(record)
     return record
 
 
 @app.get("/api/documents")
 async def list_documents(user: dict = Depends(get_current_user)):
-    documents = _read_json(DOCUMENTS_FILE, [])
-    return [d for d in documents if d.get("user_id") == user["id"]]
+    return await db_list_documents(user["id"])
 
 
 # ---------- AI 调用(多服务商：DeepSeek / OpenAI / Claude / Gemini，用各自用户自己填的 key) ----------
@@ -521,32 +1091,19 @@ PROVIDER_PRICING = {
 }
 
 
-def _normalize_month_usage(month_usage):
-    # 兼容改版前的旧格式(以前 month_usage 直接是一个调用次数的数字)
-    if isinstance(month_usage, (int, float)):
-        return {"calls": month_usage, "cost_usd": 0.0}
-    return month_usage
-
-
-def record_api_call(user_id: str, provider: str = "", input_tokens: int = 0, output_tokens: int = 0):
-    usage = _read_json(USAGE_FILE, {})
+async def record_api_call(user_id: str, provider: str = "", input_tokens: int = 0, output_tokens: int = 0):
     month_key = datetime.now().strftime("%Y-%m")
-    user_usage = usage.setdefault(user_id, {})
-    month_usage = _normalize_month_usage(user_usage.get(month_key, {}))
-    month_usage["calls"] = month_usage.get("calls", 0) + 1
     rates = PROVIDER_PRICING.get(provider)
+    cost = 0.0
     if rates:
         cost = (input_tokens / 1_000_000) * rates["input"] + (output_tokens / 1_000_000) * rates["output"]
-        month_usage["cost_usd"] = month_usage.get("cost_usd", 0.0) + cost
-    user_usage[month_key] = month_usage
-    _write_json(USAGE_FILE, usage)
+    await db_record_api_call(user_id, month_key, cost)
 
 
 @app.get("/api/usage")
 async def get_usage(user: dict = Depends(get_current_user)):
-    usage = _read_json(USAGE_FILE, {})
     month_key = datetime.now().strftime("%Y-%m")
-    month_usage = _normalize_month_usage(usage.get(user["id"], {}).get(month_key, {}))
+    month_usage = await db_get_usage(user["id"], month_key)
     return {
         "month": month_key,
         "count": month_usage.get("calls", 0),
@@ -624,7 +1181,7 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
     else:
         raise HTTPException(500, "AI 服务商配置错误")
 
-    record_api_call(user_id, provider, in_tok, out_tok)
+    await record_api_call(user_id, provider, in_tok, out_tok)
     return text
 
 
@@ -666,7 +1223,8 @@ class AnalyzeResponse(BaseModel):
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
-async def analyze_selection(req: AnalyzeRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = Depends(get_current_user)):
     provider = user.get("ai_provider", "deepseek")
     api_key = user.get("ai_api_keys", {}).get(provider, "")
 
@@ -804,6 +1362,8 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "name": user.get("name", ""),
         "is_owner": user.get("is_owner", False),
         "has_password": bool(user.get("password_hash")),
+        "has_google": bool(user.get("google_id")),
+        "google_email": user.get("google_email") or "",
         "ai_provider": user.get("ai_provider", "deepseek"),
         "ai_key_status": {
             k: {"has_key": bool(keys.get(k)), "masked": mask_key(keys.get(k, ""))}
@@ -825,16 +1385,13 @@ async def update_settings(req: SettingsRequest, user: dict = Depends(get_current
     if req.ai_provider not in PROVIDER_CONFIG:
         raise HTTPException(400, "不支持的 AI 服务商")
 
-    users = _read_json(USERS_FILE, [])
-    for u in users:
-        if u["id"] == user["id"]:
-            u["ai_provider"] = req.ai_provider
-            if req.ai_api_key:
-                keys = u.setdefault("ai_api_keys", {})
-                keys[req.ai_provider] = req.ai_api_key
-            if u.get("is_owner"):
-                u["sheets_sync_enabled"] = req.sheets_sync_enabled
-    _write_json(USERS_FILE, users)
+    keys = dict(user.get("ai_api_keys", {}))
+    if req.ai_api_key:
+        keys[req.ai_provider] = req.ai_api_key
+    update_fields = {"ai_provider": req.ai_provider, "ai_api_keys": keys}
+    if user.get("is_owner"):
+        update_fields["sheets_sync_enabled"] = req.sheets_sync_enabled
+    await db_update_user_fields(user["id"], **update_fields)
     return {"ok": True}
 
 
@@ -869,14 +1426,7 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
     should_sync = bool(user.get("is_owner")) and bool(user.get("sheets_sync_enabled"))
 
     if req.mode == "word":
-        vocab = _read_json(VOCAB_FILE, [])
-        existing = next(
-            (
-                v for v in vocab
-                if v.get("user_id") == user["id"] and v.get("word", "").strip().lower() == req.text.strip().lower()
-            ),
-            None,
-        )
+        existing = await db_find_vocab_by_word(user["id"], req.text)
         if existing:
             return {"record": existing, "sheet_synced": False, "duplicate": True}
 
@@ -892,8 +1442,7 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
             "date": today,
             "added_at": now_iso,
         }
-        vocab.append(record)
-        _write_json(VOCAB_FILE, vocab)
+        await db_create_vocab(record)
         synced = False
         if should_sync:
             synced = await push_to_sheet({
@@ -908,7 +1457,6 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
             })
         return {"record": record, "sheet_synced": synced, "duplicate": False}
     else:
-        notes = _read_json(SENTENCE_NOTES_FILE, [])
         record = {
             "id": uuid.uuid4().hex[:12],
             "user_id": user["id"],
@@ -918,8 +1466,7 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
             "date": today,
             "added_at": now_iso,
         }
-        notes.append(record)
-        _write_json(SENTENCE_NOTES_FILE, notes)
+        await db_create_sentence_note(record)
         synced = False
         if should_sync:
             synced = await push_to_sheet({
@@ -934,35 +1481,29 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
 
 @app.get("/api/vocab")
 async def list_vocab(user: dict = Depends(get_current_user)):
-    vocab = _read_json(VOCAB_FILE, [])
-    return [v for v in vocab if v.get("user_id") == user["id"]]
+    return await db_list_vocab(user["id"])
 
 
 @app.get("/api/sentence_notes")
 async def list_sentence_notes(user: dict = Depends(get_current_user)):
-    notes = _read_json(SENTENCE_NOTES_FILE, [])
-    return [n for n in notes if n.get("user_id") == user["id"]]
+    return await db_list_sentence_notes(user["id"])
 
 
 @app.delete("/api/vocab/{item_id}")
 async def delete_vocab(item_id: str, user: dict = Depends(get_current_user)):
-    vocab = _read_json(VOCAB_FILE, [])
-    target = next((v for v in vocab if v.get("id") == item_id), None)
+    target = await db_get_vocab(item_id)
     if not target or target.get("user_id") != user["id"]:
         raise HTTPException(404, "没找到这条生词记录")
-    remaining = [v for v in vocab if v.get("id") != item_id]
-    _write_json(VOCAB_FILE, remaining)
+    await db_delete_vocab(item_id)
     return {"ok": True}
 
 
 @app.delete("/api/sentence_notes/{item_id}")
 async def delete_sentence_note(item_id: str, user: dict = Depends(get_current_user)):
-    notes = _read_json(SENTENCE_NOTES_FILE, [])
-    target = next((n for n in notes if n.get("id") == item_id), None)
+    target = await db_get_sentence_note(item_id)
     if not target or target.get("user_id") != user["id"]:
         raise HTTPException(404, "没找到这条句子笔记")
-    remaining = [n for n in notes if n.get("id") != item_id]
-    _write_json(SENTENCE_NOTES_FILE, remaining)
+    await db_delete_sentence_note(item_id)
     return {"ok": True}
 
 
