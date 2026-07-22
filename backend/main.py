@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import hmac
 import io
 import json
 import os
@@ -15,8 +17,9 @@ import pdfplumber
 import trafilatura
 from docx import Document as DocxDocument
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -60,42 +63,89 @@ def _write_json(path: Path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# ---------- 用户 / 邀请码登录(方案 B：几个人共用一份部署，靠邀请码区分数据) ----------
-# 简化设计：邀请码本身就是凭证，每次请求都带在 X-Invite-Code 请求头里，后端直接查表核对。
-# 没有做 session/token 过期这些，对"发给几个朋友用"这个规模来说没必要，换取实现简单。
+# ---------- 用户 / 账号注册登录 ----------
+# 谁都能自己注册用户名 + 密码，用户名/密码没有任何格式限制。第一个注册的账号自动成为
+# 主账号(唯一能开 Google Sheets 同步的账号)。用标准 HTTP Basic Auth 传凭证(浏览器自带
+# 支持，FastAPI 自带解析)，没有做 session/token 过期这些，对这个规模来说没必要。
+
+security = HTTPBasic()
 
 
-def _bootstrap_owner_if_needed():
-    """全新部署(数据盘上还没有 users.json)时，用环境变量自动建主账号，不用登录服务器手动跑脚本。"""
-    if USERS_FILE.exists():
+def _hash_password(password: str, salt: str) -> str:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000).hex()
+
+
+def _migrate_legacy_invite_users():
+    """把改版前"邀请码即凭证"的老账号，自动补上 username/password(初始密码沿用原邀请码)。"""
+    users = _read_json(USERS_FILE, [])
+    if not users:
         return
-    owner_name = os.environ.get("BOOTSTRAP_OWNER_NAME")
-    if not owner_name:
-        return
-    invite_code = os.environ.get("BOOTSTRAP_INVITE_CODE") or secrets.token_hex(4)
-    owner = {
+    existing_usernames = {u.get("username") for u in users if u.get("username")}
+    changed = False
+    for u in users:
+        if u.get("password_hash") or not u.get("invite_code"):
+            continue
+        base = re.sub(r"[^a-zA-Z0-9]", "", u.get("name", "")).lower() or "user"
+        username = base
+        n = 1
+        while username in existing_usernames:
+            n += 1
+            username = f"{base}{n}"
+        existing_usernames.add(username)
+        salt = secrets.token_hex(16)
+        u["username"] = username
+        u["password_salt"] = salt
+        u["password_hash"] = _hash_password(u["invite_code"], salt)
+        changed = True
+        print(f"[migrate] 账号「{u.get('name','')}」自动分配用户名：{username}（初始密码是原来的邀请码）")
+    if changed:
+        _write_json(USERS_FILE, users)
+
+
+_migrate_legacy_invite_users()
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/register")
+async def register(req: RegisterRequest):
+    username = req.username.strip()
+    password = req.password
+    if not username or not password:
+        raise HTTPException(400, "用户名和密码不能为空")
+
+    users = _read_json(USERS_FILE, [])
+    if any(u.get("username") == username for u in users):
+        raise HTTPException(400, "这个用户名已经被注册了，换一个")
+
+    salt = secrets.token_hex(16)
+    new_user = {
         "id": "u_" + uuid.uuid4().hex[:10],
-        "name": owner_name,
-        "invite_code": invite_code,
-        "is_owner": True,
+        "name": username,
+        "username": username,
+        "password_salt": salt,
+        "password_hash": _hash_password(password, salt),
+        "is_owner": len(users) == 0,
         "ai_provider": "deepseek",
         "ai_api_keys": {},
         "sheets_sync_enabled": False,
     }
-    _write_json(USERS_FILE, [owner])
-    print(f"[bootstrap] 已自动创建主账号「{owner_name}」，邀请码：{invite_code}")
+    users.append(new_user)
+    _write_json(USERS_FILE, users)
+    return {"id": new_user["id"], "name": username, "is_owner": new_user["is_owner"]}
 
 
-_bootstrap_owner_if_needed()
-
-
-async def get_current_user(x_invite_code: str = Header(default="", alias="X-Invite-Code")):
-    if not x_invite_code:
-        raise HTTPException(401, "缺少邀请码")
+async def get_current_user(credentials: HTTPBasicCredentials = Depends(security)):
     users = _read_json(USERS_FILE, [])
-    user = next((u for u in users if u.get("invite_code") == x_invite_code), None)
-    if not user:
-        raise HTTPException(401, "邀请码无效")
+    user = next((u for u in users if u.get("username") == credentials.username), None)
+    if not user or not user.get("password_hash"):
+        raise HTTPException(401, "用户名或密码不对")
+    expected = _hash_password(credentials.password, user.get("password_salt", ""))
+    if not hmac.compare_digest(expected, user["password_hash"]):
+        raise HTTPException(401, "用户名或密码不对")
     return user
 
 
@@ -104,36 +154,8 @@ async def get_me(user: dict = Depends(get_current_user)):
     return {"id": user["id"], "name": user.get("name", ""), "is_owner": user.get("is_owner", False)}
 
 
-class CreateInviteRequest(BaseModel):
-    name: str
-
-
-@app.post("/api/admin/create-user")
-async def create_invited_user(req: CreateInviteRequest, user: dict = Depends(get_current_user)):
-    if not user.get("is_owner"):
-        raise HTTPException(403, "只有主账号能生成邀请码")
-    name = req.name.strip()
-    if not name:
-        raise HTTPException(400, "名字不能为空")
-
-    users = _read_json(USERS_FILE, [])
-    invite_code = secrets.token_hex(4)
-    new_user = {
-        "id": "u_" + uuid.uuid4().hex[:10],
-        "name": name,
-        "invite_code": invite_code,
-        "is_owner": False,
-        "ai_provider": "deepseek",
-        "ai_api_keys": {},
-        "sheets_sync_enabled": False,
-    }
-    users.append(new_user)
-    _write_json(USERS_FILE, users)
-    return {"name": name, "invite_code": invite_code}
-
-
 @app.get("/api/admin/users")
-async def list_invited_users(user: dict = Depends(get_current_user)):
+async def list_registered_users(user: dict = Depends(get_current_user)):
     if not user.get("is_owner"):
         raise HTTPException(403, "只有主账号能查看用户列表")
     users = _read_json(USERS_FILE, [])

@@ -1103,28 +1103,6 @@ body {
   min-height: 16px;
 }
 
-.inviteRow {
-  display: flex;
-  gap: 8px;
-}
-
-.inviteRow input[type="text"] {
-  flex: 1;
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-family: inherit;
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.inviteRow input[type="text"]:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-tint);
-}
-
 /* ---------- 登录(邀请码) ---------- */
 
 #loginOverlay {
@@ -1160,7 +1138,8 @@ body {
   letter-spacing: -0.01em;
 }
 
-#loginPanel input[type="text"] {
+#loginPanel input[type="text"],
+#loginPanel input[type="password"] {
   padding: 11px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1168,10 +1147,10 @@ body {
   font-family: inherit;
   background: var(--surface-2);
   color: var(--text);
-  letter-spacing: 0.04em;
 }
 
-#loginPanel input[type="text"]:focus {
+#loginPanel input[type="text"]:focus,
+#loginPanel input[type="password"]:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-tint);

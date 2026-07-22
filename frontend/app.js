@@ -1,8 +1,13 @@
-let inviteCode = localStorage.getItem("inviteCode") || "";
+let authUsername = localStorage.getItem("authUsername") || "";
+let authPassword = localStorage.getItem("authPassword") || "";
 let currentUser = null; // {id, name, is_owner}
 
+function authHeader(username, password) {
+  return "Basic " + btoa(unescape(encodeURIComponent(`${username}:${password}`)));
+}
+
 function apiFetch(url, opts = {}) {
-  const headers = { ...(opts.headers || {}), "X-Invite-Code": inviteCode };
+  const headers = { ...(opts.headers || {}), Authorization: authHeader(authUsername, authPassword) };
   return fetch(url, { ...opts, headers });
 }
 
@@ -68,14 +73,13 @@ const btnLogout = document.getElementById("btnLogout");
 
 const inviteBlock = document.getElementById("inviteBlock");
 const invitedUsersList = document.getElementById("invitedUsersList");
-const inviteNameInput = document.getElementById("inviteNameInput");
-const btnCreateInvite = document.getElementById("btnCreateInvite");
-const inviteResult = document.getElementById("inviteResult");
 
 const loginOverlay = document.getElementById("loginOverlay");
-const loginInviteCodeInput = document.getElementById("loginInviteCodeInput");
+const loginUsernameInput = document.getElementById("loginUsernameInput");
+const loginPasswordInput = document.getElementById("loginPasswordInput");
 const loginError = document.getElementById("loginError");
 const btnLoginSubmit = document.getElementById("btnLoginSubmit");
+const btnRegisterSubmit = document.getElementById("btnRegisterSubmit");
 
 // ---------- 文档列表 / 加载 ----------
 
@@ -1008,8 +1012,6 @@ async function loadSettingsIntoPanel() {
   sheetsSyncToggle.checked = !!data.sheets_sync_enabled;
 
   inviteBlock.classList.toggle("hidden", !data.is_owner);
-  inviteResult.textContent = "";
-  inviteNameInput.value = "";
   if (data.is_owner) loadInvitedUsers();
 }
 
@@ -1019,28 +1021,6 @@ async function loadInvitedUsers() {
   const users = await res.json();
   invitedUsersList.textContent = users.map((u) => u.name + (u.is_owner ? "（你）" : "")).join("、");
 }
-
-btnCreateInvite.addEventListener("click", async () => {
-  const name = inviteNameInput.value.trim();
-  if (!name) return;
-  btnCreateInvite.disabled = true;
-  try {
-    const res = await apiFetch("/api/admin/create-user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    inviteResult.textContent = `已生成「${data.name}」的邀请码：${data.invite_code}（发给对方，对方登录后自己去设置里填 AI Key）`;
-    inviteNameInput.value = "";
-    loadInvitedUsers();
-  } catch (err) {
-    inviteResult.textContent = "生成失败: " + err.message;
-  } finally {
-    btnCreateInvite.disabled = false;
-  }
-});
 
 function updateKeyHint() {
   if (!settingsDataCache) return;
@@ -1077,15 +1057,16 @@ btnSettingsSave.addEventListener("click", async () => {
 });
 
 btnLogout.addEventListener("click", () => {
-  localStorage.removeItem("inviteCode");
+  localStorage.removeItem("authUsername");
+  localStorage.removeItem("authPassword");
   location.reload();
 });
 
-// ---------- 登录(邀请码) ----------
+// ---------- 登录 / 注册(用户名 + 密码) ----------
 
-async function checkInviteCode(code) {
+async function checkCredentials(username, password) {
   try {
-    const res = await fetch("/api/me", { headers: { "X-Invite-Code": code } });
+    const res = await fetch("/api/me", { headers: { Authorization: authHeader(username, password) } });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
@@ -1099,40 +1080,80 @@ async function initApp() {
   loadUsage();
 }
 
-btnLoginSubmit.addEventListener("click", async () => {
-  const code = loginInviteCodeInput.value.trim();
-  if (!code) return;
-  btnLoginSubmit.disabled = true;
-  loginError.classList.add("hidden");
-  const me = await checkInviteCode(code);
-  btnLoginSubmit.disabled = false;
-  if (!me) {
-    loginError.textContent = "邀请码不对，再检查一下";
-    loginError.classList.remove("hidden");
-    return;
-  }
-  inviteCode = code;
-  localStorage.setItem("inviteCode", code);
+function enterApp(username, password, me) {
+  authUsername = username;
+  authPassword = password;
+  localStorage.setItem("authUsername", username);
+  localStorage.setItem("authPassword", password);
   currentUser = me;
   loginOverlay.classList.add("hidden");
   initApp();
+}
+
+btnLoginSubmit.addEventListener("click", async () => {
+  const username = loginUsernameInput.value.trim();
+  const password = loginPasswordInput.value;
+  if (!username || !password) return;
+  btnLoginSubmit.disabled = true;
+  btnRegisterSubmit.disabled = true;
+  loginError.classList.add("hidden");
+  const me = await checkCredentials(username, password);
+  btnLoginSubmit.disabled = false;
+  btnRegisterSubmit.disabled = false;
+  if (!me) {
+    loginError.textContent = "用户名或密码不对，再检查一下";
+    loginError.classList.remove("hidden");
+    return;
+  }
+  enterApp(username, password, me);
 });
 
-loginInviteCodeInput.addEventListener("keydown", (e) => {
+btnRegisterSubmit.addEventListener("click", async () => {
+  const username = loginUsernameInput.value.trim();
+  const password = loginPasswordInput.value;
+  if (!username || !password) {
+    loginError.textContent = "用户名和密码都要填";
+    loginError.classList.remove("hidden");
+    return;
+  }
+  btnLoginSubmit.disabled = true;
+  btnRegisterSubmit.disabled = true;
+  loginError.classList.add("hidden");
+  try {
+    const res = await fetch("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const me = await res.json();
+    enterApp(username, password, me);
+  } catch (err) {
+    loginError.textContent = "注册失败: " + err.message;
+    loginError.classList.remove("hidden");
+  } finally {
+    btnLoginSubmit.disabled = false;
+    btnRegisterSubmit.disabled = false;
+  }
+});
+
+loginPasswordInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") btnLoginSubmit.click();
 });
 
 (async () => {
-  if (inviteCode) {
-    const me = await checkInviteCode(inviteCode);
+  if (authUsername && authPassword) {
+    const me = await checkCredentials(authUsername, authPassword);
     if (me) {
       currentUser = me;
       initApp();
       return;
     }
-    localStorage.removeItem("inviteCode");
-    inviteCode = "";
+    localStorage.removeItem("authUsername");
+    localStorage.removeItem("authPassword");
+    authUsername = "";
+    authPassword = "";
   }
   loginOverlay.classList.remove("hidden");
-  loginInviteCodeInput.focus();
+  loginUsernameInput.focus();
 })();

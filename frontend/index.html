@@ -125,25 +125,22 @@
       <p id="settingsSaveStatus" class="urlHint"></p>
 
       <div id="inviteBlock" class="settingsBlock inviteBlock hidden">
-        <span class="settingsBlockLabel">邀请朋友</span>
+        <span class="settingsBlockLabel">已注册用户</span>
         <div id="invitedUsersList" class="invitedUsersList"></div>
-        <div class="inviteRow">
-          <input type="text" id="inviteNameInput" placeholder="朋友的名字" />
-          <button id="btnCreateInvite" class="btn btn-ghost btn-small">生成邀请码</button>
-        </div>
-        <p id="inviteResult" class="urlHint"></p>
       </div>
     </div>
   </div>
 
   <div id="loginOverlay" class="hidden">
     <div id="loginPanel">
-      <h2>输入邀请码</h2>
-      <p class="urlHint">这个工具目前是邀请制，需要邀请码才能使用，找发给你邀请码的人要一个</p>
-      <input type="text" id="loginInviteCodeInput" placeholder="邀请码" />
+      <h2 id="loginPanelTitle">登录</h2>
+      <p class="urlHint">用户名和密码随便填，第一个注册的账号会自动成为主账号</p>
+      <input type="text" id="loginUsernameInput" placeholder="用户名" autocomplete="username" />
+      <input type="password" id="loginPasswordInput" placeholder="密码" autocomplete="current-password" />
       <p id="loginError" class="loginError hidden"></p>
       <div class="pasteActions">
-        <button id="btnLoginSubmit" class="btn btn-primary">进入</button>
+        <button id="btnRegisterSubmit" class="btn btn-ghost">注册新账号</button>
+        <button id="btnLoginSubmit" class="btn btn-primary">登录</button>
       </div>
     </div>
   </div>
