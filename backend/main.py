@@ -75,8 +75,13 @@ def _read_json(path: Path, default):
 
 
 def _write_json(path: Path, data):
-    with path.open("w", encoding="utf-8") as f:
+    # 写到临时文件再原子替换，不直接在原文件上截断写——不然如果写到一半进程被杀掉
+    # (比如部署时旧容器收到 SIGTERM，这个每次发布都会发生)，文件可能被截断/写坏，
+    # 下次读到的就是损坏或者丢了一部分内容的数据。
+    tmp_path = path.with_name(path.name + f".tmp{os.getpid()}")
+    with tmp_path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    tmp_path.replace(path)
 
 
 # ---------- 用户 / 账号注册登录(用户名密码 + Google 登录，登录后发一个 session token) ----------
@@ -112,6 +117,15 @@ def _migrate_legacy_invite_users():
     users = _read_json(USERS_FILE, [])
     if not users:
         return
+    print(
+        "[startup] users.json 现有 "
+        + str(len(users))
+        + " 个账号: "
+        + ", ".join(
+            f"{u.get('username') or u.get('name')}(密码={'有' if u.get('password_hash') else '无'})" for u in users
+        ),
+        flush=True,
+    )
     existing_usernames = {u.get("username") for u in users if u.get("username")}
     changed = False
     for u in users:
@@ -129,9 +143,16 @@ def _migrate_legacy_invite_users():
         u["password_salt"] = salt
         u["password_hash"] = _hash_password(u["invite_code"], salt)
         changed = True
-        print(f"[migrate] 账号「{u.get('name','')}」自动分配用户名：{username}（初始密码是原来的邀请码）")
+        print(f"[migrate] 账号「{u.get('name','')}」自动分配用户名：{username}（初始密码是原来的邀请码）", flush=True)
     if changed:
         _write_json(USERS_FILE, users)
+
+
+def _audit(event: str, **fields):
+    # 排查"密码莫名其妙变了"这类问题用的审计日志，打到 Railway 的部署日志里，
+    # 不落盘、不影响正常功能——纯粹是为了下次万一再出问题时有据可查。
+    parts = " ".join(f"{k}={v}" for k, v in fields.items())
+    print(f"[audit] {datetime.now(timezone.utc).isoformat()} {event} {parts}", flush=True)
 
 
 _migrate_legacy_invite_users()
@@ -167,6 +188,7 @@ async def register(req: RegisterRequest):
     }
     users.append(new_user)
     _write_json(USERS_FILE, users)
+    _audit("register", user_id=new_user["id"], username=username)
     token = _create_session(new_user["id"])
     return {"token": token, "id": new_user["id"], "name": username, "is_owner": new_user["is_owner"]}
 
@@ -230,6 +252,7 @@ async def change_password(req: ChangePasswordRequest, user: dict = Depends(get_c
             u["password_salt"] = salt
             u["password_hash"] = _hash_password(req.new_password, salt)
     _write_json(USERS_FILE, users)
+    _audit("change_password", user_id=user["id"], username=user.get("username"))
     return {"ok": True}
 
 
@@ -250,6 +273,7 @@ async def change_username(req: ChangeUsernameRequest, user: dict = Depends(get_c
             u["username"] = new_username
             u["name"] = new_username
     _write_json(USERS_FILE, users)
+    _audit("change_username", user_id=user["id"], old_username=user.get("username"), new_username=new_username)
     return {"ok": True, "username": new_username, "name": new_username}
 
 
@@ -346,6 +370,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         }
         users.append(user)
         _write_json(USERS_FILE, users)
+        _audit("google_register", user_id=user["id"], google_email=email)
 
     token = _create_session(user["id"])
     return RedirectResponse(f"/#token={token}")

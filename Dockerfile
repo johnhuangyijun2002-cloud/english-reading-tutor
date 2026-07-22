@@ -1,5 +1,9 @@
 FROM python:3.11-slim
 
+# 不设这个的话 print() 输出会被缓冲，Railway 日志里经常看不到实时打的日志
+# (之前排查密码问题时就吃过这个亏，[migrate] 那行日志一直没出现过)。
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 COPY backend/requirements.txt backend/requirements.txt
