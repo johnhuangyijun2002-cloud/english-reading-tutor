@@ -486,12 +486,34 @@ PROVIDER_CONFIG = {
     "gemini": {"label": "Gemini (Google)", "kind": "gemini", "model": "gemini-1.5-flash"},
 }
 
+# 每百万 token 的价格(美元)，按写这段代码时各家官网公布的价格粗略估算，仅供参考——
+# 实际计费以服务商账单为准，价格会变，这里不会自动跟着更新。
+PROVIDER_PRICING = {
+    "deepseek": {"input": 0.27, "output": 1.10},
+    "openai": {"input": 0.15, "output": 0.60},
+    "claude": {"input": 0.80, "output": 4.00},
+    "gemini": {"input": 0.075, "output": 0.30},
+}
 
-def record_api_call(user_id: str):
+
+def _normalize_month_usage(month_usage):
+    # 兼容改版前的旧格式(以前 month_usage 直接是一个调用次数的数字)
+    if isinstance(month_usage, (int, float)):
+        return {"calls": month_usage, "cost_usd": 0.0}
+    return month_usage
+
+
+def record_api_call(user_id: str, provider: str = "", input_tokens: int = 0, output_tokens: int = 0):
     usage = _read_json(USAGE_FILE, {})
     month_key = datetime.now().strftime("%Y-%m")
     user_usage = usage.setdefault(user_id, {})
-    user_usage[month_key] = user_usage.get(month_key, 0) + 1
+    month_usage = _normalize_month_usage(user_usage.get(month_key, {}))
+    month_usage["calls"] = month_usage.get("calls", 0) + 1
+    rates = PROVIDER_PRICING.get(provider)
+    if rates:
+        cost = (input_tokens / 1_000_000) * rates["input"] + (output_tokens / 1_000_000) * rates["output"]
+        month_usage["cost_usd"] = month_usage.get("cost_usd", 0.0) + cost
+    user_usage[month_key] = month_usage
     _write_json(USAGE_FILE, usage)
 
 
@@ -499,11 +521,15 @@ def record_api_call(user_id: str):
 async def get_usage(user: dict = Depends(get_current_user)):
     usage = _read_json(USAGE_FILE, {})
     month_key = datetime.now().strftime("%Y-%m")
-    count = usage.get(user["id"], {}).get(month_key, 0)
-    return {"month": month_key, "count": count}
+    month_usage = _normalize_month_usage(usage.get(user["id"], {}).get(month_key, {}))
+    return {
+        "month": month_key,
+        "count": month_usage.get("calls", 0),
+        "cost_usd": round(month_usage.get("cost_usd", 0.0), 4),
+    }
 
 
-async def _call_openai_compatible(url: str, model: str, api_key: str, prompt: str, json_mode: bool) -> str:
+async def _call_openai_compatible(url: str, model: str, api_key: str, prompt: str, json_mode: bool):
     payload = {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
@@ -512,10 +538,11 @@ async def _call_openai_compatible(url: str, model: str, api_key: str, prompt: st
     if resp.status_code != 200:
         raise HTTPException(502, f"AI 接口调用失败: {resp.text}")
     data = resp.json()
-    return data["choices"][0]["message"]["content"]
+    usage = data.get("usage", {})
+    return data["choices"][0]["message"]["content"], usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
 
 
-async def _call_claude(api_key: str, prompt: str, json_mode: bool) -> str:
+async def _call_claude(api_key: str, prompt: str, json_mode: bool):
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             "https://api.anthropic.com/v1/messages",
@@ -533,13 +560,14 @@ async def _call_claude(api_key: str, prompt: str, json_mode: bool) -> str:
     if resp.status_code != 200:
         raise HTTPException(502, f"AI 接口调用失败(Claude): {resp.text}")
     data = resp.json()
+    usage = data.get("usage", {})
     try:
-        return data["content"][0]["text"]
+        return data["content"][0]["text"], usage.get("input_tokens", 0), usage.get("output_tokens", 0)
     except (KeyError, IndexError):
         raise HTTPException(502, f"Claude 返回格式异常: {data}")
 
 
-async def _call_gemini(api_key: str, prompt: str, json_mode: bool) -> str:
+async def _call_gemini(api_key: str, prompt: str, json_mode: bool):
     model = PROVIDER_CONFIG["gemini"]["model"]
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     async with httpx.AsyncClient(timeout=30) as client:
@@ -547,15 +575,15 @@ async def _call_gemini(api_key: str, prompt: str, json_mode: bool) -> str:
     if resp.status_code != 200:
         raise HTTPException(502, f"AI 接口调用失败(Gemini): {resp.text}")
     data = resp.json()
+    usage = data.get("usageMetadata", {})
     try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return text, usage.get("promptTokenCount", 0), usage.get("candidatesTokenCount", 0)
     except (KeyError, IndexError):
         raise HTTPException(502, f"Gemini 返回格式异常: {data}")
 
 
 async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False) -> str:
-    record_api_call(user_id)
-
     if not api_key:
         raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
     cfg = PROVIDER_CONFIG.get(provider)
@@ -563,12 +591,16 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
         raise HTTPException(400, f"不支持的 AI 服务商: {provider}")
 
     if cfg["kind"] == "openai":
-        return await _call_openai_compatible(cfg["url"], cfg["model"], api_key, prompt, json_mode)
-    if cfg["kind"] == "claude":
-        return await _call_claude(api_key, prompt, json_mode)
-    if cfg["kind"] == "gemini":
-        return await _call_gemini(api_key, prompt, json_mode)
-    raise HTTPException(500, "AI 服务商配置错误")
+        text, in_tok, out_tok = await _call_openai_compatible(cfg["url"], cfg["model"], api_key, prompt, json_mode)
+    elif cfg["kind"] == "claude":
+        text, in_tok, out_tok = await _call_claude(api_key, prompt, json_mode)
+    elif cfg["kind"] == "gemini":
+        text, in_tok, out_tok = await _call_gemini(api_key, prompt, json_mode)
+    else:
+        raise HTTPException(500, "AI 服务商配置错误")
+
+    record_api_call(user_id, provider, in_tok, out_tok)
+    return text
 
 
 def build_word_prompt(word: str, context: str) -> str:

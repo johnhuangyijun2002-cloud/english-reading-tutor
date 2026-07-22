@@ -27,6 +27,9 @@ const readingProgressFill = document.getElementById("readingProgressFill");
 const annotationList = document.getElementById("annotationList");
 const selectionToolbar = document.getElementById("selectionToolbar");
 const btnAnalyze = document.getElementById("btnAnalyze");
+const btnSaveAll = document.getElementById("btnSaveAll");
+const btnPrint = document.getElementById("btnPrint");
+const printArea = document.getElementById("printArea");
 
 const btnReaderSettings = document.getElementById("btnReaderSettings");
 const readerSettingsPanel = document.getElementById("readerSettingsPanel");
@@ -138,6 +141,7 @@ function loadDocument(doc) {
   currentDocContent = doc.content;
   currentDocSourceUrl = doc.source_url || "";
   btnReaderSettings.classList.remove("hidden");
+  btnPrint.classList.remove("hidden");
   renderHistoryForDoc(doc.filename);
   renderTextDocument(doc.content, doc.filename, doc.source_url);
 }
@@ -286,7 +290,10 @@ async function loadUsage() {
   try {
     const res = await apiFetch("/api/usage");
     const data = await res.json();
-    usageBadge.textContent = `本月已调用 ${data.count} 次`;
+    const cost = data.cost_usd || 0;
+    const costText = cost > 0 && cost < 0.001 ? "<$0.001" : `$${cost.toFixed(3)}`;
+    usageBadge.textContent = cost > 0 ? `本月约花费 ${costText}` : `本月已调用 ${data.count} 次`;
+    usageBadge.title = `本月调用 ${data.count} 次 · 花销是按各服务商公开定价估算的，不是真实账单，仅供参考`;
   } catch (err) {
     // 统计接口失败不影响主功能，静默忽略
   }
@@ -765,6 +772,7 @@ function showNoDocumentState() {
   showHistoryEmptyState("先添加一篇文章，读完之后可以在这里看到相关的生词和笔记");
   btnReaderSettings.classList.add("hidden");
   readerSettingsPanel.classList.add("hidden");
+  btnPrint.classList.add("hidden");
 }
 
 async function renderHistoryForDoc(docName) {
@@ -979,6 +987,186 @@ async function saveAnnotation(el, text) {
     saveBtn.disabled = false;
     saveBtn.textContent = "保存失败，重试";
   }
+}
+
+// ---------- 一键保存(把当前还没存的解析结果一次性全部存进去) ----------
+
+btnSaveAll.addEventListener("click", async () => {
+  const pending = [...annotationList.querySelectorAll(".annotation")].filter((el) => {
+    const actions = el.querySelector(".ann-actions");
+    const saveBtn = el.querySelector(".ann-save");
+    return actions && !actions.classList.contains("hidden") && saveBtn && !saveBtn.disabled;
+  });
+  if (pending.length === 0) {
+    alert("现在没有待保存的解析结果");
+    return;
+  }
+  btnSaveAll.disabled = true;
+  btnSaveAll.textContent = "保存中...";
+  for (const el of pending) {
+    const text = el.querySelector(".ann-text").textContent;
+    await saveAnnotation(el, text);
+  }
+  btnSaveAll.disabled = false;
+  btnSaveAll.textContent = "一键保存";
+});
+
+// ---------- 打印(文章正文 + 划过的生词表 + 不熟悉的句子) ----------
+
+btnPrint.addEventListener("click", async () => {
+  if (!currentDocName) return;
+  btnPrint.disabled = true;
+  const originalLabel = btnPrint.textContent;
+  btnPrint.textContent = "准备中...";
+  try {
+    const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
+    const vocab = (await vocabRes.json()).filter((v) => v.source_doc === currentDocName);
+    const notes = (await notesRes.json()).filter((n) => n.source_doc === currentDocName);
+    buildPrintArea(vocab, notes);
+    window.print();
+  } catch (err) {
+    alert("准备打印内容失败: " + err.message);
+  } finally {
+    btnPrint.disabled = false;
+    btnPrint.textContent = originalLabel;
+  }
+});
+
+function buildPrintArea(vocab, notes) {
+  const vocabMap = new Map(); // 小写单词 -> {..., index}(打印用的编号，对应下面表格的行)
+  vocab.forEach((v) => {
+    const key = (v.word || "").trim().toLowerCase();
+    if (key && !vocabMap.has(key)) vocabMap.set(key, { ...v, index: vocabMap.size + 1 });
+  });
+  // 句子按长度从长到短匹配，避免短句子先匹配到长句子里面的一部分
+  const sentenceList = notes
+    .map((n, i) => ({ ...n, index: i + 1 }))
+    .sort((a, b) => (b.sentence || "").length - (a.sentence || "").length);
+
+  const paragraphs = currentDocContent
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const container = document.createElement("div");
+
+  const titleEl = document.createElement("h1");
+  titleEl.className = "printTitle";
+  titleEl.textContent = currentDocName;
+  container.appendChild(titleEl);
+
+  if (currentDocSourceUrl) {
+    const meta = document.createElement("p");
+    meta.className = "printMeta";
+    meta.textContent = currentDocSourceUrl;
+    container.appendChild(meta);
+  }
+
+  const articleBody = document.createElement("div");
+  articleBody.className = "printArticleBody";
+  paragraphs.forEach((p) => {
+    const para = document.createElement("p");
+    para.innerHTML = markParagraphForPrint(p, vocabMap, sentenceList);
+    articleBody.appendChild(para);
+  });
+  container.appendChild(articleBody);
+
+  if (vocabMap.size > 0) {
+    const h2 = document.createElement("h2");
+    h2.className = "printSectionTitle";
+    h2.textContent = `生词表(共 ${vocabMap.size} 个)`;
+    container.appendChild(h2);
+
+    const table = document.createElement("table");
+    table.className = "printVocabTable";
+    table.innerHTML = "<thead><tr><th>#</th><th>单词</th><th>音标</th><th>词性</th><th>释义</th></tr></thead><tbody></tbody>";
+    const tbody = table.querySelector("tbody");
+    [...vocabMap.values()]
+      .sort((a, b) => a.index - b.index)
+      .forEach((v) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${v.index}</td>
+          <td>${escapeHtml(v.word || "")}</td>
+          <td>${escapeHtml(v.ipa || "")}</td>
+          <td>${escapeHtml(v.pos || "")}</td>
+          <td>${escapeHtml(v.chinese_meaning || "")}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    container.appendChild(table);
+  }
+
+  if (sentenceList.length > 0) {
+    const h2 = document.createElement("h2");
+    h2.className = "printSectionTitle";
+    h2.textContent = `不熟悉的句子(共 ${sentenceList.length} 句)`;
+    container.appendChild(h2);
+
+    const list = document.createElement("ol");
+    list.className = "printSentenceList";
+    [...sentenceList]
+      .sort((a, b) => a.index - b.index)
+      .forEach((n) => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <div class="printSentenceOriginal">${escapeHtml(n.sentence || "")}</div>
+          <div class="printSentenceAnalysis">${escapeHtml(n.analysis || "")}</div>
+        `;
+        list.appendChild(li);
+      });
+    container.appendChild(list);
+  }
+
+  printArea.innerHTML = "";
+  printArea.appendChild(container);
+}
+
+// 在文章段落里标出生词(数字下标)和句子笔记(“句N”下标)，句子优先匹配，
+// 落在句子范围内的单词就不再单独标了，避免嵌套标记搅在一起。
+function markParagraphForPrint(text, vocabMap, sentenceList) {
+  const ranges = [];
+
+  sentenceList.forEach((s) => {
+    if (!s.sentence) return;
+    let searchFrom = 0;
+    while (true) {
+      const idx = text.indexOf(s.sentence, searchFrom);
+      if (idx === -1) break;
+      ranges.push({ start: idx, end: idx + s.sentence.length, type: "sentence", label: s.index });
+      searchFrom = idx + s.sentence.length;
+    }
+  });
+
+  const wordRegex = /[A-Za-z]+(?:['’][A-Za-z]+)?/g;
+  let match;
+  while ((match = wordRegex.exec(text)) !== null) {
+    const key = match[0].toLowerCase();
+    if (!vocabMap.has(key)) continue;
+    const start = match.index;
+    const end = start + match[0].length;
+    const insideSentence = ranges.some((r) => r.type === "sentence" && start >= r.start && end <= r.end);
+    if (insideSentence) continue;
+    ranges.push({ start, end, type: "word", label: vocabMap.get(key).index });
+  }
+
+  ranges.sort((a, b) => a.start - b.start);
+
+  let result = "";
+  let cursor = 0;
+  ranges.forEach((r) => {
+    if (r.start < cursor) return;
+    result += escapeHtml(text.slice(cursor, r.start));
+    const segment = escapeHtml(text.slice(r.start, r.end));
+    if (r.type === "sentence") {
+      result += `<span class="printMarkSentence">${segment}<sup class="printMarkLabel printMarkLabelSentence">句${r.label}</sup></span>`;
+    } else {
+      result += `${segment}<sup class="printMarkLabel printMarkLabelWord">${r.label}</sup>`;
+    }
+    cursor = r.end;
+  });
+  result += escapeHtml(text.slice(cursor));
+  return result;
 }
 
 // ---------- 设置面板(AI 服务商 + key、Google Sheets 同步开关) ----------

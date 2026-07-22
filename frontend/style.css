@@ -778,13 +778,27 @@ body {
   padding: 20px;
 }
 
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 4px 14px;
+}
+
 #sidebar h2 {
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-secondary);
-  margin: 4px 4px 14px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.sidebarHeaderActions {
+  display: flex;
+  gap: 6px;
 }
 
 .history-empty {
@@ -1195,4 +1209,103 @@ body {
 
 .loginGoogleBtn {
   width: 100%;
+}
+
+/* ---------- 打印(文章 + 生词表 + 句子笔记) ---------- */
+
+#printArea {
+  display: none;
+}
+
+.printTitle {
+  font-size: 22px;
+  margin: 0 0 4px;
+}
+
+.printMeta {
+  font-size: 12px;
+  color: #555;
+  margin: 0 0 20px;
+  word-break: break-all;
+}
+
+.printArticleBody p {
+  font-size: 13px;
+  line-height: 1.8;
+  margin: 0 0 14px;
+}
+
+.printMarkLabel {
+  font-size: 0.7em;
+  font-weight: 700;
+  vertical-align: super;
+  line-height: 0;
+  margin-left: 1px;
+}
+
+.printMarkLabelWord {
+  color: #0071e3;
+}
+
+.printMarkLabelSentence {
+  color: #c9720a;
+}
+
+.printMarkSentence {
+  border-bottom: 1px dashed #c9720a;
+}
+
+.printSectionTitle {
+  font-size: 15px;
+  margin: 24px 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid #ccc;
+}
+
+.printVocabTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.printVocabTable th,
+.printVocabTable td {
+  border: 1px solid #ccc;
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.printVocabTable th {
+  background: #f2f2f2;
+}
+
+.printSentenceList {
+  font-size: 12px;
+  line-height: 1.6;
+  padding-left: 20px;
+  margin: 0;
+}
+
+.printSentenceList li {
+  margin-bottom: 10px;
+}
+
+.printSentenceOriginal {
+  font-weight: 600;
+}
+
+.printSentenceAnalysis {
+  color: #444;
+  white-space: pre-wrap;
+  margin-top: 2px;
+}
+
+@media print {
+  body > *:not(#printArea) {
+    display: none !important;
+  }
+
+  #printArea {
+    display: block !important;
+  }
 }

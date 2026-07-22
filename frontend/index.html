@@ -175,7 +175,13 @@
       </div>
     </div>
     <div id="sidebar">
-      <h2>历史记录</h2>
+      <div class="sidebarHeader">
+        <h2>历史记录</h2>
+        <div class="sidebarHeaderActions">
+          <button id="btnSaveAll" class="btn btn-ghost btn-small" title="把当前还没存的解析结果一次性全部存进去">一键保存</button>
+          <button id="btnPrint" class="btn btn-ghost btn-small hidden" title="把文章和划过的生词/句子打印出来">🖨️ 打印</button>
+        </div>
+      </div>
       <div id="annotationList"></div>
     </div>
   </div>
@@ -185,6 +191,8 @@
   </div>
 
   <div id="wordPopup" class="hidden"></div>
+
+  <div id="printArea"></div>
 
   <script src="app.js"></script>
 </body>
