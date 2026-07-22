@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>英语阅读学习器</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="topbar">
+    <div class="topbar-brand">Reader<span id="usageBadge" class="usageBadge"></span></div>
+    <div class="topbar-actions">
+      <button id="btnSearchHistory" class="btn btn-ghost">生词本</button>
+      <button id="btnRecommend" class="btn btn-ghost">AI 推荐</button>
+      <button id="btnAddArticle" class="btn btn-ghost">添加文章</button>
+      <label for="fileInput" class="btn btn-ghost">上传文件</label>
+      <input type="file" id="fileInput" accept=".pdf,.docx" class="visually-hidden" />
+      <select id="docSelect" class="doc-select"></select>
+      <div class="readerSettingsWrap">
+        <button id="btnReaderSettings" class="btn btn-ghost readerSettingsBtn hidden">Aa</button>
+        <div id="readerSettingsPanel" class="hidden">
+          <div class="settingsRow">
+            <span class="settingsLabel">字号</span>
+            <div class="settingsOptions" data-setting="fontSize">
+              <button data-value="15">小</button>
+              <button data-value="17">中</button>
+              <button data-value="19">大</button>
+              <button data-value="22">特大</button>
+            </div>
+          </div>
+          <div class="settingsRow">
+            <span class="settingsLabel">宽度</span>
+            <div class="settingsOptions" data-setting="maxWidth">
+              <button data-value="560">窄</button>
+              <button data-value="700">中</button>
+              <button data-value="860">宽</button>
+            </div>
+          </div>
+          <div class="settingsRow">
+            <span class="settingsLabel">字体</span>
+            <div class="settingsOptions" data-setting="fontFamily">
+              <button data-value="sans">无衬线</button>
+              <button data-value="serif">衬线</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="recommendPanelOverlay" class="hidden">
+    <div id="recommendPanel">
+      <div class="recommendHeader">
+        <h2>今日推荐</h2>
+        <button id="btnRecommendRefresh" class="btn btn-ghost btn-small">换一批</button>
+      </div>
+      <div id="recommendList"></div>
+      <div class="pasteActions">
+        <button id="btnRecommendClose" class="btn btn-ghost">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pastePanelOverlay" class="hidden">
+    <div id="pastePanel">
+      <div class="pasteTabs">
+        <button class="pasteTab active" data-tab="paste">粘贴文本</button>
+        <button class="pasteTab" data-tab="url">网址导入</button>
+      </div>
+
+      <div class="pasteTabContent" data-tab-content="paste">
+        <input type="text" id="pasteTitle" placeholder="文章标题 / 来源（例如：纽约时报-2026年7月）" />
+        <textarea id="pasteContent" placeholder="把英文文章粘贴到这里..."></textarea>
+      </div>
+
+      <div class="pasteTabContent hidden" data-tab-content="url">
+        <input type="text" id="urlInput" placeholder="https://www.bbc.com/news/... 或 theguardian.com 的文章链接" />
+        <p class="urlHint">支持 BBC、The Guardian 等新闻网站，会自动提取正文，跳过导航栏和广告</p>
+      </div>
+
+      <div class="pasteActions">
+        <button id="btnPasteCancel" class="btn btn-ghost">取消</button>
+        <button id="btnPasteSubmit" class="btn btn-primary">开始阅读</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="searchPanelOverlay" class="hidden">
+    <div id="searchPanel">
+      <h2>生词本</h2>
+      <input type="text" id="searchInput" placeholder="搜索单词、释义、例句、来源文章...（留空显示全部）" />
+      <div id="searchResults"></div>
+      <div class="pasteActions">
+        <button id="btnSearchClose" class="btn btn-ghost">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="viewer">
+      <div id="readingProgress"><div id="readingProgressFill"></div></div>
+      <div id="viewerContent">
+        <div id="emptyState">
+          <p>粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读</p>
+        </div>
+      </div>
+    </div>
+    <div id="sidebar">
+      <h2>历史记录</h2>
+      <div id="annotationList"></div>
+    </div>
+  </div>
+
+  <div id="selectionToolbar" class="hidden">
+    <button id="btnAnalyze"></button>
+  </div>
+
+  <div id="wordPopup" class="hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
