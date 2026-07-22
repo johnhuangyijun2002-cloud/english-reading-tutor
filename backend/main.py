@@ -233,6 +233,26 @@ async def change_password(req: ChangePasswordRequest, user: dict = Depends(get_c
     return {"ok": True}
 
 
+class ChangeUsernameRequest(BaseModel):
+    new_username: str
+
+
+@app.post("/api/change-username")
+async def change_username(req: ChangeUsernameRequest, user: dict = Depends(get_current_user)):
+    new_username = req.new_username.strip()
+    if not new_username:
+        raise HTTPException(400, "新用户名不能为空")
+    users = _read_json(USERS_FILE, [])
+    if any(u.get("username") == new_username and u["id"] != user["id"] for u in users):
+        raise HTTPException(400, "这个用户名已经被占用了，换一个")
+    for u in users:
+        if u["id"] == user["id"]:
+            u["username"] = new_username
+            u["name"] = new_username
+    _write_json(USERS_FILE, users)
+    return {"ok": True, "username": new_username, "name": new_username}
+
+
 @app.get("/api/admin/users")
 async def list_registered_users(user: dict = Depends(get_current_user)):
     if not user.get("is_owner"):

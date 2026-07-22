@@ -1068,7 +1068,8 @@ body {
 }
 
 .settingsSelect,
-#accountSettingsPanel input[type="password"] {
+#accountSettingsPanel input[type="password"],
+#accountSettingsPanel input[type="text"] {
   padding: 11px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1079,7 +1080,8 @@ body {
 }
 
 .settingsSelect:focus,
-#accountSettingsPanel input[type="password"]:focus {
+#accountSettingsPanel input[type="password"]:focus,
+#accountSettingsPanel input[type="text"]:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-tint);

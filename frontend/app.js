@@ -68,6 +68,10 @@ const btnSettingsSave = document.getElementById("btnSettingsSave");
 const settingsSaveStatus = document.getElementById("settingsSaveStatus");
 const btnLogout = document.getElementById("btnLogout");
 
+const newUsernameInput = document.getElementById("newUsernameInput");
+const btnChangeUsername = document.getElementById("btnChangeUsername");
+const changeUsernameStatus = document.getElementById("changeUsernameStatus");
+
 const changePasswordLabel = document.getElementById("changePasswordLabel");
 const newPasswordInput = document.getElementById("newPasswordInput");
 const btnChangePassword = document.getElementById("btnChangePassword");
@@ -1018,9 +1022,36 @@ async function loadSettingsIntoPanel() {
   newPasswordInput.value = "";
   changePasswordStatus.textContent = "";
 
+  newUsernameInput.value = "";
+  changeUsernameStatus.textContent = "";
+
   inviteBlock.classList.toggle("hidden", !data.is_owner);
   if (data.is_owner) loadInvitedUsers();
 }
+
+btnChangeUsername.addEventListener("click", async () => {
+  const newUsername = newUsernameInput.value.trim();
+  if (!newUsername) return;
+  btnChangeUsername.disabled = true;
+  changeUsernameStatus.textContent = "保存中...";
+  try {
+    const res = await apiFetch("/api/change-username", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_username: newUsername }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    newUsernameInput.value = "";
+    changeUsernameStatus.textContent = "用户名已更新";
+    if (currentUser) currentUser.name = data.name;
+    settingsUserLine.textContent = `登录身份：${data.name}${settingsDataCache && settingsDataCache.is_owner ? "（主账号）" : ""}`;
+  } catch (err) {
+    changeUsernameStatus.textContent = "修改失败: " + err.message;
+  } finally {
+    btnChangeUsername.disabled = false;
+  }
+});
 
 btnChangePassword.addEventListener("click", async () => {
   const newPassword = newPasswordInput.value;
