@@ -999,3 +999,165 @@ body {
 #selectionToolbar button:hover {
   background: rgba(255, 255, 255, 0.15);
 }
+
+/* ---------- 账号设置(顶栏齿轮图标) ---------- */
+
+.accountSettingsBtn {
+  font-size: 15px;
+  padding: 8px 12px;
+}
+
+#accountSettingsPanelOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.18s var(--ease);
+}
+
+#accountSettingsPanelOverlay.hidden {
+  display: none;
+}
+
+#accountSettingsPanel {
+  width: min(440px, 90vw);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: popIn 0.22s var(--ease);
+}
+
+#accountSettingsPanel h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.settingsUserLine {
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.settingsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settingsBlockRow {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settingsBlockLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.settingsSelect,
+#accountSettingsPanel input[type="password"] {
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.settingsSelect:focus,
+#accountSettingsPanel input[type="password"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+#sheetsSyncToggle {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ---------- 登录(邀请码) ---------- */
+
+#loginOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#loginOverlay.hidden {
+  display: none;
+}
+
+#loginPanel {
+  width: min(380px, 90vw);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: popIn 0.22s var(--ease);
+}
+
+#loginPanel h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+#loginPanel input[type="text"] {
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface-2);
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+
+#loginPanel input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+#loginPanel .pasteActions {
+  justify-content: stretch;
+}
+
+#loginPanel .pasteActions .btn {
+  flex: 1;
+}
+
+.loginError {
+  margin: 0;
+  font-size: 12px;
+  color: #ff3b30;
+}
+
+.loginError.hidden {
+  display: none;
+}

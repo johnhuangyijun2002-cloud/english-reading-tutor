@@ -1,3 +1,11 @@
+let inviteCode = localStorage.getItem("inviteCode") || "";
+let currentUser = null; // {id, name, is_owner}
+
+function apiFetch(url, opts = {}) {
+  const headers = { ...(opts.headers || {}), "X-Invite-Code": inviteCode };
+  return fetch(url, { ...opts, headers });
+}
+
 let allDocs = [];
 let currentDocId = null;
 let currentDocName = "";
@@ -46,10 +54,27 @@ const searchResults = document.getElementById("searchResults");
 const btnSearchClose = document.getElementById("btnSearchClose");
 let searchDataCache = null;
 
+const btnAccountSettings = document.getElementById("btnAccountSettings");
+const accountSettingsPanelOverlay = document.getElementById("accountSettingsPanelOverlay");
+const settingsUserLine = document.getElementById("settingsUserLine");
+const aiProviderSelect = document.getElementById("aiProviderSelect");
+const aiApiKeyInput = document.getElementById("aiApiKeyInput");
+const aiKeyHint = document.getElementById("aiKeyHint");
+const sheetsSyncBlock = document.getElementById("sheetsSyncBlock");
+const sheetsSyncToggle = document.getElementById("sheetsSyncToggle");
+const btnSettingsSave = document.getElementById("btnSettingsSave");
+const settingsSaveStatus = document.getElementById("settingsSaveStatus");
+const btnLogout = document.getElementById("btnLogout");
+
+const loginOverlay = document.getElementById("loginOverlay");
+const loginInviteCodeInput = document.getElementById("loginInviteCodeInput");
+const loginError = document.getElementById("loginError");
+const btnLoginSubmit = document.getElementById("btnLoginSubmit");
+
 // ---------- 文档列表 / 加载 ----------
 
 async function refreshDocuments(selectId) {
-  const res = await fetch("/api/documents");
+  const res = await apiFetch("/api/documents");
   allDocs = await res.json();
   docSelect.innerHTML = "";
   allDocs.forEach((d) => {
@@ -75,7 +100,7 @@ fileInput.addEventListener("change", async () => {
   if (!file) return;
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch("/api/upload", { method: "POST", body: formData });
+  const res = await apiFetch("/api/upload", { method: "POST", body: formData });
   if (!res.ok) {
     alert("上传失败: " + (await res.text()));
     return;
@@ -242,7 +267,7 @@ document.addEventListener("click", (e) => {
 
 async function loadUsage() {
   try {
-    const res = await fetch("/api/usage");
+    const res = await apiFetch("/api/usage");
     const data = await res.json();
     usageBadge.textContent = `本月已调用 ${data.count} 次`;
   } catch (err) {
@@ -253,7 +278,7 @@ async function loadUsage() {
 // ---------- 已学生词高亮 ----------
 
 async function loadKnownWords() {
-  const res = await fetch("/api/vocab");
+  const res = await apiFetch("/api/vocab");
   const vocab = await res.json();
   knownWordsMap = new Map();
   vocab.forEach((v) => {
@@ -383,7 +408,7 @@ async function submitPasteText() {
   }
   btnPasteSubmit.disabled = true;
   try {
-    const res = await fetch("/api/paste", {
+    const res = await apiFetch("/api/paste", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, content }),
@@ -402,7 +427,7 @@ async function submitPasteText() {
 }
 
 async function fetchUrlAsDocument(url) {
-  const res = await fetch("/api/fetch-url", {
+  const res = await apiFetch("/api/fetch-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
@@ -454,7 +479,7 @@ async function loadRecommendations(refresh) {
   recommendList.innerHTML = `<p class="recommend-loading">正在挑选适合你的文章，大概几秒钟...</p>`;
   btnRecommendRefresh.disabled = true;
   try {
-    const res = await fetch(`/api/recommendations${refresh ? "?refresh=true" : ""}`);
+    const res = await apiFetch(`/api/recommendations${refresh ? "?refresh=true" : ""}`);
     if (!res.ok) throw new Error(await res.text());
     const picks = await res.json();
     renderRecommendations(picks);
@@ -643,7 +668,7 @@ async function runAnalyze(entryEl, text, mode, context) {
   retryEl.classList.add("hidden");
 
   try {
-    const res = await fetch("/api/analyze", {
+    const res = await apiFetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, context, mode }),
@@ -728,7 +753,7 @@ function showNoDocumentState() {
 async function renderHistoryForDoc(docName) {
   annotationList.innerHTML = "";
 
-  const [vocabRes, notesRes] = await Promise.all([fetch("/api/vocab"), fetch("/api/sentence_notes")]);
+  const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
   const vocab = await vocabRes.json();
   const notes = await notesRes.json();
 
@@ -798,7 +823,7 @@ async function deleteRecord(record) {
 
   const endpoint = record.mode === "word" ? `/api/vocab/${record.id}` : `/api/sentence_notes/${record.id}`;
   try {
-    const res = await fetch(endpoint, { method: "DELETE" });
+    const res = await apiFetch(endpoint, { method: "DELETE" });
     if (!res.ok) throw new Error(await res.text());
   } catch (err) {
     alert("删除失败: " + err.message);
@@ -841,7 +866,7 @@ searchPanelOverlay.addEventListener("click", (e) => {
 });
 
 async function loadSearchData() {
-  const [vocabRes, notesRes] = await Promise.all([fetch("/api/vocab"), fetch("/api/sentence_notes")]);
+  const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
   const vocab = await vocabRes.json();
   const notes = await notesRes.json();
   searchDataCache = [
@@ -903,7 +928,7 @@ async function saveAnnotation(el, text) {
   saveBtn.disabled = true;
   saveBtn.textContent = "保存中...";
   try {
-    const res = await fetch("/api/save", {
+    const res = await apiFetch("/api/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -939,8 +964,135 @@ async function saveAnnotation(el, text) {
   }
 }
 
-(async () => {
+// ---------- 设置面板(AI 服务商 + key、Google Sheets 同步开关) ----------
+
+btnAccountSettings.addEventListener("click", async () => {
+  accountSettingsPanelOverlay.classList.remove("hidden");
+  await loadSettingsIntoPanel();
+});
+
+accountSettingsPanelOverlay.addEventListener("click", (e) => {
+  if (e.target === accountSettingsPanelOverlay) accountSettingsPanelOverlay.classList.add("hidden");
+});
+
+let settingsDataCache = null;
+
+async function loadSettingsIntoPanel() {
+  settingsSaveStatus.textContent = "";
+  const res = await apiFetch("/api/settings");
+  if (!res.ok) return;
+  const data = await res.json();
+  settingsDataCache = data;
+
+  settingsUserLine.textContent = `登录身份：${data.name}${data.is_owner ? "（主账号）" : ""}`;
+
+  aiProviderSelect.innerHTML = "";
+  data.providers.forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p.value;
+    opt.textContent = p.label;
+    aiProviderSelect.appendChild(opt);
+  });
+  aiProviderSelect.value = data.ai_provider;
+
+  aiApiKeyInput.value = "";
+  updateKeyHint();
+
+  sheetsSyncBlock.classList.toggle("hidden", !data.is_owner);
+  sheetsSyncToggle.checked = !!data.sheets_sync_enabled;
+}
+
+function updateKeyHint() {
+  if (!settingsDataCache) return;
+  aiApiKeyInput.value = "";
+  const status = settingsDataCache.ai_key_status[aiProviderSelect.value] || {};
+  aiKeyHint.textContent = status.has_key
+    ? `已设置(${status.masked})，重新填写可以替换`
+    : "还没填这个服务商的 key，划词解析、AI 推荐这些功能用不了";
+}
+
+aiProviderSelect.addEventListener("change", updateKeyHint);
+
+btnSettingsSave.addEventListener("click", async () => {
+  btnSettingsSave.disabled = true;
+  settingsSaveStatus.textContent = "保存中...";
+  try {
+    const res = await apiFetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ai_provider: aiProviderSelect.value,
+        ai_api_key: aiApiKeyInput.value.trim(),
+        sheets_sync_enabled: sheetsSyncToggle.checked,
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadSettingsIntoPanel();
+    settingsSaveStatus.textContent = "已保存";
+  } catch (err) {
+    settingsSaveStatus.textContent = "保存失败: " + err.message;
+  } finally {
+    btnSettingsSave.disabled = false;
+  }
+});
+
+btnLogout.addEventListener("click", () => {
+  localStorage.removeItem("inviteCode");
+  location.reload();
+});
+
+// ---------- 登录(邀请码) ----------
+
+async function checkInviteCode(code) {
+  try {
+    const res = await fetch("/api/me", { headers: { "X-Invite-Code": code } });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    return null;
+  }
+}
+
+async function initApp() {
   await loadKnownWords();
   refreshDocuments();
   loadUsage();
+}
+
+btnLoginSubmit.addEventListener("click", async () => {
+  const code = loginInviteCodeInput.value.trim();
+  if (!code) return;
+  btnLoginSubmit.disabled = true;
+  loginError.classList.add("hidden");
+  const me = await checkInviteCode(code);
+  btnLoginSubmit.disabled = false;
+  if (!me) {
+    loginError.textContent = "邀请码不对，再检查一下";
+    loginError.classList.remove("hidden");
+    return;
+  }
+  inviteCode = code;
+  localStorage.setItem("inviteCode", code);
+  currentUser = me;
+  loginOverlay.classList.add("hidden");
+  initApp();
+});
+
+loginInviteCodeInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") btnLoginSubmit.click();
+});
+
+(async () => {
+  if (inviteCode) {
+    const me = await checkInviteCode(inviteCode);
+    if (me) {
+      currentUser = me;
+      initApp();
+      return;
+    }
+    localStorage.removeItem("inviteCode");
+    inviteCode = "";
+  }
+  loginOverlay.classList.remove("hidden");
+  loginInviteCodeInput.focus();
 })();

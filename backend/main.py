@@ -14,7 +14,7 @@ import pdfplumber
 import trafilatura
 from docx import Document as DocxDocument
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -27,12 +27,10 @@ DOCUMENTS_FILE = DATA_DIR / "documents.json"
 VOCAB_FILE = DATA_DIR / "vocab.json"
 SENTENCE_NOTES_FILE = DATA_DIR / "sentence_notes.json"
 USAGE_FILE = DATA_DIR / "api_usage.json"
+USERS_FILE = DATA_DIR / "users.json"
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 SHEETS_WEBHOOK_URL = os.environ.get("SHEETS_WEBHOOK_URL", "")
 SHEETS_TOKEN = os.environ.get("SHEETS_TOKEN", "")
@@ -59,6 +57,25 @@ def _write_json(path: Path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+# ---------- 用户 / 邀请码登录(方案 B：几个人共用一份部署，靠邀请码区分数据) ----------
+# 简化设计：邀请码本身就是凭证，每次请求都带在 X-Invite-Code 请求头里，后端直接查表核对。
+# 没有做 session/token 过期这些，对"发给几个朋友用"这个规模来说没必要，换取实现简单。
+
+async def get_current_user(x_invite_code: str = Header(default="", alias="X-Invite-Code")):
+    if not x_invite_code:
+        raise HTTPException(401, "缺少邀请码")
+    users = _read_json(USERS_FILE, [])
+    user = next((u for u in users if u.get("invite_code") == x_invite_code), None)
+    if not user:
+        raise HTTPException(401, "邀请码无效")
+    return user
+
+
+@app.get("/api/me")
+async def get_me(user: dict = Depends(get_current_user)):
+    return {"id": user["id"], "name": user.get("name", ""), "is_owner": user.get("is_owner", False)}
+
+
 # ---------- 文档管理(粘贴文本 / 网址导入 / PDF·DOCX 上传，最终都存成统一的文字文档) ----------
 
 def extract_pdf_text(file_bytes: bytes) -> str:
@@ -74,7 +91,7 @@ def extract_docx_text(file_bytes: bytes) -> str:
 
 
 @app.post("/api/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     ext = Path(file.filename).suffix.lower()
     if ext not in (".pdf", ".docx"):
         raise HTTPException(400, "只支持 PDF 或 DOCX 文件")
@@ -95,6 +112,7 @@ async def upload_document(file: UploadFile = File(...)):
     documents = _read_json(DOCUMENTS_FILE, [])
     record = {
         "id": doc_id,
+        "user_id": user["id"],
         "filename": Path(file.filename).stem,
         "type": "text",
         "content": content,
@@ -111,7 +129,7 @@ class PasteRequest(BaseModel):
 
 
 @app.post("/api/paste")
-async def paste_document(req: PasteRequest):
+async def paste_document(req: PasteRequest, user: dict = Depends(get_current_user)):
     if not req.content.strip():
         raise HTTPException(400, "文章内容不能为空")
 
@@ -119,6 +137,7 @@ async def paste_document(req: PasteRequest):
     documents = _read_json(DOCUMENTS_FILE, [])
     record = {
         "id": doc_id,
+        "user_id": user["id"],
         "filename": req.title.strip() or f"粘贴文章-{doc_id}",
         "type": "text",
         "content": req.content,
@@ -134,7 +153,7 @@ class UrlFetchRequest(BaseModel):
 
 
 @app.post("/api/fetch-url")
-async def fetch_url_document(req: UrlFetchRequest):
+async def fetch_url_document(req: UrlFetchRequest, user: dict = Depends(get_current_user)):
     url = req.url.strip()
     if not url.startswith("http://") and not url.startswith("https://"):
         raise HTTPException(400, "网址格式不对，需要以 http:// 或 https:// 开头")
@@ -165,6 +184,7 @@ async def fetch_url_document(req: UrlFetchRequest):
     documents = _read_json(DOCUMENTS_FILE, [])
     record = {
         "id": doc_id,
+        "user_id": user["id"],
         "filename": title,
         "type": "text",
         "content": content,
@@ -177,50 +197,103 @@ async def fetch_url_document(req: UrlFetchRequest):
 
 
 @app.get("/api/documents")
-async def list_documents():
-    return _read_json(DOCUMENTS_FILE, [])
+async def list_documents(user: dict = Depends(get_current_user)):
+    documents = _read_json(DOCUMENTS_FILE, [])
+    return [d for d in documents if d.get("user_id") == user["id"]]
 
 
-# ---------- DeepSeek 调用 ----------
+# ---------- AI 调用(多服务商：DeepSeek / OpenAI / Claude / Gemini，用各自用户自己填的 key) ----------
 
-def record_api_call():
+PROVIDER_CONFIG = {
+    "deepseek": {"label": "DeepSeek", "kind": "openai", "url": "https://api.deepseek.com/chat/completions", "model": "deepseek-chat"},
+    "openai": {"label": "OpenAI", "kind": "openai", "url": "https://api.openai.com/v1/chat/completions", "model": "gpt-4o-mini"},
+    "claude": {"label": "Claude (Anthropic)", "kind": "claude", "model": "claude-3-5-haiku-20241022"},
+    "gemini": {"label": "Gemini (Google)", "kind": "gemini", "model": "gemini-1.5-flash"},
+}
+
+
+def record_api_call(user_id: str):
     usage = _read_json(USAGE_FILE, {})
     month_key = datetime.now().strftime("%Y-%m")
-    usage[month_key] = usage.get(month_key, 0) + 1
+    user_usage = usage.setdefault(user_id, {})
+    user_usage[month_key] = user_usage.get(month_key, 0) + 1
     _write_json(USAGE_FILE, usage)
 
 
 @app.get("/api/usage")
-async def get_usage():
+async def get_usage(user: dict = Depends(get_current_user)):
     usage = _read_json(USAGE_FILE, {})
     month_key = datetime.now().strftime("%Y-%m")
-    return {"month": month_key, "count": usage.get(month_key, 0)}
+    count = usage.get(user["id"], {}).get(month_key, 0)
+    return {"month": month_key, "count": count}
 
 
-async def call_deepseek(prompt: str, json_mode: bool = False) -> str:
-    if not DEEPSEEK_API_KEY:
-        raise HTTPException(500, "未配置 DEEPSEEK_API_KEY")
-
-    payload = {
-        "model": "deepseek-chat",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.3,
-    }
+async def _call_openai_compatible(url: str, model: str, api_key: str, prompt: str, json_mode: bool) -> str:
+    payload = {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
-
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            DEEPSEEK_API_URL,
-            headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
-            json=payload,
-        )
-    record_api_call()
+        resp = await client.post(url, headers={"Authorization": f"Bearer {api_key}"}, json=payload)
     if resp.status_code != 200:
         raise HTTPException(502, f"AI 接口调用失败: {resp.text}")
-
     data = resp.json()
     return data["choices"][0]["message"]["content"]
+
+
+async def _call_claude(api_key: str, prompt: str, json_mode: bool) -> str:
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": PROVIDER_CONFIG["claude"]["model"],
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        )
+    if resp.status_code != 200:
+        raise HTTPException(502, f"AI 接口调用失败(Claude): {resp.text}")
+    data = resp.json()
+    try:
+        return data["content"][0]["text"]
+    except (KeyError, IndexError):
+        raise HTTPException(502, f"Claude 返回格式异常: {data}")
+
+
+async def _call_gemini(api_key: str, prompt: str, json_mode: bool) -> str:
+    model = PROVIDER_CONFIG["gemini"]["model"]
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
+    if resp.status_code != 200:
+        raise HTTPException(502, f"AI 接口调用失败(Gemini): {resp.text}")
+    data = resp.json()
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError):
+        raise HTTPException(502, f"Gemini 返回格式异常: {data}")
+
+
+async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False) -> str:
+    record_api_call(user_id)
+
+    if not api_key:
+        raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
+    cfg = PROVIDER_CONFIG.get(provider)
+    if not cfg:
+        raise HTTPException(400, f"不支持的 AI 服务商: {provider}")
+
+    if cfg["kind"] == "openai":
+        return await _call_openai_compatible(cfg["url"], cfg["model"], api_key, prompt, json_mode)
+    if cfg["kind"] == "claude":
+        return await _call_claude(api_key, prompt, json_mode)
+    if cfg["kind"] == "gemini":
+        return await _call_gemini(api_key, prompt, json_mode)
+    raise HTTPException(500, "AI 服务商配置错误")
 
 
 def build_word_prompt(word: str, context: str) -> str:
@@ -261,9 +334,12 @@ class AnalyzeResponse(BaseModel):
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
-async def analyze_selection(req: AnalyzeRequest):
+async def analyze_selection(req: AnalyzeRequest, user: dict = Depends(get_current_user)):
+    provider = user.get("ai_provider", "deepseek")
+    api_key = user.get("ai_api_keys", {}).get(provider, "")
+
     if req.mode == "word":
-        raw = await call_deepseek(build_word_prompt(req.text, req.context), json_mode=True)
+        raw = await call_ai(build_word_prompt(req.text, req.context), provider, api_key, user["id"], json_mode=True)
         try:
             parsed = json.loads(raw)
         except json.JSONDecodeError:
@@ -275,11 +351,11 @@ async def analyze_selection(req: AnalyzeRequest):
             pos=parsed.get("pos", ""),
         )
 
-    explanation = await call_deepseek(build_passage_prompt(req.text))
+    explanation = await call_ai(build_passage_prompt(req.text), provider, api_key, user["id"])
     return AnalyzeResponse(mode="passage", explanation=explanation)
 
 
-# ---------- AI 文章推荐(拉 RSS 标题 + DeepSeek 按难度/话题筛选打标签) ----------
+# ---------- AI 文章推荐(拉 RSS 标题 + AI 按难度/话题筛选打标签) ----------
 
 USER_LEVEL_DESC = "大学英语四级已通过，六级考了480分，属于中等偏下的中高级学习者（约B1-B2水平）"
 
@@ -293,7 +369,7 @@ RSS_FEEDS = [
     ("Guardian", "https://www.theguardian.com/science/rss"),
 ]
 
-_recommend_cache = {"data": None, "ts": None}
+_recommend_cache = {}  # user_id -> {"data": [...], "ts": datetime}
 RECOMMEND_CACHE_SECONDS = 3 * 60 * 60
 
 
@@ -338,18 +414,21 @@ def build_recommend_prompt(items: list) -> str:
 
 
 @app.get("/api/recommendations")
-async def get_recommendations(refresh: bool = False):
+async def get_recommendations(refresh: bool = False, user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
-    if not refresh and _recommend_cache["data"] is not None and _recommend_cache["ts"]:
-        age = (now - _recommend_cache["ts"]).total_seconds()
+    cache_entry = _recommend_cache.get(user["id"])
+    if not refresh and cache_entry:
+        age = (now - cache_entry["ts"]).total_seconds()
         if age < RECOMMEND_CACHE_SECONDS:
-            return _recommend_cache["data"]
+            return cache_entry["data"]
 
     items = await asyncio.to_thread(fetch_headlines)
     if not items:
         raise HTTPException(502, "没能拉到新闻列表，可能是网络问题或者 RSS 源暂时不可用")
 
-    raw = await call_deepseek(build_recommend_prompt(items), json_mode=True)
+    provider = user.get("ai_provider", "deepseek")
+    api_key = user.get("ai_api_keys", {}).get(provider, "")
+    raw = await call_ai(build_recommend_prompt(items), provider, api_key, user["id"], json_mode=True)
     try:
         picks = json.loads(raw).get("picks", [])
     except json.JSONDecodeError:
@@ -372,12 +451,61 @@ async def get_recommendations(refresh: bool = False):
             "reason": p.get("reason", ""),
         })
 
-    _recommend_cache["data"] = results
-    _recommend_cache["ts"] = now
+    _recommend_cache[user["id"]] = {"data": results, "ts": now}
     return results
 
 
-# ---------- 保存生词 / 句子笔记(本地 + Google Sheet 同步) ----------
+# ---------- 设置(AI 服务商 + key、Google Sheets 同步开关) ----------
+
+def mask_key(key: str) -> str:
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "*" * len(key)
+    return key[:4] + "..." + key[-4:]
+
+
+@app.get("/api/settings")
+async def get_settings(user: dict = Depends(get_current_user)):
+    keys = user.get("ai_api_keys", {})
+    return {
+        "name": user.get("name", ""),
+        "is_owner": user.get("is_owner", False),
+        "ai_provider": user.get("ai_provider", "deepseek"),
+        "ai_key_status": {
+            k: {"has_key": bool(keys.get(k)), "masked": mask_key(keys.get(k, ""))}
+            for k in PROVIDER_CONFIG
+        },
+        "sheets_sync_enabled": user.get("sheets_sync_enabled", False),
+        "providers": [{"value": k, "label": v["label"]} for k, v in PROVIDER_CONFIG.items()],
+    }
+
+
+class SettingsRequest(BaseModel):
+    ai_provider: str
+    ai_api_key: str = ""  # 留空表示不修改这个服务商已保存的 key
+    sheets_sync_enabled: bool = False
+
+
+@app.post("/api/settings")
+async def update_settings(req: SettingsRequest, user: dict = Depends(get_current_user)):
+    if req.ai_provider not in PROVIDER_CONFIG:
+        raise HTTPException(400, "不支持的 AI 服务商")
+
+    users = _read_json(USERS_FILE, [])
+    for u in users:
+        if u["id"] == user["id"]:
+            u["ai_provider"] = req.ai_provider
+            if req.ai_api_key:
+                keys = u.setdefault("ai_api_keys", {})
+                keys[req.ai_provider] = req.ai_api_key
+            if u.get("is_owner"):
+                u["sheets_sync_enabled"] = req.sheets_sync_enabled
+    _write_json(USERS_FILE, users)
+    return {"ok": True}
+
+
+# ---------- 保存生词 / 句子笔记(本地 + 可选 Google Sheet 同步，仅限主账号) ----------
 
 async def push_to_sheet(payload: dict) -> bool:
     if not SHEETS_WEBHOOK_URL:
@@ -402,18 +530,26 @@ class SaveRequest(BaseModel):
 
 
 @app.post("/api/save")
-async def save_entry(req: SaveRequest):
+async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
     today = datetime.now().strftime("%Y-%m-%d")
     now_iso = datetime.now(timezone.utc).isoformat()
+    should_sync = bool(user.get("is_owner")) and bool(user.get("sheets_sync_enabled"))
 
     if req.mode == "word":
         vocab = _read_json(VOCAB_FILE, [])
-        existing = next((v for v in vocab if v.get("word", "").strip().lower() == req.text.strip().lower()), None)
+        existing = next(
+            (
+                v for v in vocab
+                if v.get("user_id") == user["id"] and v.get("word", "").strip().lower() == req.text.strip().lower()
+            ),
+            None,
+        )
         if existing:
             return {"record": existing, "sheet_synced": False, "duplicate": True}
 
         record = {
             "id": uuid.uuid4().hex[:12],
+            "user_id": user["id"],
             "word": req.text,
             "sentence": req.context,
             "chinese_meaning": req.chinese_meaning,
@@ -425,21 +561,24 @@ async def save_entry(req: SaveRequest):
         }
         vocab.append(record)
         _write_json(VOCAB_FILE, vocab)
-        synced = await push_to_sheet({
-            "type": "word",
-            "word": req.text,
-            "sentence": req.context,
-            "chinese_meaning": req.chinese_meaning,
-            "ipa": req.ipa,
-            "pos": req.pos,
-            "source": req.source_doc,
-            "date": today,
-        })
+        synced = False
+        if should_sync:
+            synced = await push_to_sheet({
+                "type": "word",
+                "word": req.text,
+                "sentence": req.context,
+                "chinese_meaning": req.chinese_meaning,
+                "ipa": req.ipa,
+                "pos": req.pos,
+                "source": req.source_doc,
+                "date": today,
+            })
         return {"record": record, "sheet_synced": synced, "duplicate": False}
     else:
         notes = _read_json(SENTENCE_NOTES_FILE, [])
         record = {
             "id": uuid.uuid4().hex[:12],
+            "user_id": user["id"],
             "sentence": req.text,
             "analysis": req.explanation,
             "source_doc": req.source_doc,
@@ -448,42 +587,48 @@ async def save_entry(req: SaveRequest):
         }
         notes.append(record)
         _write_json(SENTENCE_NOTES_FILE, notes)
-        synced = await push_to_sheet({
-            "type": "sentence",
-            "sentence": req.text,
-            "analysis": req.explanation,
-            "source": req.source_doc,
-            "date": today,
-        })
+        synced = False
+        if should_sync:
+            synced = await push_to_sheet({
+                "type": "sentence",
+                "sentence": req.text,
+                "analysis": req.explanation,
+                "source": req.source_doc,
+                "date": today,
+            })
         return {"record": record, "sheet_synced": synced, "duplicate": False}
 
 
 @app.get("/api/vocab")
-async def list_vocab():
-    return _read_json(VOCAB_FILE, [])
+async def list_vocab(user: dict = Depends(get_current_user)):
+    vocab = _read_json(VOCAB_FILE, [])
+    return [v for v in vocab if v.get("user_id") == user["id"]]
 
 
 @app.get("/api/sentence_notes")
-async def list_sentence_notes():
-    return _read_json(SENTENCE_NOTES_FILE, [])
+async def list_sentence_notes(user: dict = Depends(get_current_user)):
+    notes = _read_json(SENTENCE_NOTES_FILE, [])
+    return [n for n in notes if n.get("user_id") == user["id"]]
 
 
 @app.delete("/api/vocab/{item_id}")
-async def delete_vocab(item_id: str):
+async def delete_vocab(item_id: str, user: dict = Depends(get_current_user)):
     vocab = _read_json(VOCAB_FILE, [])
-    remaining = [v for v in vocab if v.get("id") != item_id]
-    if len(remaining) == len(vocab):
+    target = next((v for v in vocab if v.get("id") == item_id), None)
+    if not target or target.get("user_id") != user["id"]:
         raise HTTPException(404, "没找到这条生词记录")
+    remaining = [v for v in vocab if v.get("id") != item_id]
     _write_json(VOCAB_FILE, remaining)
     return {"ok": True}
 
 
 @app.delete("/api/sentence_notes/{item_id}")
-async def delete_sentence_note(item_id: str):
+async def delete_sentence_note(item_id: str, user: dict = Depends(get_current_user)):
     notes = _read_json(SENTENCE_NOTES_FILE, [])
-    remaining = [n for n in notes if n.get("id") != item_id]
-    if len(remaining) == len(notes):
+    target = next((n for n in notes if n.get("id") == item_id), None)
+    if not target or target.get("user_id") != user["id"]:
         raise HTTPException(404, "没找到这条句子笔记")
+    remaining = [n for n in notes if n.get("id") != item_id]
     _write_json(SENTENCE_NOTES_FILE, remaining)
     return {"ok": True}
 

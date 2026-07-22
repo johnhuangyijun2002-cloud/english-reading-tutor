@@ -45,6 +45,7 @@
           </div>
         </div>
       </div>
+      <button id="btnAccountSettings" class="btn btn-ghost accountSettingsBtn" title="设置">⚙</button>
     </div>
   </div>
 
@@ -92,6 +93,47 @@
       <div id="searchResults"></div>
       <div class="pasteActions">
         <button id="btnSearchClose" class="btn btn-ghost">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="accountSettingsPanelOverlay" class="hidden">
+    <div id="accountSettingsPanel">
+      <h2>设置</h2>
+      <p id="settingsUserLine" class="settingsUserLine"></p>
+
+      <div class="settingsBlock">
+        <span class="settingsBlockLabel">AI 服务商</span>
+        <select id="aiProviderSelect" class="settingsSelect"></select>
+      </div>
+
+      <div class="settingsBlock">
+        <span class="settingsBlockLabel">API Key</span>
+        <input type="password" id="aiApiKeyInput" placeholder="填入这个服务商的 API Key" />
+        <p id="aiKeyHint" class="urlHint"></p>
+      </div>
+
+      <div id="sheetsSyncBlock" class="settingsBlock settingsBlockRow hidden">
+        <span class="settingsBlockLabel">同步到 Google Sheet</span>
+        <input type="checkbox" id="sheetsSyncToggle" />
+      </div>
+
+      <div class="pasteActions">
+        <button id="btnLogout" class="btn btn-ghost">退出登录</button>
+        <button id="btnSettingsSave" class="btn btn-primary">保存</button>
+      </div>
+      <p id="settingsSaveStatus" class="urlHint"></p>
+    </div>
+  </div>
+
+  <div id="loginOverlay" class="hidden">
+    <div id="loginPanel">
+      <h2>输入邀请码</h2>
+      <p class="urlHint">这个工具目前是邀请制，需要邀请码才能使用，找发给你邀请码的人要一个</p>
+      <input type="text" id="loginInviteCodeInput" placeholder="邀请码" />
+      <p id="loginError" class="loginError hidden"></p>
+      <div class="pasteActions">
+        <button id="btnLoginSubmit" class="btn btn-primary">进入</button>
       </div>
     </div>
   </div>
