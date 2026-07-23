@@ -107,7 +107,7 @@
     "youTag": " (나)"
   },
   "welcome": {
-    "title": "환영합니다 — 계정이 준비됐어요 🎉",
+    "title": "환영합니다 — 계정이 준비됐어요",
     "tagline": "실제 글을 읽으며 언어를 배우도록 도와주는 도구예요.",
     "body": "이제 글을 읽으면서 단어나 문장을 선택하면 AI 설명을 볼 수 있어요. 준비되면 설정에서 본인 AI 키를 등록해 보세요.",
     "houseTrialLine": "키가 없어도 괜찮아요 — 무료 체험 {count}회로 바로 시작할 수 있어요.",
@@ -139,7 +139,7 @@
     "privacy": "개인정보 처리방침에 동의하는 것으로 간주돼요"
   },
   "empty": { "noDocument": "글을 붙여넣거나 PDF/DOCX 파일을 업로드해서 정독을 시작해 보세요" },
-  "sidebar": { "history": "기록", "saveAll": "전체 저장", "print": "🖨️ 인쇄" },
+  "sidebar": { "history": "기록", "saveAll": "전체 저장", "print": "인쇄" },
   "languages": {
     "en": "영어", "zh": "중국어", "ja": "일본어", "ko": "한국어", "fr": "프랑스어",
     "es": "스페인어", "de": "독일어", "it": "이탈리아어", "pt": "포르투갈어",
@@ -155,8 +155,8 @@
     "count": "이번 달 {count}회 호출"
   },
   "toolbar": {
-    "saveWord": "🔖 단어 저장",
-    "analyzeSentence": "💡 AI 문장 분석"
+    "saveWord": "단어 저장",
+    "analyzeSentence": "AI 문장 분석"
   },
   "annotation": {
     "word": "단어",
@@ -166,13 +166,13 @@
     "saveSentenceBtn": "문장 노트에 저장",
     "saved": "저장됨",
     "duplicate": "이미 저장됨",
-    "duplicateStatus": "⚠️ \"{text}\"은(는) 이미 단어장에 있어서 다시 추가하지 않았어요",
-    "syncOk": "✅ 시트에 동기화됨",
-    "syncFail": "⚠️ 시트 동기화 실패 (로컬에는 저장됨)",
+    "duplicateStatus": "\"{text}\"은(는) 이미 단어장에 있어서 다시 추가하지 않았어요",
+    "syncOk": "시트에 동기화됨",
+    "syncFail": "시트 동기화 실패 (로컬에는 저장됨)",
     "saving": "저장 중...",
     "saveFailed": "저장 실패, 다시 시도해 주세요",
     "analyzeFailedPrefix": "분석 실패: {message}",
-    "retry": "🔄 다시 시도",
+    "retry": "다시 시도",
     "noResult": "(결과 없음)"
   },
   "history": {

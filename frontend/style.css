@@ -876,9 +876,14 @@ body {
 }
 
 .welcomeFeatureIcon {
-  font-size: 20px;
   display: block;
   margin-bottom: 6px;
+  color: var(--accent);
+}
+
+.welcomeFeatureIcon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .welcomeFeatureTitle {
@@ -1269,17 +1274,39 @@ body {
   color: var(--text);
 }
 
+/* ---------- 全站统一的线条图标(禁止用 emoji，见 DESIGN_GUIDELINES.md) ---------- */
+
+.inline-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  vertical-align: -3px;
+  margin-right: 4px;
+  color: currentColor;
+}
+
+#welcomePanel h2 .inline-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  vertical-align: -4px;
+}
+
 .pronounce-btn {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
   border: none;
   background: transparent;
-  font-size: 14px;
-  line-height: 1;
-  padding: 2px 4px;
+  padding: 4px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text-secondary);
   transition: background var(--ease) 0.15s;
+}
+
+.pronounce-btn .inline-icon {
+  margin-right: 0;
 }
 
 .pronounce-btn:hover {
@@ -1433,6 +1460,8 @@ body {
 }
 
 #selectionToolbar button {
+  display: inline-flex;
+  align-items: center;
   background: transparent;
   color: #fff;
   border: none;
@@ -1442,6 +1471,14 @@ body {
   cursor: pointer;
   border-radius: var(--radius-pill);
   transition: background var(--ease) 0.15s, transform 0.15s var(--spring-ease), opacity var(--ease) 0.15s;
+}
+
+#btnPronounce {
+  padding: 8px 10px;
+}
+
+#btnPronounce .inline-icon {
+  margin-right: 0;
 }
 
 #selectionToolbar button:hover {

@@ -107,7 +107,7 @@
     "youTag": " (you)"
   },
   "welcome": {
-    "title": "Welcome — your account is ready 🎉",
+    "title": "Welcome — your account is ready",
     "tagline": "A tool that helps you learn a language by reading real articles.",
     "body": "From now on, select any word or sentence while reading to get an AI explanation. Add your own AI key in Settings when you're ready.",
     "houseTrialLine": "No key yet? No problem — you have {count} free trial calls to get started.",
@@ -139,7 +139,7 @@
     "privacy": "Privacy Policy"
   },
   "empty": { "noDocument": "Paste an article, or upload a PDF/DOCX file to start reading closely" },
-  "sidebar": { "history": "History", "saveAll": "Save All", "print": "🖨️ Print" },
+  "sidebar": { "history": "History", "saveAll": "Save All", "print": "Print" },
   "languages": {
     "en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "fr": "French",
     "es": "Spanish", "de": "German", "it": "Italian", "pt": "Portuguese",
@@ -155,8 +155,8 @@
     "count": "{count} calls this month"
   },
   "toolbar": {
-    "saveWord": "🔖 Save word",
-    "analyzeSentence": "💡 AI explain sentence"
+    "saveWord": "Save word",
+    "analyzeSentence": "AI explain sentence"
   },
   "annotation": {
     "word": "Word",
@@ -166,13 +166,13 @@
     "saveSentenceBtn": "Save to sentence notes",
     "saved": "Saved",
     "duplicate": "Already saved",
-    "duplicateStatus": "⚠️ \"{text}\" is already in your vocab list, not added again",
-    "syncOk": "✅ Synced to Sheet",
-    "syncFail": "⚠️ Sheet sync failed (saved locally)",
+    "duplicateStatus": "\"{text}\" is already in your vocab list, not added again",
+    "syncOk": "Synced to Sheet",
+    "syncFail": "Sheet sync failed (saved locally)",
     "saving": "Saving...",
     "saveFailed": "Save failed, retry",
     "analyzeFailedPrefix": "Analysis failed: {message}",
-    "retry": "🔄 Retry",
+    "retry": "Retry",
     "noResult": "(no result)"
   },
   "history": {

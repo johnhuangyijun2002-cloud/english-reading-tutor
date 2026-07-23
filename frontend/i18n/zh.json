@@ -107,7 +107,7 @@
     "youTag": "（你）"
   },
   "welcome": {
-    "title": "欢迎，账号已经注册好了 🎉",
+    "title": "欢迎，账号已经注册好了",
     "tagline": "一个帮助你通过阅读真实文章学习语言的工具。",
     "body": "以后每次划词或划句都可以用 AI 解析，记得先去设置里填一个你自己的 AI Key。",
     "houseTrialLine": "不填 key 也没关系，你还有 {count} 次免费体验额度可以先用起来。",
@@ -139,7 +139,7 @@
     "privacy": "隐私政策"
   },
   "empty": { "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读" },
-  "sidebar": { "history": "历史记录", "saveAll": "一键保存", "print": "🖨️ 打印" },
+  "sidebar": { "history": "历史记录", "saveAll": "一键保存", "print": "打印" },
   "languages": {
     "en": "英语", "zh": "中文", "ja": "日语", "ko": "韩语", "fr": "法语",
     "es": "西班牙语", "de": "德语", "it": "意大利语", "pt": "葡萄牙语",
@@ -155,8 +155,8 @@
     "count": "本月已调用 {count} 次"
   },
   "toolbar": {
-    "saveWord": "🔖 记录生词",
-    "analyzeSentence": "💡 AI 解析句子"
+    "saveWord": "记录生词",
+    "analyzeSentence": "AI 解析句子"
   },
   "annotation": {
     "word": "生词",
@@ -166,13 +166,13 @@
     "saveSentenceBtn": "存入句子笔记",
     "saved": "已保存",
     "duplicate": "已存过",
-    "duplicateStatus": "⚠️ 生词表里已经有 \"{text}\" 了，没有重复添加",
-    "syncOk": "✅ 已同步 Sheet",
-    "syncFail": "⚠️ Sheet 同步失败(本地已存)",
+    "duplicateStatus": "生词表里已经有 \"{text}\" 了，没有重复添加",
+    "syncOk": "已同步 Sheet",
+    "syncFail": "Sheet 同步失败(本地已存)",
     "saving": "保存中...",
     "saveFailed": "保存失败，重试",
     "analyzeFailedPrefix": "分析失败：{message}",
-    "retry": "🔄 重试",
+    "retry": "重试",
     "noResult": "(无解析结果)"
   },
   "history": {

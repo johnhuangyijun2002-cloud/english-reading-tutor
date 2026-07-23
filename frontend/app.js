@@ -1,6 +1,29 @@
 let authToken = localStorage.getItem("authToken") || "";
 let currentUser = null; // {id, name, is_owner}
 
+// ---------- 图标(全站禁用 emoji，统一用 lucide 线条图标) ----------
+// 见 DESIGN_GUIDELINES.md：UI 里任何地方需要图标/图形提示，一律从这里取，不能直接写 emoji 字符。
+const ICON_PATHS = {
+  bookmark: '<path d="M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z" />',
+  lightbulb: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /><path d="M9 18h6" /><path d="M10 22h4" />',
+  "alert-triangle": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" />',
+  "check-circle": '<circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" />',
+  "refresh-cw": '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" />',
+  "party-popper": '<path d="M5.8 11.3 2 22l10.7-3.79" /><path d="M4 3h.01" /><path d="M22 8h.01" /><path d="M15 2h.01" /><path d="M22 20h.01" /><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10" /><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11c-.11.7-.72 1.22-1.43 1.22H17" /><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98C9.52 4.9 9 5.52 9 6.23V7" /><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z" />',
+  "file-text": '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /><path d="M10 9H8" /><path d="M16 13H8" /><path d="M16 17H8" />',
+  globe: '<circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" />',
+  "volume-2": '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" /><path d="M16 9a5 5 0 0 1 0 6" /><path d="M19.364 18.364a9 9 0 0 0 0-12.728" />',
+  printer: '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" />',
+  highlighter: '<path d="m9 11-6 6v3h9l3-3" /><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />',
+};
+
+function iconHTML(name, extraClass) {
+  const inner = ICON_PATHS[name];
+  if (!inner) return "";
+  const cls = "inline-icon" + (extraClass ? ` ${extraClass}` : "");
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}
+
 // ---------- 界面语言(i18n) ----------
 // ui_language 决定界面文案；真正生效的值以登录后账号里存的为准，这里的 localStorage
 // 缓存只是给"页面刚加载、还没拿到账号信息"这段时间一个合理的默认显示语言用。
@@ -240,7 +263,8 @@ async function refreshDocuments(selectId) {
   allDocs.forEach((d) => {
     const opt = document.createElement("option");
     opt.value = d.id;
-    opt.textContent = `📄 ${d.filename} · ${(d.learning_language || "en").toUpperCase()}`;
+    // <option> 是浏览器原生渲染的控件，不支持内嵌图标/HTML，只能是纯文本
+    opt.textContent = `${d.filename} · ${(d.learning_language || "en").toUpperCase()}`;
     docSelect.appendChild(opt);
   });
   if (allDocs.length === 0) {
@@ -328,7 +352,7 @@ function buildArticleHeader(content, title, sourceUrl) {
       link.href = sourceUrl;
       link.target = "_blank";
       link.rel = "noopener";
-      link.textContent = displaySourceName(host);
+      link.innerHTML = iconHTML("globe") + displaySourceName(host);
       meta.appendChild(link);
     } catch (err) {
       // 网址格式有问题就不显示来源，不影响其他信息
@@ -363,9 +387,9 @@ function buildArticleHeader(content, title, sourceUrl) {
 }
 
 function displaySourceName(host) {
-  if (host.includes("bbc.")) return "🌐 BBC";
-  if (host.includes("theguardian.com")) return "🌐 The Guardian";
-  return "🌐 " + host;
+  if (host.includes("bbc.")) return "BBC";
+  if (host.includes("theguardian.com")) return "The Guardian";
+  return host;
 }
 
 // ---------- 阅读进度条 ----------
@@ -507,7 +531,7 @@ function showWordPopup(mark) {
   wordPopup.innerHTML = `
     <div class="wordPopup-header">
       <div class="wordPopup-word"></div>
-      ${canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">🔊</button>` : ""}
+      ${canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">${iconHTML("volume-2")}</button>` : ""}
     </div>
     <div class="wordPopup-meta"></div>
     <div class="wordPopup-meaning"></div>
@@ -776,7 +800,10 @@ document.addEventListener("mouseup", (e) => {
   const rect = range.getBoundingClientRect();
   selectionToolbar.style.top = window.scrollY + rect.bottom + 6 + "px";
   selectionToolbar.style.left = window.scrollX + rect.left + "px";
-  btnAnalyze.textContent = pendingSelectionMode === "word" ? t("toolbar.saveWord") : t("toolbar.analyzeSentence");
+  btnAnalyze.innerHTML =
+    pendingSelectionMode === "word"
+      ? iconHTML("bookmark") + t("toolbar.saveWord")
+      : iconHTML("lightbulb") + t("toolbar.analyzeSentence");
   btnPronounce.classList.toggle("hidden", !(pendingSelectionMode === "word" && canSpeak()));
   btnPronounce.title = t("common.pronounce");
   selectionToolbar.classList.remove("hidden");
@@ -914,7 +941,7 @@ function addAnnotationEntry(text, mode, context) {
     <span class="ann-type ann-type-${mode}">${mode === "word" ? t("annotation.word") : t("annotation.sentence")}</span>
     <div class="ann-text-row">
       <div class="ann-text"></div>
-      ${mode === "word" && canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">🔊</button>` : ""}
+      ${mode === "word" && canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">${iconHTML("volume-2")}</button>` : ""}
     </div>
     <div class="ann-meta"></div>
     <div class="ann-explanation">${t("annotation.analyzing")}</div>
@@ -923,7 +950,7 @@ function addAnnotationEntry(text, mode, context) {
       <span class="ann-sync-status"></span>
     </div>
     <div class="ann-retry hidden">
-      <button class="ann-retry-btn">${t("annotation.retry")}</button>
+      <button class="ann-retry-btn">${iconHTML("refresh-cw")}${t("annotation.retry")}</button>
     </div>
   `;
   el.querySelector(".ann-text").textContent = text;
@@ -1015,7 +1042,7 @@ function buildHistoryCard(record) {
     <span class="ann-type ann-type-${record.mode}">${isWord ? t("annotation.word") : t("annotation.sentence")}</span>
     <div class="ann-text-row">
       <div class="ann-text"></div>
-      ${isWord && canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">🔊</button>` : ""}
+      ${isWord && canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">${iconHTML("volume-2")}</button>` : ""}
     </div>
     <div class="ann-meta"></div>
     <div class="ann-explanation"></div>
@@ -1256,12 +1283,16 @@ async function saveAnnotation(el, text) {
 
     if (data.duplicate) {
       saveBtn.textContent = t("annotation.duplicate");
-      statusEl.textContent = t("annotation.duplicateStatus", { text });
+      // 用 innerHTML 只放图标(固定、可信的 SVG)，正文用 append() 当纯文本插入——
+      // text 是用户从文章里划的原文，可能包含尖括号之类的字符，绝不能直接拼进 innerHTML。
+      statusEl.innerHTML = iconHTML("alert-triangle");
+      statusEl.append(t("annotation.duplicateStatus", { text }));
       return;
     }
 
     saveBtn.textContent = t("annotation.saved");
-    statusEl.textContent = data.sheet_synced ? t("annotation.syncOk") : t("annotation.syncFail");
+    statusEl.innerHTML = iconHTML(data.sheet_synced ? "check-circle" : "alert-triangle");
+    statusEl.append(data.sheet_synced ? t("annotation.syncOk") : t("annotation.syncFail"));
 
     if (el.dataset.mode === "word") {
       await loadKnownWords();
