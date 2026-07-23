@@ -839,11 +839,17 @@ body {
   display: none;
 }
 
+.wordPopup-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
 .wordPopup-word {
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
-  margin-bottom: 2px;
 }
 
 .wordPopup-meta {
@@ -967,11 +973,34 @@ body {
   }
 }
 
+.ann-text-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
 .ann-text {
   font-weight: 600;
   font-size: 14px;
-  margin-bottom: 6px;
   color: var(--text);
+}
+
+.pronounce-btn {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background var(--ease) 0.15s;
+}
+
+.pronounce-btn:hover {
+  background: var(--surface-2);
 }
 
 .ann-meta {
@@ -1133,6 +1162,10 @@ body {
 
 #selectionToolbar button:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+#btnPronounce.hidden {
+  display: none;
 }
 
 /* ---------- 账号设置(顶栏齿轮图标) ---------- */

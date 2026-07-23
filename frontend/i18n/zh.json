@@ -7,7 +7,8 @@
     "save": "保存",
     "saving": "保存中...",
     "saved": "已保存",
-    "saveFailed": "保存失败: {message}"
+    "saveFailed": "保存失败: {message}",
+    "pronounce": "朗读发音"
   },
   "topbar": {
     "addArticle": "添加文章",

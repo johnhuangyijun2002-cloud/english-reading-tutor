@@ -98,6 +98,7 @@ const readingProgressFill = document.getElementById("readingProgressFill");
 const annotationList = document.getElementById("annotationList");
 const selectionToolbar = document.getElementById("selectionToolbar");
 const btnAnalyze = document.getElementById("btnAnalyze");
+const btnPronounce = document.getElementById("btnPronounce");
 const btnSaveAll = document.getElementById("btnSaveAll");
 const btnPrint = document.getElementById("btnPrint");
 const printArea = document.getElementById("printArea");
@@ -478,7 +479,10 @@ function showWordPopup(mark) {
 
   const meta = [record.pos, record.ipa].filter(Boolean).join("  ·  ");
   wordPopup.innerHTML = `
-    <div class="wordPopup-word"></div>
+    <div class="wordPopup-header">
+      <div class="wordPopup-word"></div>
+      ${canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">🔊</button>` : ""}
+    </div>
     <div class="wordPopup-meta"></div>
     <div class="wordPopup-meaning"></div>
     <div class="wordPopup-sentence"></div>
@@ -494,6 +498,13 @@ function showWordPopup(mark) {
     const ok = await deleteRecord({ ...record, mode: "word" });
     if (ok) hideWordPopup();
   });
+  const wordPopupPronounceBtn = wordPopup.querySelector(".pronounce-btn");
+  if (wordPopupPronounceBtn) {
+    wordPopupPronounceBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      speakText(record.word, record.learning_language || currentDocLearningLanguage);
+    });
+  }
 
   const rect = mark.getBoundingClientRect();
   wordPopup.classList.remove("hidden");
@@ -700,6 +711,26 @@ function renderRecommendations(picks) {
   });
 }
 
+// ---------- 单词发音(浏览器内置 TTS，不用后端也不用额外的 API key) ----------
+
+const SPEECH_LANG_MAP = {
+  en: "en-US", zh: "zh-CN", ja: "ja-JP", ko: "ko-KR", fr: "fr-FR",
+  es: "es-ES", de: "de-DE", it: "it-IT", pt: "pt-PT", ru: "ru-RU",
+  ar: "ar-SA", th: "th-TH",
+};
+
+function canSpeak() {
+  return "speechSynthesis" in window;
+}
+
+function speakText(text, learningLanguage) {
+  if (!canSpeak() || !text) return;
+  window.speechSynthesis.cancel(); // 打断上一个还没播完的朗读
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = SPEECH_LANG_MAP[learningLanguage] || "en-US";
+  window.speechSynthesis.speak(utterance);
+}
+
 // ---------- 划词 / 划句 ----------
 
 document.addEventListener("mouseup", (e) => {
@@ -720,7 +751,14 @@ document.addEventListener("mouseup", (e) => {
   selectionToolbar.style.top = window.scrollY + rect.bottom + 6 + "px";
   selectionToolbar.style.left = window.scrollX + rect.left + "px";
   btnAnalyze.textContent = pendingSelectionMode === "word" ? t("toolbar.saveWord") : t("toolbar.analyzeSentence");
+  btnPronounce.classList.toggle("hidden", !(pendingSelectionMode === "word" && canSpeak()));
+  btnPronounce.title = t("common.pronounce");
   selectionToolbar.classList.remove("hidden");
+});
+
+btnPronounce.addEventListener("click", (e) => {
+  e.stopPropagation();
+  speakText(pendingSelectionText, currentDocLearningLanguage);
 });
 
 const SENTENCE_ABBREVIATIONS = new Set([
@@ -848,7 +886,10 @@ function addAnnotationEntry(text, mode, context) {
   el.dataset.context = context;
   el.innerHTML = `
     <span class="ann-type ann-type-${mode}">${mode === "word" ? t("annotation.word") : t("annotation.sentence")}</span>
-    <div class="ann-text"></div>
+    <div class="ann-text-row">
+      <div class="ann-text"></div>
+      ${mode === "word" && canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">🔊</button>` : ""}
+    </div>
     <div class="ann-meta"></div>
     <div class="ann-explanation">${t("annotation.analyzing")}</div>
     <div class="ann-actions hidden">
@@ -862,6 +903,13 @@ function addAnnotationEntry(text, mode, context) {
   el.querySelector(".ann-text").textContent = text;
   el.querySelector(".ann-save").addEventListener("click", () => saveAnnotation(el, text));
   el.querySelector(".ann-retry-btn").addEventListener("click", () => runAnalyze(el, text, mode, context));
+  const pronounceBtn = el.querySelector(".pronounce-btn");
+  if (pronounceBtn) {
+    pronounceBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      speakText(text, currentDocLearningLanguage);
+    });
+  }
   annotationList.prepend(el);
   return el;
 }
@@ -938,7 +986,10 @@ function buildHistoryCard(record) {
   el.className = "annotation annotation-saved";
   el.innerHTML = `
     <span class="ann-type ann-type-${record.mode}">${isWord ? t("annotation.word") : t("annotation.sentence")}</span>
-    <div class="ann-text"></div>
+    <div class="ann-text-row">
+      <div class="ann-text"></div>
+      ${isWord && canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">🔊</button>` : ""}
+    </div>
     <div class="ann-meta"></div>
     <div class="ann-explanation"></div>
     <div class="ann-footer">
@@ -959,6 +1010,13 @@ function buildHistoryCard(record) {
     const ok = await deleteRecord(record);
     if (ok) el.remove();
   });
+  const pronounceBtn = el.querySelector(".pronounce-btn");
+  if (pronounceBtn) {
+    pronounceBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      speakText(text, record.learning_language || "en");
+    });
+  }
   return el;
 }
 
