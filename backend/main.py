@@ -1069,9 +1069,119 @@ def detect_learning_language(text: str) -> str:
     return "en"
 
 
+# pdfplumber 自带的 page.extract_text() 判断"两个字符间要不要插空格"用的是固定阈值
+# (x_tolerance 默认 3pt)，双栏论文常见的 8-10pt 小字号下，正常词间距往往就只有
+# 1.5-2pt，比这个固定阈值还小，于是大量单词被直接拼在一起、读不出空格。
+# 这里改成按当前字符字号的比例算阈值(实测同一份文档里，同词内相邻字符间距基本是
+# 0，词与词之间大约是字号的 0.2 倍左右)，取 0.15 留出安全余量，能可靠区分"词内
+# 字符"和"词与词之间"，不受字号大小影响。
+_PDF_WORD_GAP_RATIO = 0.15
+# 双栏排版另一个问题是 pdfplumber 按整页宽度从左到右、从上到下读字符，同一行高度上
+# 左右两栏的文字会被交替拼在一起(比如左栏第一行紧跟着右栏第一行)，读出来的顺序完全
+# 是乱的。下面先检测页面中间有没有一条贯穿大半页高、几乎没有文字经过的竖直空白带
+# (栏间距)，有的话就分左右两栏分别按顺序提取，没有就当单栏处理。
+
+
+def _pdf_cluster_lines(chars, y_tolerance=3):
+    if not chars:
+        return []
+    chars = sorted(chars, key=lambda c: (c["top"], c["x0"]))
+    lines = []
+    current_line = [chars[0]]
+    current_top = chars[0]["top"]
+    for ch in chars[1:]:
+        if abs(ch["top"] - current_top) <= y_tolerance:
+            current_line.append(ch)
+            current_top = (current_top + ch["top"]) / 2
+        else:
+            lines.append(sorted(current_line, key=lambda c: c["x0"]))
+            current_line = [ch]
+            current_top = ch["top"]
+    lines.append(sorted(current_line, key=lambda c: c["x0"]))
+    return lines
+
+
+def _pdf_line_to_text(line_chars, gap_ratio=_PDF_WORD_GAP_RATIO):
+    if not line_chars:
+        return ""
+    parts = [line_chars[0]["text"]]
+    for prev, cur in zip(line_chars, line_chars[1:]):
+        if cur["text"].isspace() or prev["text"].isspace():
+            parts.append(cur["text"])
+            continue
+        gap = cur["x0"] - prev["x1"]
+        size = cur.get("size") or prev.get("size") or 10
+        if gap > size * gap_ratio:
+            parts.append(" ")
+        parts.append(cur["text"])
+    return "".join(parts)
+
+
+def _pdf_lines_to_text(chars, y_tolerance=3, gap_ratio=_PDF_WORD_GAP_RATIO):
+    lines = _pdf_cluster_lines(chars, y_tolerance=y_tolerance)
+    return "\n".join(_pdf_line_to_text(line, gap_ratio=gap_ratio) for line in lines)
+
+
+def _pdf_find_column_gutter(chars, page_width, search_lo=0.28, search_hi=0.72, bucket=1.0, min_gap_width=6):
+    """在页面横向 28%-72% 范围内找一条贯穿的空白带，当作双栏的分栏线。
+    范围特意避开页面最左/最右，防止把普通的左右页边距误判成栏间距。"""
+    if not chars:
+        return None
+    n_buckets = int(page_width / bucket) + 1
+    covered = [False] * n_buckets
+
+    def mark(x0, x1):
+        lo = max(0, int(x0 / bucket))
+        hi = min(n_buckets - 1, int(x1 / bucket))
+        for i in range(lo, hi + 1):
+            covered[i] = True
+
+    for c in chars:
+        mark(c["x0"], c["x1"])
+
+    lo_bucket = int(page_width * search_lo / bucket)
+    hi_bucket = int(page_width * search_hi / bucket)
+
+    best_start, best_len = None, 0
+    run_start = None
+    for i in range(lo_bucket, hi_bucket + 1):
+        if not covered[i]:
+            if run_start is None:
+                run_start = i
+        else:
+            if run_start is not None:
+                run_len = i - run_start
+                if run_len > best_len:
+                    best_len, best_start = run_len, run_start
+                run_start = None
+    if run_start is not None:
+        run_len = hi_bucket + 1 - run_start
+        if run_len > best_len:
+            best_len, best_start = run_len, run_start
+
+    if best_start is None or best_len * bucket < min_gap_width:
+        return None
+    return (best_start + best_len / 2) * bucket
+
+
+def _extract_pdf_page_text(page) -> str:
+    chars = page.chars
+    if not chars:
+        return ""
+    gutter = _pdf_find_column_gutter(chars, page.width)
+    if gutter is None:
+        return _pdf_lines_to_text(chars)
+    left = [c for c in chars if c["x1"] <= gutter]
+    right = [c for c in chars if c["x0"] >= gutter]
+    # 极少数字符可能正好压在分栏线上(比如跨栏的图/表标题)，归到左栏，不丢字
+    stray = [c for c in chars if c not in left and c not in right]
+    left += stray
+    return _pdf_lines_to_text(left) + "\n\n" + _pdf_lines_to_text(right)
+
+
 def extract_pdf_text(file_bytes: bytes) -> str:
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-        pages = [page.extract_text() or "" for page in pdf.pages]
+        pages = [_extract_pdf_page_text(page) for page in pdf.pages]
     return "\n\n".join(p.strip() for p in pages if p.strip())
 
 
