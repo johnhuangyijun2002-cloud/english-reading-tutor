@@ -123,6 +123,13 @@ async def no_store_api_responses(request, call_next):
     response = await call_next(request)
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
+    elif request.url.path in ("/", "/style.css", "/app.js") or request.url.path.startswith("/i18n/"):
+        # 前端是纯静态文件、没走构建工具，index.html/style.css/app.js 之前完全没设缓存策略，
+        # 浏览器会按启发式规则长期缓存——出现过好几次"部署了新版本，但用户浏览器还在跑
+        # 旧的 app.js/style.css，导致新功能点了没反应、页面样式没更新"的问题。
+        # no-cache 不是不缓存，是每次都问一下服务器"内容变了吗"(带 ETag 的条件请求，
+        # 没变就是很快的 304)，保证只要部署了新版本，下一次打开就一定是新版本。
+        response.headers["Cache-Control"] = "no-cache"
     return response
 
 
