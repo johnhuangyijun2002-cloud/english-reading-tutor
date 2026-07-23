@@ -544,7 +544,7 @@ async def _migrate_json_to_postgres(conn):
                ON CONFLICT (id) DO NOTHING""",
             u["id"], u.get("name", ""), u.get("username"), u.get("password_salt"), u.get("password_hash"),
             u.get("google_id"), u.get("google_email"), bool(u.get("is_owner", False)),
-            u.get("ai_provider", "deepseek"), json.dumps(u.get("ai_api_keys", {})),
+            u.get("ai_provider", "deepseek"), json.dumps({k: _encrypt_key(v) for k, v in (u.get("ai_api_keys") or {}).items()}),
             bool(u.get("sheets_sync_enabled", False)),
         )
 
