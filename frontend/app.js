@@ -132,6 +132,11 @@ const searchResults = document.getElementById("searchResults");
 const btnSearchClose = document.getElementById("btnSearchClose");
 let searchDataCache = null;
 
+const btnDocManager = document.getElementById("btnDocManager");
+const docManagerPanelOverlay = document.getElementById("docManagerPanelOverlay");
+const docManagerList = document.getElementById("docManagerList");
+const btnDocManagerClose = document.getElementById("btnDocManagerClose");
+
 const btnAccountSettings = document.getElementById("btnAccountSettings");
 const accountSettingsPanelOverlay = document.getElementById("accountSettingsPanelOverlay");
 const settingsUserLine = document.getElementById("settingsUserLine");
@@ -948,6 +953,7 @@ function showHistoryEmptyState(message) {
 }
 
 function showNoDocumentState() {
+  viewerContent.innerHTML = `<div id="emptyState"><p>${t("empty.noDocument")}</p></div>`;
   showHistoryEmptyState(t("history.emptyNoDoc"));
   btnReaderSettings.classList.add("hidden");
   readerSettingsPanel.classList.add("hidden");
@@ -1075,6 +1081,75 @@ btnSearchClose.addEventListener("click", () => {
 
 searchPanelOverlay.addEventListener("click", (e) => {
   if (e.target === searchPanelOverlay) searchPanelOverlay.classList.add("hidden");
+});
+
+// ---------- 文章管理(标题 + 导入时间 + 删除) ----------
+
+function formatDocDate(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString();
+}
+
+function renderDocManagerList() {
+  docManagerList.innerHTML = "";
+  if (!allDocs || allDocs.length === 0) {
+    docManagerList.innerHTML = `<p class="recommend-loading">${t("docManager.empty")}</p>`;
+    return;
+  }
+  // allDocs 是后台按 uploaded_at 升序返回的(最新的排最后，跟下拉框逻辑一致)，
+  // 这里管理面板想让最新的排在最上面，所以反过来显示。
+  [...allDocs].reverse().forEach((doc) => {
+    const card = document.createElement("div");
+    card.className = "docCard";
+    card.innerHTML = `
+      <div class="docCard-info">
+        <div class="docCard-title"></div>
+        <div class="docCard-meta"></div>
+      </div>
+      <div class="docCard-actions">
+        <button type="button" class="docCard-open">${t("docManager.open")}</button>
+        <button type="button" class="docCard-delete">${t("docManager.delete")}</button>
+      </div>
+    `;
+    card.querySelector(".docCard-title").textContent = doc.filename || "";
+    const langLabel = t(`languages.${doc.learning_language}`) || (doc.learning_language || "en").toUpperCase();
+    card.querySelector(".docCard-meta").textContent = `${langLabel} · ${formatDocDate(doc.uploaded_at)}`;
+    card.querySelector(".docCard-open").addEventListener("click", () => {
+      docSelect.value = doc.id;
+      loadDocument(doc);
+      docManagerPanelOverlay.classList.add("hidden");
+    });
+    card.querySelector(".docCard-delete").addEventListener("click", async () => {
+      const confirmed = confirm(t("docManager.deleteConfirm", { title: doc.filename || "" }));
+      if (!confirmed) return;
+      try {
+        const res = await apiFetch(`/api/documents/${doc.id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error(await res.text());
+      } catch (err) {
+        alert(t("docManager.deleteFailed", { message: err.message }));
+        return;
+      }
+      const wasCurrent = doc.id === currentDocId;
+      await refreshDocuments(wasCurrent ? undefined : currentDocId);
+      renderDocManagerList();
+    });
+    docManagerList.appendChild(card);
+  });
+}
+
+btnDocManager.addEventListener("click", () => {
+  renderDocManagerList();
+  docManagerPanelOverlay.classList.remove("hidden");
+});
+
+btnDocManagerClose.addEventListener("click", () => {
+  docManagerPanelOverlay.classList.add("hidden");
+});
+
+docManagerPanelOverlay.addEventListener("click", (e) => {
+  if (e.target === docManagerPanelOverlay) docManagerPanelOverlay.classList.add("hidden");
 });
 
 async function loadSearchData() {

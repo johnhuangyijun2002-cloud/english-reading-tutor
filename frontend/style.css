@@ -599,6 +599,119 @@ body {
   transform: translateY(-1px);
 }
 
+/* ---------- 文章管理弹层 ---------- */
+
+#docManagerPanelOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.18s var(--ease);
+}
+
+#docManagerPanelOverlay.hidden {
+  display: none;
+}
+
+#docManagerPanel {
+  width: min(560px, 90vw);
+  max-height: 78vh;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: popIn 0.22s var(--ease);
+}
+
+#docManagerPanel h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+#docManagerList {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.docCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  background: var(--surface-2);
+}
+
+.docCard-info {
+  min-width: 0;
+}
+
+.docCard-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.docCard-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.docCard-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.docCard-open,
+.docCard-delete {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: background var(--ease) 0.15s, color var(--ease) 0.15s;
+}
+
+.docCard-open {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.docCard-open:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.docCard-delete {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.docCard-delete:hover {
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
+}
+
 /* ---------- 左侧导航栏 ---------- */
 
 #sideNav {

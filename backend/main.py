@@ -384,6 +384,17 @@ async def db_delete_documents_for_user(user_id: str):
     await pool.execute("DELETE FROM documents WHERE user_id=$1", user_id)
 
 
+async def db_get_document(doc_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM documents WHERE id=$1", doc_id)
+    return _serialize_row(row) if row else None
+
+
+async def db_delete_document(doc_id: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM documents WHERE id=$1", doc_id)
+
+
 async def db_create_vocab(record: dict):
     pool = await get_pool()
     await pool.execute(
@@ -1180,6 +1191,18 @@ async def fetch_url_document(req: UrlFetchRequest, user: dict = Depends(get_curr
 @app.get("/api/documents")
 async def list_documents(user: dict = Depends(get_current_user)):
     return await db_list_documents(user["id"])
+
+
+@app.delete("/api/documents/{doc_id}")
+async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
+    target = await db_get_document(doc_id)
+    if not target or target.get("user_id") != user["id"]:
+        raise HTTPException(404, "没找到这篇文章")
+    await db_delete_document(doc_id)
+    # 生词/句子笔记是按文章标题(source_doc)关联的，不是按这篇文章的 id，
+    # 删文章不会跟着删掉已经存的生词——跟本地删生词不会删 Sheet 里对应行是同一个道理，
+    # 避免"删错一下就连带丢数据"。
+    return {"ok": True}
 
 
 # ---------- 界面语言 / AI 讲解语言 / 学习语言 ----------

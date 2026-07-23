@@ -18,9 +18,18 @@
   "nav": {
     "reader": "Reader",
     "vocab": "Vocabulary",
+    "docManager": "Articles",
     "recommend": "AI Picks",
     "settings": "Settings",
     "comingSoon": "Coming soon"
+  },
+  "docManager": {
+    "title": "Manage Articles",
+    "empty": "No articles yet",
+    "open": "Open",
+    "delete": "Delete",
+    "deleteConfirm": "Delete \"{title}\"? Vocab/notes already saved from it won't be deleted.",
+    "deleteFailed": "Delete failed: {message}"
   },
   "readerSettings": {
     "fontSize": "Font size",

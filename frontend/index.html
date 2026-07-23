@@ -100,6 +100,16 @@
     </div>
   </div>
 
+  <div id="docManagerPanelOverlay" class="hidden">
+    <div id="docManagerPanel">
+      <h2 data-i18n="docManager.title">文章管理</h2>
+      <div id="docManagerList"></div>
+      <div class="pasteActions">
+        <button id="btnDocManagerClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <div id="accountSettingsPanelOverlay" class="hidden">
     <div id="accountSettingsPanel">
       <h2 data-i18n="nav.settings">设置</h2>
@@ -227,6 +237,10 @@
       <button class="navItem" id="btnSearchHistory">
         <span class="navIcon">📚</span>
         <span class="navLabel" data-i18n="nav.vocab">生词本</span>
+      </button>
+      <button class="navItem" id="btnDocManager">
+        <span class="navIcon">🗂️</span>
+        <span class="navLabel" data-i18n="nav.docManager">文章管理</span>
       </button>
       <button class="navItem" id="btnRecommend">
         <span class="navIcon">✨</span>

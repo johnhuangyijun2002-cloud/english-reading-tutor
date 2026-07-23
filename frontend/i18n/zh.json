@@ -18,9 +18,18 @@
   "nav": {
     "reader": "阅读",
     "vocab": "生词本",
+    "docManager": "文章管理",
     "recommend": "AI 推荐",
     "settings": "设置",
     "comingSoon": "敬请期待"
+  },
+  "docManager": {
+    "title": "文章管理",
+    "empty": "还没有添加过文章",
+    "open": "打开",
+    "delete": "删除",
+    "deleteConfirm": "确定要删除《{title}》吗？已经存过的生词/句子笔记不会被删除。",
+    "deleteFailed": "删除失败: {message}"
   },
   "readerSettings": {
     "fontSize": "字号",
