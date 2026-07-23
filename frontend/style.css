@@ -16,6 +16,12 @@
   --radius-sm: 10px;
   --radius-pill: 980px;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --spring-ease: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-bg-strong: rgba(255, 255, 255, 0.82);
+  --glass-bg-soft: rgba(255, 255, 255, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-blur: 24px;
   --reader-font-size: 17px;
   --reader-max-width: 700px;
   --reader-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC",
@@ -37,6 +43,10 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.6);
+    --glass-bg: rgba(28, 28, 30, 0.6);
+    --glass-bg-strong: rgba(28, 28, 30, 0.74);
+    --glass-bg-soft: rgba(28, 28, 30, 0.42);
+    --glass-border: rgba(255, 255, 255, 0.1);
     color-scheme: dark;
   }
 }
@@ -85,6 +95,7 @@ body {
 
 .btn:active {
   transform: scale(0.96);
+  opacity: 0.85;
 }
 
 .btn-primary {
@@ -226,16 +237,18 @@ body {
   top: calc(100% + 8px);
   right: 0;
   width: 260px;
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   z-index: 150;
-  animation: popIn 0.15s var(--ease);
+  animation: popIn 0.22s var(--spring-ease);
 }
 
 #readerSettingsPanel.hidden {
@@ -303,14 +316,17 @@ body {
 
 #pastePanel {
   width: min(560px, 90vw);
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 28px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  animation: popIn 0.22s var(--ease);
+  animation: popIn 0.28s var(--spring-ease);
 }
 
 .pasteTabs {
@@ -401,7 +417,7 @@ body {
 }
 
 @keyframes popIn {
-  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  from { opacity: 0; transform: scale(0.92) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
@@ -427,14 +443,17 @@ body {
 #recommendPanel {
   width: min(640px, 90vw);
   max-height: 82vh;
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  animation: popIn 0.22s var(--ease);
+  animation: popIn 0.28s var(--spring-ease);
 }
 
 .recommendHeader {
@@ -467,10 +486,10 @@ body {
 }
 
 .recCard {
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 14px 16px;
-  background: var(--surface-2);
+  background: var(--glass-bg-soft);
 }
 
 .recCard-tags {
@@ -548,14 +567,17 @@ body {
 #searchPanel {
   width: min(560px, 90vw);
   max-height: 78vh;
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  animation: popIn 0.22s var(--ease);
+  animation: popIn 0.28s var(--spring-ease);
 }
 
 #searchPanel h2 {
@@ -621,14 +643,17 @@ body {
 #docManagerPanel {
   width: min(560px, 90vw);
   max-height: 78vh;
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  animation: popIn 0.22s var(--ease);
+  animation: popIn 0.28s var(--spring-ease);
 }
 
 #docManagerPanel h2 {
@@ -651,10 +676,11 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 12px 14px;
-  background: var(--surface-2);
+  background: var(--glass-bg-soft);
+  transition: transform var(--ease) 0.15s;
 }
 
 .docCard-info {
@@ -722,8 +748,10 @@ body {
   align-items: stretch;
   gap: 4px;
   padding: 16px 10px;
-  border-right: 1px solid var(--border);
-  background: var(--surface-2);
+  border-right: 1px solid var(--glass-border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
 .navItem {
@@ -738,7 +766,7 @@ body {
   border-radius: var(--radius-md);
   cursor: pointer;
   color: var(--text-secondary);
-  transition: background var(--ease) 0.15s, color var(--ease) 0.15s;
+  transition: background 0.2s var(--spring-ease), color 0.2s var(--spring-ease), transform 0.15s var(--spring-ease);
   font-family: inherit;
 }
 
@@ -752,6 +780,11 @@ body {
   color: var(--accent);
 }
 
+.navItem:active:not(:disabled) {
+  transform: scale(0.94);
+  opacity: 0.85;
+}
+
 .navItem-disabled {
   opacity: 0.4;
   cursor: default;
@@ -760,6 +793,15 @@ body {
 .navIcon {
   font-size: 20px;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navIcon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
 }
 
 .navLabel {
@@ -795,14 +837,17 @@ body {
 
 #welcomePanel {
   width: min(480px, 90vw);
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 26px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  animation: popIn 0.22s var(--ease);
+  animation: popIn 0.28s var(--spring-ease);
 }
 
 #welcomePanel h2 {
@@ -824,9 +869,9 @@ body {
 }
 
 .welcomeFeatureCard {
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  background: var(--surface-2);
+  background: var(--glass-bg-soft);
   padding: 12px;
 }
 
@@ -874,7 +919,10 @@ body {
 
 #languagePickerPanel {
   width: min(360px, 90vw);
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 28px;
@@ -882,7 +930,7 @@ body {
   flex-direction: column;
   gap: 16px;
   text-align: center;
-  animation: popIn 0.22s var(--ease);
+  animation: popIn 0.28s var(--spring-ease);
 }
 
 #languagePickerHeading {
@@ -909,12 +957,17 @@ body {
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color var(--ease) 0.15s, background var(--ease) 0.15s;
+  transition: border-color var(--ease) 0.15s, background var(--ease) 0.15s, transform 0.15s var(--spring-ease), opacity var(--ease) 0.15s;
 }
 
 .langPickerOption:hover {
   border-color: var(--accent);
   background: var(--accent-tint);
+}
+
+.langPickerOption:active {
+  transform: scale(0.97);
+  opacity: 0.88;
 }
 
 .langPickerOption.is-default {
@@ -1053,12 +1106,14 @@ body {
   position: absolute;
   z-index: 1000;
   width: 260px;
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   padding: 14px 16px;
-  animation: popIn 0.15s var(--ease);
+  animation: popIn 0.22s var(--spring-ease);
 }
 
 #wordPopup.hidden {
@@ -1125,8 +1180,10 @@ body {
 #sidebar {
   width: 360px;
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  background: var(--surface-2);
+  border-left: 1px solid var(--glass-border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   overflow-y: auto;
   padding: 20px;
 }
@@ -1163,13 +1220,13 @@ body {
 }
 
 .annotation {
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 14px 16px;
   margin-bottom: 12px;
-  background: var(--surface);
+  background: var(--glass-bg-soft);
   box-shadow: var(--shadow-sm);
-  animation: popIn 0.2s var(--ease);
+  animation: popIn 0.24s var(--spring-ease);
 }
 
 .annotation-saved {
@@ -1361,13 +1418,14 @@ body {
 #selectionToolbar {
   position: absolute;
   z-index: 1000;
-  background: rgba(29, 29, 31, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(29, 29, 31, 0.82);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-pill);
   padding: 4px;
   box-shadow: var(--shadow-lg);
-  animation: popIn 0.15s var(--ease);
+  animation: popIn 0.22s var(--spring-ease);
 }
 
 #selectionToolbar.hidden {
@@ -1383,11 +1441,16 @@ body {
   font-weight: 500;
   cursor: pointer;
   border-radius: var(--radius-pill);
-  transition: background var(--ease) 0.15s;
+  transition: background var(--ease) 0.15s, transform 0.15s var(--spring-ease), opacity var(--ease) 0.15s;
 }
 
 #selectionToolbar button:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+#selectionToolbar button:active {
+  transform: scale(0.94);
+  opacity: 0.85;
 }
 
 #btnPronounce.hidden {
@@ -1420,14 +1483,17 @@ body {
 
 #accountSettingsPanel {
   width: min(440px, 90vw);
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  animation: popIn 0.22s var(--ease);
+  animation: popIn 0.28s var(--spring-ease);
 }
 
 #accountSettingsPanel h2 {
@@ -1517,14 +1583,17 @@ body {
 
 #loginPanel {
   width: min(380px, 90vw);
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 28px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  animation: popIn 0.22s var(--ease);
+  animation: popIn 0.28s var(--spring-ease);
 }
 
 #loginPanel h2 {
