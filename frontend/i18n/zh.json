@@ -108,9 +108,21 @@
   },
   "welcome": {
     "title": "欢迎，账号已经注册好了 🎉",
+    "tagline": "一个帮助你通过阅读真实文章学习语言的工具。",
     "body": "以后每次划词或划句都可以用 AI 解析，记得先去设置里填一个你自己的 AI Key。",
     "houseTrialLine": "不填 key 也没关系，你还有 {count} 次免费体验额度可以先用起来。",
-    "gotIt": "知道了"
+    "feature1Title": "导入文章",
+    "feature1Desc": "粘贴文本、上传 PDF/DOCX，或者直接导入网址",
+    "feature2Title": "AI 讲解",
+    "feature2Desc": "划中单词或句子，立刻拿到 AI 解释",
+    "feature3Title": "高亮标记",
+    "feature3Desc": "读的时候把重点段落用颜色标出来",
+    "feature4Title": "生词本",
+    "feature4Desc": "所有存过的生词和笔记，随时能搜到",
+    "gotIt": "开始使用"
+  },
+  "languagePicker": {
+    "hint": "以后随时可以去设置里改"
   },
   "login": {
     "title": "登录",

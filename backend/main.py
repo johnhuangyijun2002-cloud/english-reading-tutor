@@ -737,6 +737,7 @@ class RegisterRequest(BaseModel):
     username: str
     password: str
     turnstile_token: str = ""
+    ui_language: str = "zh"
 
 
 @app.post("/api/register")
@@ -762,6 +763,7 @@ async def register(request: Request, req: RegisterRequest):
         password_salt=salt,
         password_hash=_hash_password(password, salt),
         is_owner=(user_count == 0),
+        ui_language=req.ui_language if req.ui_language in UI_LANGUAGES else "zh",
     )
     _audit("register", user_id=new_user["id"], username=username)
     token = await db_create_session(new_user["id"])
@@ -1210,7 +1212,7 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
 # explain_language：AI 讲解输出用哪种语言，'auto' 表示跟随 ui_language 实时计算，
 # 用户也可以手动固定成某一种，不受界面语言变化影响。
 # learning_language：某一篇文章/某一条生词笔记正在学习的目标语言，开放式的，不是只有中英两个选项。
-UI_LANGUAGES = ["zh", "en"]
+UI_LANGUAGES = ["zh", "en", "ko"]
 EXPLAIN_LANGUAGE_CHOICES = ["auto", "zh", "en"]
 
 LANGUAGE_LABELS = {

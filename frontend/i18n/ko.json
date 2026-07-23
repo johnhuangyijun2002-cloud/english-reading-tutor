@@ -1,0 +1,205 @@
+{
+  "app": { "title": "영어 정독 학습기" },
+  "common": {
+    "close": "닫기",
+    "cancel": "취소",
+    "confirm": "변경 확인",
+    "save": "저장",
+    "saving": "저장 중...",
+    "saved": "저장됨",
+    "saveFailed": "저장 실패: {message}",
+    "pronounce": "발음 듣기"
+  },
+  "topbar": {
+    "addArticle": "글 추가",
+    "upload": "파일 업로드",
+    "vocab": "단어장"
+  },
+  "nav": {
+    "reader": "읽기",
+    "vocab": "단어장",
+    "docManager": "글 관리",
+    "recommend": "AI 추천",
+    "settings": "설정",
+    "comingSoon": "준비 중"
+  },
+  "docManager": {
+    "title": "글 관리",
+    "empty": "아직 추가된 글이 없어요",
+    "open": "열기",
+    "delete": "삭제",
+    "deleteConfirm": "\"{title}\"을(를) 삭제할까요? 이미 저장된 단어/문장 노트는 삭제되지 않아요.",
+    "deleteFailed": "삭제 실패: {message}"
+  },
+  "readerSettings": {
+    "fontSize": "글자 크기",
+    "small": "작게",
+    "medium": "보통",
+    "large": "크게",
+    "xlarge": "아주 크게",
+    "width": "본문 너비",
+    "narrow": "좁게",
+    "mediumWidth": "보통",
+    "wide": "넓게",
+    "font": "글꼴",
+    "sans": "고딕체",
+    "serif": "명조체"
+  },
+  "recommend": {
+    "title": "오늘의 추천",
+    "refresh": "다시 추천받기",
+    "loading": "수준에 맞는 글을 고르는 중, 잠시만요...",
+    "empty": "지금은 맞는 추천이 없어요. \"다시 추천받기\"를 눌러보세요",
+    "failed": "추천 실패: {message}",
+    "difficulty": "난이도 · {level}",
+    "readThis": "이 글 읽기",
+    "fetching": "가져오는 중..."
+  },
+  "paste": {
+    "tabPaste": "텍스트 붙여넣기",
+    "tabUrl": "URL 가져오기",
+    "titlePlaceholder": "제목 / 출처 (예: NYT - 2026년 7월)",
+    "contentPlaceholder": "여기에 글을 붙여넣으세요...",
+    "urlPlaceholder": "https://www.bbc.com/news/... 또는 Guardian 기사 링크",
+    "urlHint": "BBC, The Guardian 등 뉴스 사이트를 지원해요 — 광고/내비게이션은 건너뛰고 본문만 자동으로 가져와요",
+    "learningLanguage": "학습 중인 언어",
+    "submit": "읽기 시작",
+    "needContent": "먼저 글 내용을 붙여넣어 주세요",
+    "needUrl": "먼저 글 URL을 입력해 주세요",
+    "saveFailed": "저장 실패: {message}",
+    "fetchFailed": "가져오기 실패: {message}"
+  },
+  "search": {
+    "placeholder": "단어, 뜻, 예문, 출처 글 검색... (비워두면 전체 표시)",
+    "loading": "불러오는 중...",
+    "empty": "아직 저장된 단어나 노트가 없어요 — 글을 읽으며 단어나 문장을 선택해 보세요",
+    "noMatch": "일치하는 기록이 없어요"
+  },
+  "settings": {
+    "uiLanguage": "화면 언어",
+    "explainLanguage": "AI 설명 언어",
+    "explainFollowUI": "화면 언어와 동일하게",
+    "aiProvider": "AI 제공업체",
+    "apiKey": "API 키",
+    "apiKeyPlaceholder": "이 제공업체의 API 키를 입력하세요",
+    "apiKeyHintSet": "설정됨 ({masked}) — 다시 입력하면 교체돼요",
+    "apiKeyHintUnset": "이 제공업체의 키가 없어요 — 단어/문장 분석, AI 추천을 사용할 수 없어요",
+    "houseTrialLeft": "키가 없어도 체험 횟수로 사용할 수 있어요 — {left}/{total}회 남음",
+    "houseTrialUsedUp": "체험 횟수를 모두 사용했어요 ({total}/{total}) — 계속 사용하려면 본인 AI 키를 등록해 주세요",
+    "sheetsSync": "Google 시트에 동기화",
+    "changeUsername": "사용자 이름 변경",
+    "newUsernamePlaceholder": "새 사용자 이름",
+    "changePassword": "비밀번호 변경",
+    "changePasswordUnset": "비밀번호 설정 (현재 Google 로그인, 비밀번호 없음)",
+    "newPasswordPlaceholder": "새 비밀번호, 최소 8자",
+    "googleLink": "Google 계정 연동",
+    "googleLinkBtn": "Google 계정 연동하기",
+    "googleLinkBtnRelink": "다시 연동 / 계정 변경",
+    "googleLinkedStatus": "연동됨: {email}",
+    "googleUnlinkedStatus": "연동되지 않음 — 사용자 이름/비밀번호로만 로그인할 수 있어요",
+    "logout": "로그아웃",
+    "registeredUsers": "가입한 사용자",
+    "accountData": "계정 데이터",
+    "exportData": "내 데이터 내보내기",
+    "deleteAccount": "계정 삭제",
+    "userLine": "로그인 계정: {name}{ownerTag}",
+    "ownerTag": " (관리자)",
+    "youTag": " (나)"
+  },
+  "welcome": {
+    "title": "환영합니다 — 계정이 준비됐어요 🎉",
+    "tagline": "실제 글을 읽으며 언어를 배우도록 도와주는 도구예요.",
+    "body": "이제 글을 읽으면서 단어나 문장을 선택하면 AI 설명을 볼 수 있어요. 준비되면 설정에서 본인 AI 키를 등록해 보세요.",
+    "houseTrialLine": "키가 없어도 괜찮아요 — 무료 체험 {count}회로 바로 시작할 수 있어요.",
+    "feature1Title": "글 가져오기",
+    "feature1Desc": "텍스트 붙여넣기, PDF/DOCX 업로드, URL 가져오기 모두 가능해요",
+    "feature2Title": "AI 설명",
+    "feature2Desc": "단어나 문장을 선택하면 바로 AI 설명을 받아요",
+    "feature3Title": "하이라이트",
+    "feature3Desc": "읽으면서 중요한 부분을 색으로 표시해요",
+    "feature4Title": "단어장",
+    "feature4Desc": "저장한 단어와 노트를 한곳에서 검색해요",
+    "gotIt": "시작하기"
+  },
+  "languagePicker": {
+    "hint": "설정에서 언제든지 바꿀 수 있어요"
+  },
+  "login": {
+    "title": "로그인",
+    "hint": "사용자 이름은 자유롭게, 비밀번호는 8자 이상 입력하세요. 처음 가입한 계정이 자동으로 관리자 계정이 돼요.",
+    "username": "사용자 이름",
+    "password": "비밀번호",
+    "registerBtn": "새 계정 만들기",
+    "loginBtn": "로그인",
+    "or": "또는",
+    "googleLogin": "Google로 로그인",
+    "legalPrefix": "계속 진행하면 ",
+    "terms": "서비스 약관",
+    "and": " 및 ",
+    "privacy": "개인정보 처리방침에 동의하는 것으로 간주돼요"
+  },
+  "empty": { "noDocument": "글을 붙여넣거나 PDF/DOCX 파일을 업로드해서 정독을 시작해 보세요" },
+  "sidebar": { "history": "기록", "saveAll": "전체 저장", "print": "🖨️ 인쇄" },
+  "languages": {
+    "en": "영어", "zh": "중국어", "ja": "일본어", "ko": "한국어", "fr": "프랑스어",
+    "es": "스페인어", "de": "독일어", "it": "이탈리아어", "pt": "포르투갈어",
+    "ru": "러시아어", "ar": "아랍어", "th": "태국어"
+  },
+  "article": {
+    "charCount": "약 {count}자",
+    "wordCount": "약 {count}단어",
+    "readTime": "예상 읽기 시간 {minutes}분"
+  },
+  "usage": {
+    "cost": "이번 달 약 {cost} 사용",
+    "count": "이번 달 {count}회 호출"
+  },
+  "toolbar": {
+    "saveWord": "🔖 단어 저장",
+    "analyzeSentence": "💡 AI 문장 분석"
+  },
+  "annotation": {
+    "word": "단어",
+    "sentence": "문장",
+    "analyzing": "AI 분석 중...",
+    "saveWordBtn": "단어장에 저장",
+    "saveSentenceBtn": "문장 노트에 저장",
+    "saved": "저장됨",
+    "duplicate": "이미 저장됨",
+    "duplicateStatus": "⚠️ \"{text}\"은(는) 이미 단어장에 있어서 다시 추가하지 않았어요",
+    "syncOk": "✅ 시트에 동기화됨",
+    "syncFail": "⚠️ 시트 동기화 실패 (로컬에는 저장됨)",
+    "saving": "저장 중...",
+    "saveFailed": "저장 실패, 다시 시도해 주세요",
+    "analyzeFailedPrefix": "분석 실패: {message}",
+    "retry": "🔄 다시 시도",
+    "noResult": "(결과 없음)"
+  },
+  "history": {
+    "emptyDoc": "이 글에는 아직 기록이 없어요 — 단어나 문장을 선택해서 시작해 보세요",
+    "emptyNoDoc": "먼저 글을 추가하세요 — 저장한 단어와 노트가 여기에 표시돼요",
+    "deleteConfirm": "이 {label} 기록을 삭제할까요?\n(로컬에서는 바로 삭제돼요. 이미 Google 시트에 동기화됐다면 해당 행은 자동으로 삭제되지 않으니 필요하면 직접 정리해 주세요)",
+    "deleteFailed": "삭제 실패: {message}",
+    "deleteBtn": "삭제",
+    "jumpMissing": "이 글은 삭제되었거나 이름이 바뀐 것 같아요 — 찾을 수 없어요"
+  },
+  "saveAll": {
+    "empty": "지금은 저장할 항목이 없어요",
+    "saving": "저장 중...",
+    "done": "전체 저장"
+  },
+  "account": {
+    "exporting": "내보내는 중...",
+    "exported": "내보내기 완료",
+    "exportFailed": "내보내기 실패: {message}",
+    "deleteConfirm1": "계정을 삭제할까요? 저장된 모든 글, 단어, 문장 노트가 영구적으로 삭제되며 되돌릴 수 없어요.\n\n먼저 \"내 데이터 내보내기\"로 백업하는 것을 권장해요.",
+    "deleteConfirmPrompt": "이 작업은 되돌릴 수 없어요. 확인하려면 \"삭제\"를 입력하세요:",
+    "deleteConfirmWord": "삭제",
+    "deleting": "삭제 중...",
+    "deleted": "계정이 삭제됐어요",
+    "deleteFailed": "삭제 실패: {message}"
+  },
+  "upload": {
+    "failed": "업로드 실패: {message}"
+  }
+}

@@ -39,6 +39,24 @@ async function loadI18n(lang) {
   applyI18n();
 }
 
+// ---------- 首次打开弹出的语言选择弹窗 ----------
+
+function showLanguagePicker(onDone) {
+  languagePickerOverlay.classList.remove("hidden");
+  languagePickerOverlay.querySelectorAll(".langPickerOption").forEach((btn) => {
+    btn.addEventListener(
+      "click",
+      async () => {
+        localStorage.setItem(LANGUAGE_PICKED_KEY, "1");
+        await loadI18n(btn.dataset.lang);
+        languagePickerOverlay.classList.add("hidden");
+        onDone();
+      },
+      { once: true },
+    );
+  });
+}
+
 // ---------- 学习语言(每篇文章一个值，跟界面语言是两回事) ----------
 
 const LEARNING_LANGUAGE_CODES = ["en", "zh", "ja", "ko", "fr", "es", "de", "it", "pt", "ru", "ar", "th"];
@@ -183,6 +201,9 @@ const welcomeModalOverlay = document.getElementById("welcomeModalOverlay");
 const welcomeBody = document.getElementById("welcomeBody");
 const welcomeHouseTrialLine = document.getElementById("welcomeHouseTrialLine");
 const btnWelcomeClose = document.getElementById("btnWelcomeClose");
+
+const languagePickerOverlay = document.getElementById("languagePickerOverlay");
+const LANGUAGE_PICKED_KEY = "uiLanguagePicked";
 
 let turnstileWidgetId = null;
 let turnstileToken = "";
@@ -1759,7 +1780,7 @@ btnRegisterSubmit.addEventListener("click", async () => {
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, turnstile_token: turnstileToken }),
+      body: JSON.stringify({ username, password, turnstile_token: turnstileToken, ui_language: currentUiLanguage }),
       cache: "no-store",
     });
     if (!res.ok) {
@@ -1820,7 +1841,18 @@ btnGoogleLogin.addEventListener("click", () => {
     localStorage.removeItem("authToken");
     authToken = "";
   }
-  loginOverlay.classList.remove("hidden");
-  loginUsernameInput.focus();
-  initTurnstile();
+
+  function showLoginScreen() {
+    loginOverlay.classList.remove("hidden");
+    loginUsernameInput.focus();
+    initTurnstile();
+  }
+
+  // 匿名访问、还没登录过的情况下，第一次打开才弹语言选择；选过一次之后
+  // (哪怕换了语言) 就不再弹，直接进登录页。
+  if (!localStorage.getItem(LANGUAGE_PICKED_KEY)) {
+    showLanguagePicker(showLoginScreen);
+  } else {
+    showLoginScreen();
+  }
 })();

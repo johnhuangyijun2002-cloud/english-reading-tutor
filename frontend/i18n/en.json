@@ -108,9 +108,21 @@
   },
   "welcome": {
     "title": "Welcome — your account is ready 🎉",
+    "tagline": "A tool that helps you learn a language by reading real articles.",
     "body": "From now on, select any word or sentence while reading to get an AI explanation. Add your own AI key in Settings when you're ready.",
     "houseTrialLine": "No key yet? No problem — you have {count} free trial calls to get started.",
-    "gotIt": "Got it"
+    "feature1Title": "Import articles",
+    "feature1Desc": "Paste text, upload a PDF/DOCX, or import a URL",
+    "feature2Title": "AI explanations",
+    "feature2Desc": "Select any word or sentence for an instant AI explanation",
+    "feature3Title": "Highlights",
+    "feature3Desc": "Mark up passages in color as you read",
+    "feature4Title": "Vocabulary book",
+    "feature4Desc": "Every saved word and note, searchable in one place",
+    "gotIt": "Get Started"
+  },
+  "languagePicker": {
+    "hint": "You can change this anytime in Settings"
   },
   "login": {
     "title": "Sign In",
