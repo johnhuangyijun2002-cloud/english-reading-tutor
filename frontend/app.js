@@ -74,6 +74,7 @@ const settingsUserLine = document.getElementById("settingsUserLine");
 const aiProviderSelect = document.getElementById("aiProviderSelect");
 const aiApiKeyInput = document.getElementById("aiApiKeyInput");
 const aiKeyHint = document.getElementById("aiKeyHint");
+const houseTrialHint = document.getElementById("houseTrialHint");
 const sheetsSyncBlock = document.getElementById("sheetsSyncBlock");
 const sheetsSyncToggle = document.getElementById("sheetsSyncToggle");
 const btnSettingsSave = document.getElementById("btnSettingsSave");
@@ -1244,6 +1245,17 @@ async function loadSettingsIntoPanel() {
 
   aiApiKeyInput.value = "";
   updateKeyHint();
+
+  if (data.house_trial_enabled) {
+    const left = Math.max(0, data.house_calls_total - data.house_calls_used);
+    houseTrialHint.textContent =
+      left > 0
+        ? `不填 key 也能先用体验额度，还剩 ${left}/${data.house_calls_total} 次`
+        : `体验额度已用完（${data.house_calls_total}/${data.house_calls_total}），要继续用 AI 解析得自己填 key`;
+    houseTrialHint.classList.remove("hidden");
+  } else {
+    houseTrialHint.classList.add("hidden");
+  }
 
   sheetsSyncBlock.classList.toggle("hidden", !data.is_owner);
   sheetsSyncToggle.checked = !!data.sheets_sync_enabled;

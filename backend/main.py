@@ -56,6 +56,14 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 
+# 公共体验额度：没填自己 AI Key 的账户，可以先用站长自己出钱的 key 免费调用几次，
+# 用完了再提示自己填 key。HOUSE_AI_API_KEY 没配置的话这个功能就是关闭状态，
+# 完全不影响"必须自己填 key"这个原有行为。
+HOUSE_AI_PROVIDER = os.environ.get("HOUSE_AI_PROVIDER", "deepseek")
+HOUSE_AI_API_KEY = os.environ.get("HOUSE_AI_API_KEY", "")
+HOUSE_FREE_CALLS_PER_USER = 10
+HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "5"))
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
@@ -151,7 +159,14 @@ CREATE TABLE IF NOT EXISTS users (
     ai_provider TEXT NOT NULL DEFAULT 'deepseek',
     ai_api_keys TEXT NOT NULL DEFAULT '{}',
     sheets_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    house_calls_used INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS house_calls_used INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS house_usage (
+    month TEXT PRIMARY KEY,
+    calls INTEGER NOT NULL DEFAULT 0,
+    cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
@@ -442,6 +457,29 @@ async def db_record_api_call(user_id: str, month: str, cost: float):
            SET calls = api_usage.calls + 1, cost_usd = api_usage.cost_usd + EXCLUDED.cost_usd""",
         user_id, month, cost,
     )
+
+
+async def db_get_house_usage(month: str) -> dict:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT calls, cost_usd FROM house_usage WHERE month=$1", month)
+    if not row:
+        return {"calls": 0, "cost_usd": 0.0}
+    return {"calls": row["calls"], "cost_usd": row["cost_usd"]}
+
+
+async def db_record_house_usage(month: str, cost: float):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO house_usage (month, calls, cost_usd) VALUES ($1,1,$2)
+           ON CONFLICT (month) DO UPDATE
+           SET calls = house_usage.calls + 1, cost_usd = house_usage.cost_usd + EXCLUDED.cost_usd""",
+        month, cost,
+    )
+
+
+async def db_increment_house_calls_used(user_id: str):
+    pool = await get_pool()
+    await pool.execute("UPDATE users SET house_calls_used = house_calls_used + 1 WHERE id=$1", user_id)
 
 
 async def db_delete_user(user_id: str):
@@ -1091,13 +1129,14 @@ PROVIDER_PRICING = {
 }
 
 
-async def record_api_call(user_id: str, provider: str = "", input_tokens: int = 0, output_tokens: int = 0):
+async def record_api_call(user_id: str, provider: str = "", input_tokens: int = 0, output_tokens: int = 0) -> float:
     month_key = datetime.now().strftime("%Y-%m")
     rates = PROVIDER_PRICING.get(provider)
     cost = 0.0
     if rates:
         cost = (input_tokens / 1_000_000) * rates["input"] + (output_tokens / 1_000_000) * rates["output"]
     await db_record_api_call(user_id, month_key, cost)
+    return cost
 
 
 @app.get("/api/usage")
@@ -1165,7 +1204,8 @@ async def _call_gemini(api_key: str, prompt: str, json_mode: bool):
         raise HTTPException(502, f"Gemini 返回格式异常: {data}")
 
 
-async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False) -> str:
+async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False):
+    """返回 (回复文本, 这次调用的估算花费 usd)。"""
     if not api_key:
         raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
     cfg = PROVIDER_CONFIG.get(provider)
@@ -1181,7 +1221,51 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
     else:
         raise HTTPException(500, "AI 服务商配置错误")
 
-    await record_api_call(user_id, provider, in_tok, out_tok)
+    cost = await record_api_call(user_id, provider, in_tok, out_tok)
+    return text, cost
+
+
+async def resolve_ai_credentials(user: dict):
+    """决定这次调用实际用谁的 key：优先用用户自己配置的；没配的话，如果还有公共
+    体验额度(账户没用满 10 次、当月公共预算没超)，就用站长的公共 key。
+    返回 (provider, api_key, using_house, blocked_reason)。api_key 为空时，
+    blocked_reason 是 "no_key" / "user_limit" / "global_budget" 之一，方便上层给出准确的提示。"""
+    provider = user.get("ai_provider", "deepseek")
+    own_key = user.get("ai_api_keys", {}).get(provider, "")
+    if own_key:
+        return provider, own_key, False, None
+
+    if not HOUSE_AI_API_KEY:
+        return provider, "", False, "no_key"
+    if user.get("house_calls_used", 0) >= HOUSE_FREE_CALLS_PER_USER:
+        return provider, "", False, "user_limit"
+
+    month_key = datetime.now().strftime("%Y-%m")
+    house_usage = await db_get_house_usage(month_key)
+    if house_usage["cost_usd"] >= HOUSE_MONTHLY_BUDGET_USD:
+        return provider, "", False, "global_budget"
+
+    return HOUSE_AI_PROVIDER, HOUSE_AI_API_KEY, True, None
+
+
+async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> str:
+    provider, api_key, using_house, blocked_reason = await resolve_ai_credentials(user)
+    if not api_key:
+        if blocked_reason == "user_limit":
+            raise HTTPException(
+                400, f"体验用的公共额度({HOUSE_FREE_CALLS_PER_USER} 次)已经用完了，去设置里填一个你自己的 AI Key 才能继续用"
+            )
+        if blocked_reason == "global_budget":
+            raise HTTPException(400, "公共体验额度这个月已经用满了，去设置里填一个你自己的 AI Key 才能继续用")
+        raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
+
+    text, cost = await call_ai(prompt, provider, api_key, user["id"], json_mode=json_mode)
+
+    if using_house:
+        await db_increment_house_calls_used(user["id"])
+        month_key = datetime.now().strftime("%Y-%m")
+        await db_record_house_usage(month_key, cost)
+
     return text
 
 
@@ -1225,11 +1309,8 @@ class AnalyzeResponse(BaseModel):
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 @limiter.limit("30/minute")
 async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = Depends(get_current_user)):
-    provider = user.get("ai_provider", "deepseek")
-    api_key = user.get("ai_api_keys", {}).get(provider, "")
-
     if req.mode == "word":
-        raw = await call_ai(build_word_prompt(req.text, req.context), provider, api_key, user["id"], json_mode=True)
+        raw = await call_ai_for_user(build_word_prompt(req.text, req.context), user, json_mode=True)
         try:
             parsed = json.loads(raw)
         except json.JSONDecodeError:
@@ -1241,7 +1322,7 @@ async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = 
             pos=parsed.get("pos", ""),
         )
 
-    explanation = await call_ai(build_passage_prompt(req.text), provider, api_key, user["id"])
+    explanation = await call_ai_for_user(build_passage_prompt(req.text), user)
     return AnalyzeResponse(mode="passage", explanation=explanation)
 
 
@@ -1316,9 +1397,7 @@ async def get_recommendations(refresh: bool = False, user: dict = Depends(get_cu
     if not items:
         raise HTTPException(502, "没能拉到新闻列表，可能是网络问题或者 RSS 源暂时不可用")
 
-    provider = user.get("ai_provider", "deepseek")
-    api_key = user.get("ai_api_keys", {}).get(provider, "")
-    raw = await call_ai(build_recommend_prompt(items), provider, api_key, user["id"], json_mode=True)
+    raw = await call_ai_for_user(build_recommend_prompt(items), user, json_mode=True)
     try:
         picks = json.loads(raw).get("picks", [])
     except json.JSONDecodeError:
@@ -1371,6 +1450,9 @@ async def get_settings(user: dict = Depends(get_current_user)):
         },
         "sheets_sync_enabled": user.get("sheets_sync_enabled", False),
         "providers": [{"value": k, "label": v["label"]} for k, v in PROVIDER_CONFIG.items()],
+        "house_trial_enabled": bool(HOUSE_AI_API_KEY),
+        "house_calls_used": user.get("house_calls_used", 0),
+        "house_calls_total": HOUSE_FREE_CALLS_PER_USER,
     }
 
 
