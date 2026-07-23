@@ -1,6 +1,67 @@
 let authToken = localStorage.getItem("authToken") || "";
 let currentUser = null; // {id, name, is_owner}
 
+// ---------- 界面语言(i18n) ----------
+// ui_language 决定界面文案；真正生效的值以登录后账号里存的为准，这里的 localStorage
+// 缓存只是给"页面刚加载、还没拿到账号信息"这段时间一个合理的默认显示语言用。
+let currentUiLanguage = localStorage.getItem("uiLanguage") || "zh";
+let i18nStrings = {};
+
+function t(key, vars) {
+  const parts = key.split(".");
+  let node = i18nStrings;
+  for (const p of parts) {
+    if (node && typeof node === "object" && p in node) node = node[p];
+    else return key;
+  }
+  if (typeof node !== "string") return key;
+  if (!vars) return node;
+  return node.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : `{${k}}`));
+}
+
+function applyI18n() {
+  document.documentElement.lang = currentUiLanguage;
+  document.title = t("app.title");
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  populateLearningLanguageOptions();
+}
+
+async function loadI18n(lang) {
+  const res = await fetch(`/i18n/${lang}.json`, { cache: "no-store" });
+  i18nStrings = await res.json();
+  currentUiLanguage = lang;
+  localStorage.setItem("uiLanguage", lang);
+  applyI18n();
+}
+
+// ---------- 学习语言(每篇文章一个值，跟界面语言是两回事) ----------
+
+const LEARNING_LANGUAGE_CODES = ["en", "zh", "ja", "ko", "fr", "es", "de", "it", "pt", "ru", "ar", "th"];
+const LAST_LEARNING_LANGUAGE_KEY = "lastLearningLanguage";
+
+function getLastLearningLanguage() {
+  return localStorage.getItem(LAST_LEARNING_LANGUAGE_KEY) || "en";
+}
+
+function populateLearningLanguageOptions() {
+  const select = document.getElementById("learningLanguageSelect");
+  if (!select) return;
+  const prevValue = select.value || getLastLearningLanguage();
+  select.innerHTML = "";
+  LEARNING_LANGUAGE_CODES.forEach((code) => {
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = t(`languages.${code}`);
+    select.appendChild(opt);
+  });
+  select.value = LEARNING_LANGUAGE_CODES.includes(prevValue) ? prevValue : "en";
+}
+
 function apiFetch(url, opts = {}) {
   const headers = { ...(opts.headers || {}), Authorization: `Bearer ${authToken}` };
   // GET 请求默认可能被浏览器按 URL 缓存，Authorization header 不同也可能命中旧缓存，
@@ -22,6 +83,7 @@ let currentDocId = null;
 let currentDocName = "";
 let currentDocContent = "";
 let currentDocSourceUrl = "";
+let currentDocLearningLanguage = "en";
 let knownWords = new Set();
 let knownWordsMap = new Map(); // 小写单词 -> 生词记录（用于点击高亮词弹出释义）
 let pendingSelectionText = "";
@@ -52,6 +114,7 @@ const btnPasteSubmit = document.getElementById("btnPasteSubmit");
 const btnPasteCancel = document.getElementById("btnPasteCancel");
 const pasteTabs = document.querySelectorAll(".pasteTab");
 let activePasteTab = "paste";
+const learningLanguageSelect = document.getElementById("learningLanguageSelect");
 
 const btnRecommend = document.getElementById("btnRecommend");
 const recommendPanelOverlay = document.getElementById("recommendPanelOverlay");
@@ -71,6 +134,8 @@ let searchDataCache = null;
 const btnAccountSettings = document.getElementById("btnAccountSettings");
 const accountSettingsPanelOverlay = document.getElementById("accountSettingsPanelOverlay");
 const settingsUserLine = document.getElementById("settingsUserLine");
+const uiLanguageSelect = document.getElementById("uiLanguageSelect");
+const explainLanguageSelect = document.getElementById("explainLanguageSelect");
 const aiProviderSelect = document.getElementById("aiProviderSelect");
 const aiApiKeyInput = document.getElementById("aiApiKeyInput");
 const aiKeyHint = document.getElementById("aiKeyHint");
@@ -108,6 +173,11 @@ const btnLoginSubmit = document.getElementById("btnLoginSubmit");
 const btnRegisterSubmit = document.getElementById("btnRegisterSubmit");
 const btnGoogleLogin = document.getElementById("btnGoogleLogin");
 
+const welcomeModalOverlay = document.getElementById("welcomeModalOverlay");
+const welcomeBody = document.getElementById("welcomeBody");
+const welcomeHouseTrialLine = document.getElementById("welcomeHouseTrialLine");
+const btnWelcomeClose = document.getElementById("btnWelcomeClose");
+
 let turnstileWidgetId = null;
 let turnstileToken = "";
 
@@ -143,7 +213,7 @@ async function refreshDocuments(selectId) {
   allDocs.forEach((d) => {
     const opt = document.createElement("option");
     opt.value = d.id;
-    opt.textContent = "📄 " + d.filename;
+    opt.textContent = `📄 ${d.filename} · ${(d.learning_language || "en").toUpperCase()}`;
     docSelect.appendChild(opt);
   });
   if (allDocs.length === 0) {
@@ -163,9 +233,10 @@ fileInput.addEventListener("change", async () => {
   if (!file) return;
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("learning_language", learningLanguageSelect.value);
   const res = await apiFetch("/api/upload", { method: "POST", body: formData });
   if (!res.ok) {
-    alert("上传失败: " + (await res.text()));
+    alert(t("upload.failed", { message: await res.text() }));
     return;
   }
   const doc = await res.json();
@@ -183,6 +254,7 @@ function loadDocument(doc) {
   currentDocName = doc.filename;
   currentDocContent = doc.content;
   currentDocSourceUrl = doc.source_url || "";
+  currentDocLearningLanguage = doc.learning_language || "en";
   btnReaderSettings.classList.remove("hidden");
   btnPrint.classList.remove("hidden");
   renderHistoryForDoc(doc.filename);
@@ -236,17 +308,27 @@ function buildArticleHeader(content, title, sourceUrl) {
     }
   }
 
-  const wordCount = (content.match(/[A-Za-z]+(?:['’][A-Za-z]+)?/g) || []).length;
-  const minutes = Math.max(1, Math.round(wordCount / 150));
+  // 无空格语言(中/日/韩)按字符数估算，其他按拉丁字母单词数估算，两种计数方式差太多，
+  // 用同一个正则会导致中/日/韩文章的"约 N 词"数值明显偏低甚至接近 0。
+  const isCharCounted = ["zh", "ja", "ko"].includes(currentDocLearningLanguage);
+  const count = isCharCounted
+    ? (content.match(/[^\s]/g) || []).length
+    : (content.match(/[A-Za-z]+(?:['’][A-Za-z]+)?/g) || []).length;
+  const minutes = Math.max(1, Math.round(count / (isCharCounted ? 400 : 150)));
+
+  const statLang = document.createElement("span");
+  statLang.className = "articleStat";
+  statLang.textContent = t(`languages.${currentDocLearningLanguage}`) || currentDocLearningLanguage;
+  meta.appendChild(statLang);
 
   const statWords = document.createElement("span");
   statWords.className = "articleStat";
-  statWords.textContent = `约 ${wordCount} 词`;
+  statWords.textContent = isCharCounted ? t("article.charCount", { count }) : t("article.wordCount", { count });
   meta.appendChild(statWords);
 
   const statTime = document.createElement("span");
   statTime.className = "articleStat";
-  statTime.textContent = `预计阅读 ${minutes} 分钟`;
+  statTime.textContent = t("article.readTime", { minutes });
   meta.appendChild(statTime);
 
   header.appendChild(meta);
@@ -335,8 +417,8 @@ async function loadUsage() {
     const data = await res.json();
     const cost = data.cost_usd || 0;
     const costText = cost > 0 && cost < 0.001 ? "<$0.001" : `$${cost.toFixed(3)}`;
-    usageBadge.textContent = cost > 0 ? `本月约花费 ${costText}` : `本月已调用 ${data.count} 次`;
-    usageBadge.title = `本月调用 ${data.count} 次 · 花销是按各服务商公开定价估算的，不是真实账单，仅供参考`;
+    usageBadge.textContent = cost > 0 ? t("usage.cost", { cost: costText }) : t("usage.count", { count: data.count });
+    usageBadge.title = `${data.count} · ${currentUiLanguage === "en" ? "estimated from each provider's public pricing, not a real bill" : "花销是按各服务商公开定价估算的，不是真实账单，仅供参考"}`;
   } catch (err) {
     // 统计接口失败不影响主功能，静默忽略
   }
@@ -448,6 +530,10 @@ pastePanelOverlay.addEventListener("click", (e) => {
   if (e.target === pastePanelOverlay) pastePanelOverlay.classList.add("hidden");
 });
 
+learningLanguageSelect.addEventListener("change", () => {
+  localStorage.setItem(LAST_LEARNING_LANGUAGE_KEY, learningLanguageSelect.value);
+});
+
 pasteTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     activePasteTab = tab.dataset.tab;
@@ -470,7 +556,7 @@ async function submitPasteText() {
   const title = pasteTitle.value.trim();
   const content = pasteContent.value.trim();
   if (!content) {
-    alert("先把文章内容粘贴进去");
+    alert(t("paste.needContent"));
     return;
   }
   btnPasteSubmit.disabled = true;
@@ -478,7 +564,7 @@ async function submitPasteText() {
     const res = await apiFetch("/api/paste", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, content }),
+      body: JSON.stringify({ title, content, learning_language: learningLanguageSelect.value }),
     });
     if (!res.ok) throw new Error(await res.text());
     const doc = await res.json();
@@ -487,17 +573,17 @@ async function submitPasteText() {
     pasteTitle.value = "";
     pasteContent.value = "";
   } catch (err) {
-    alert("保存失败: " + err.message);
+    alert(t("paste.saveFailed", { message: err.message }));
   } finally {
     btnPasteSubmit.disabled = false;
   }
 }
 
-async function fetchUrlAsDocument(url) {
+async function fetchUrlAsDocument(url, learningLanguage) {
   const res = await apiFetch("/api/fetch-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, learning_language: learningLanguage || learningLanguageSelect.value }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -506,19 +592,19 @@ async function fetchUrlAsDocument(url) {
 async function submitUrlImport() {
   const url = urlInput.value.trim();
   if (!url) {
-    alert("先粘贴一个文章网址");
+    alert(t("paste.needUrl"));
     return;
   }
   btnPasteSubmit.disabled = true;
   const originalLabel = btnPasteSubmit.textContent;
-  btnPasteSubmit.textContent = "抓取中...";
+  btnPasteSubmit.textContent = t("recommend.fetching");
   try {
     const doc = await fetchUrlAsDocument(url);
     await refreshDocuments(doc.id);
     pastePanelOverlay.classList.add("hidden");
     urlInput.value = "";
   } catch (err) {
-    alert("抓取失败: " + err.message);
+    alert(t("paste.fetchFailed", { message: err.message }));
   } finally {
     btnPasteSubmit.disabled = false;
     btnPasteSubmit.textContent = originalLabel;
@@ -543,7 +629,7 @@ recommendPanelOverlay.addEventListener("click", (e) => {
 btnRecommendRefresh.addEventListener("click", () => loadRecommendations(true));
 
 async function loadRecommendations(refresh) {
-  recommendList.innerHTML = `<p class="recommend-loading">正在挑选适合你的文章，大概几秒钟...</p>`;
+  recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.loading")}</p>`;
   btnRecommendRefresh.disabled = true;
   try {
     const res = await apiFetch(`/api/recommendations${refresh ? "?refresh=true" : ""}`);
@@ -552,7 +638,7 @@ async function loadRecommendations(refresh) {
     renderRecommendations(picks);
     loadUsage();
   } catch (err) {
-    recommendList.innerHTML = `<p class="recommend-loading">推荐失败：${err.message}</p>`;
+    recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.failed", { message: err.message })}</p>`;
   } finally {
     btnRecommendRefresh.disabled = false;
   }
@@ -560,7 +646,7 @@ async function loadRecommendations(refresh) {
 
 function renderRecommendations(picks) {
   if (!picks || picks.length === 0) {
-    recommendList.innerHTML = `<p class="recommend-loading">暂时没有合适的推荐，点"换一批"再试试</p>`;
+    recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.empty")}</p>`;
     return;
   }
   recommendList.innerHTML = "";
@@ -586,7 +672,7 @@ function renderRecommendations(picks) {
     if (pick.difficulty) {
       const diffEl = document.createElement("span");
       diffEl.className = "rec-tag rec-tag-difficulty";
-      diffEl.textContent = "难度 · " + pick.difficulty;
+      diffEl.textContent = t("recommend.difficulty", { level: pick.difficulty });
       tagsEl.appendChild(diffEl);
     }
     card.querySelector(".recCard-title").textContent = pick.title;
@@ -594,17 +680,19 @@ function renderRecommendations(picks) {
     card.querySelector(".recCard-source").textContent = pick.source;
 
     const readBtn = card.querySelector(".btn-primary");
+    readBtn.textContent = t("recommend.readThis");
     readBtn.addEventListener("click", async () => {
       readBtn.disabled = true;
-      readBtn.textContent = "抓取中...";
+      readBtn.textContent = t("recommend.fetching");
       try {
-        const doc = await fetchUrlAsDocument(pick.url);
+        // 推荐源目前只拉英文新闻 RSS，不管用户平时读什么语言的文章，这里都固定标成 en。
+        const doc = await fetchUrlAsDocument(pick.url, "en");
         await refreshDocuments(doc.id);
         recommendPanelOverlay.classList.add("hidden");
       } catch (err) {
-        alert("抓取失败: " + err.message);
+        alert(t("paste.fetchFailed", { message: err.message }));
         readBtn.disabled = false;
-        readBtn.textContent = "读这篇";
+        readBtn.textContent = t("recommend.readThis");
       }
     });
 
@@ -631,7 +719,7 @@ document.addEventListener("mouseup", (e) => {
   const rect = range.getBoundingClientRect();
   selectionToolbar.style.top = window.scrollY + rect.bottom + 6 + "px";
   selectionToolbar.style.left = window.scrollX + rect.left + "px";
-  btnAnalyze.textContent = pendingSelectionMode === "word" ? "🔖 记录生词" : "💡 AI 解析句子";
+  btnAnalyze.textContent = pendingSelectionMode === "word" ? t("toolbar.saveWord") : t("toolbar.analyzeSentence");
   selectionToolbar.classList.remove("hidden");
 });
 
@@ -729,7 +817,7 @@ async function runAnalyze(entryEl, text, mode, context) {
   const actionsEl = entryEl.querySelector(".ann-actions");
   const retryEl = entryEl.querySelector(".ann-retry");
 
-  explEl.textContent = "AI 分析中...";
+  explEl.textContent = t("annotation.analyzing");
   explEl.classList.remove("ann-explanation-error");
   actionsEl.classList.add("hidden");
   retryEl.classList.add("hidden");
@@ -738,7 +826,7 @@ async function runAnalyze(entryEl, text, mode, context) {
     const res = await apiFetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, context, mode }),
+      body: JSON.stringify({ text, context, mode, learning_language: currentDocLearningLanguage }),
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
@@ -746,7 +834,7 @@ async function runAnalyze(entryEl, text, mode, context) {
     actionsEl.classList.remove("hidden");
     loadUsage();
   } catch (err) {
-    explEl.textContent = "分析失败：" + err.message;
+    explEl.textContent = t("annotation.analyzeFailedPrefix", { message: err.message });
     explEl.classList.add("ann-explanation-error");
     retryEl.classList.remove("hidden");
   }
@@ -759,16 +847,16 @@ function addAnnotationEntry(text, mode, context) {
   el.dataset.mode = mode;
   el.dataset.context = context;
   el.innerHTML = `
-    <span class="ann-type ann-type-${mode}">${mode === "word" ? "生词" : "句子"}</span>
+    <span class="ann-type ann-type-${mode}">${mode === "word" ? t("annotation.word") : t("annotation.sentence")}</span>
     <div class="ann-text"></div>
     <div class="ann-meta"></div>
-    <div class="ann-explanation">AI 分析中...</div>
+    <div class="ann-explanation">${t("annotation.analyzing")}</div>
     <div class="ann-actions hidden">
-      <button class="ann-save">${mode === "word" ? "存入生词表" : "存入句子笔记"}</button>
+      <button class="ann-save">${mode === "word" ? t("annotation.saveWordBtn") : t("annotation.saveSentenceBtn")}</button>
       <span class="ann-sync-status"></span>
     </div>
     <div class="ann-retry hidden">
-      <button class="ann-retry-btn">🔄 重试</button>
+      <button class="ann-retry-btn">${t("annotation.retry")}</button>
     </div>
   `;
   el.querySelector(".ann-text").textContent = text;
@@ -792,7 +880,7 @@ function updateAnnotationEntry(el, data) {
     explEl.textContent = data.chinese_meaning;
   } else {
     metaEl.textContent = "";
-    explEl.textContent = data.explanation || "(无解析结果)";
+    explEl.textContent = data.explanation || t("annotation.noResult");
   }
 }
 
@@ -812,7 +900,7 @@ function showHistoryEmptyState(message) {
 }
 
 function showNoDocumentState() {
-  showHistoryEmptyState("先添加一篇文章，读完之后可以在这里看到相关的生词和笔记");
+  showHistoryEmptyState(t("history.emptyNoDoc"));
   btnReaderSettings.classList.add("hidden");
   readerSettingsPanel.classList.add("hidden");
   btnPrint.classList.add("hidden");
@@ -833,7 +921,7 @@ async function renderHistoryForDoc(docName) {
     .sort((a, b) => (a.added_at < b.added_at ? 1 : -1));
 
   if (combined.length === 0) {
-    showHistoryEmptyState("这篇文章还没有记录，划中单词或句子开始积累吧");
+    showHistoryEmptyState(t("history.emptyDoc"));
     return;
   }
 
@@ -849,7 +937,7 @@ function buildHistoryCard(record) {
   const el = document.createElement("div");
   el.className = "annotation annotation-saved";
   el.innerHTML = `
-    <span class="ann-type ann-type-${record.mode}">${isWord ? "生词" : "句子"}</span>
+    <span class="ann-type ann-type-${record.mode}">${isWord ? t("annotation.word") : t("annotation.sentence")}</span>
     <div class="ann-text"></div>
     <div class="ann-meta"></div>
     <div class="ann-explanation"></div>
@@ -858,7 +946,7 @@ function buildHistoryCard(record) {
         <span class="ann-source"></span>
         <span class="ann-date"></span>
       </div>
-      <button class="ann-delete-btn">删除</button>
+      <button class="ann-delete-btn">${t("history.deleteBtn")}</button>
     </div>
   `;
   el.querySelector(".ann-text").textContent = text || "";
@@ -883,10 +971,8 @@ function renderHistoryEntry(record) {
 // ---------- 删除已保存的生词 / 句子笔记(本地删除；已同步过的 Google Sheet 行不会自动删除) ----------
 
 async function deleteRecord(record) {
-  const label = record.mode === "word" ? "生词" : "句子笔记";
-  const confirmed = confirm(
-    `确定删除这条${label}记录吗？\n(本地会立即删除；如果之前同步过 Google Sheet，那边已经写入的行不会自动删除，需要手动去表格里清理)`
-  );
+  const label = record.mode === "word" ? t("annotation.word") : t("annotation.saveSentenceBtn");
+  const confirmed = confirm(t("history.deleteConfirm", { label }));
   if (!confirmed) return false;
 
   const endpoint = record.mode === "word" ? `/api/vocab/${record.id}` : `/api/sentence_notes/${record.id}`;
@@ -894,7 +980,7 @@ async function deleteRecord(record) {
     const res = await apiFetch(endpoint, { method: "DELETE" });
     if (!res.ok) throw new Error(await res.text());
   } catch (err) {
-    alert("删除失败: " + err.message);
+    alert(t("history.deleteFailed", { message: err.message }));
     return false;
   }
 
@@ -918,7 +1004,7 @@ async function deleteRecord(record) {
 btnSearchHistory.addEventListener("click", async () => {
   searchPanelOverlay.classList.remove("hidden");
   searchInput.value = "";
-  searchResults.innerHTML = `<p class="recommend-loading">加载中...</p>`;
+  searchResults.innerHTML = `<p class="recommend-loading">${t("search.loading")}</p>`;
   searchInput.focus();
   searchDataCache = null;
   await loadSearchData();
@@ -965,8 +1051,8 @@ function renderSearchResults(matches) {
     const hasQuery = searchInput.value.trim().length > 0;
     const hasAnyData = searchDataCache && searchDataCache.length > 0;
     searchResults.innerHTML = hasQuery || hasAnyData
-      ? `<p class="recommend-loading">没找到匹配的记录</p>`
-      : `<p class="recommend-loading">还没有生词或笔记记录，读文章的时候划词/划句开始积累吧</p>`;
+      ? `<p class="recommend-loading">${t("search.noMatch")}</p>`
+      : `<p class="recommend-loading">${t("search.empty")}</p>`;
     return;
   }
   searchResults.innerHTML = "";
@@ -982,7 +1068,7 @@ function renderSearchResults(matches) {
 function jumpToArticle(docName) {
   const doc = allDocs.find((d) => d.filename === docName);
   if (!doc) {
-    alert("这篇文章可能已经被删除或改名了，找不到了");
+    alert(t("history.jumpMissing"));
     return;
   }
   docSelect.value = doc.id;
@@ -994,7 +1080,7 @@ async function saveAnnotation(el, text) {
   const saveBtn = el.querySelector(".ann-save");
   const statusEl = el.querySelector(".ann-sync-status");
   saveBtn.disabled = true;
-  saveBtn.textContent = "保存中...";
+  saveBtn.textContent = t("annotation.saving");
   try {
     const res = await apiFetch("/api/save", {
       method: "POST",
@@ -1008,19 +1094,20 @@ async function saveAnnotation(el, text) {
         ipa: el.dataset.ipa || "",
         pos: el.dataset.pos || "",
         source_doc: currentDocName,
+        learning_language: currentDocLearningLanguage,
       }),
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
     if (data.duplicate) {
-      saveBtn.textContent = "已存过";
-      statusEl.textContent = `⚠️ 生词表里已经有 "${text}" 了，没有重复添加`;
+      saveBtn.textContent = t("annotation.duplicate");
+      statusEl.textContent = t("annotation.duplicateStatus", { text });
       return;
     }
 
-    saveBtn.textContent = "已保存";
-    statusEl.textContent = data.sheet_synced ? "✅ 已同步 Sheet" : "⚠️ Sheet 同步失败(本地已存)";
+    saveBtn.textContent = t("annotation.saved");
+    statusEl.textContent = data.sheet_synced ? t("annotation.syncOk") : t("annotation.syncFail");
 
     if (el.dataset.mode === "word") {
       await loadKnownWords();
@@ -1028,7 +1115,7 @@ async function saveAnnotation(el, text) {
     }
   } catch (err) {
     saveBtn.disabled = false;
-    saveBtn.textContent = "保存失败，重试";
+    saveBtn.textContent = t("annotation.saveFailed");
   }
 }
 
@@ -1041,17 +1128,17 @@ btnSaveAll.addEventListener("click", async () => {
     return actions && !actions.classList.contains("hidden") && saveBtn && !saveBtn.disabled;
   });
   if (pending.length === 0) {
-    alert("现在没有待保存的解析结果");
+    alert(t("saveAll.empty"));
     return;
   }
   btnSaveAll.disabled = true;
-  btnSaveAll.textContent = "保存中...";
+  btnSaveAll.textContent = t("saveAll.saving");
   for (const el of pending) {
     const text = el.querySelector(".ann-text").textContent;
     await saveAnnotation(el, text);
   }
   btnSaveAll.disabled = false;
-  btnSaveAll.textContent = "一键保存";
+  btnSaveAll.textContent = t("saveAll.done");
 });
 
 // ---------- 打印(文章正文 + 划过的生词表 + 不熟悉的句子) ----------
@@ -1232,7 +1319,10 @@ async function loadSettingsIntoPanel() {
   const data = await res.json();
   settingsDataCache = data;
 
-  settingsUserLine.textContent = `登录身份：${data.name}${data.is_owner ? "（主账号）" : ""}`;
+  settingsUserLine.textContent = t("settings.userLine", { name: data.name, ownerTag: data.is_owner ? t("settings.ownerTag") : "" });
+
+  uiLanguageSelect.value = data.ui_language || "zh";
+  explainLanguageSelect.value = data.explain_language || "auto";
 
   aiProviderSelect.innerHTML = "";
   data.providers.forEach((p) => {
@@ -1250,8 +1340,8 @@ async function loadSettingsIntoPanel() {
     const left = Math.max(0, data.house_calls_total - data.house_calls_used);
     houseTrialHint.textContent =
       left > 0
-        ? `不填 key 也能先用体验额度，还剩 ${left}/${data.house_calls_total} 次`
-        : `体验额度已用完（${data.house_calls_total}/${data.house_calls_total}），要继续用 AI 解析得自己填 key`;
+        ? t("settings.houseTrialLeft", { left, total: data.house_calls_total })
+        : t("settings.houseTrialUsedUp", { total: data.house_calls_total });
     houseTrialHint.classList.remove("hidden");
   } else {
     houseTrialHint.classList.add("hidden");
@@ -1260,15 +1350,17 @@ async function loadSettingsIntoPanel() {
   sheetsSyncBlock.classList.toggle("hidden", !data.is_owner);
   sheetsSyncToggle.checked = !!data.sheets_sync_enabled;
 
-  changePasswordLabel.textContent = data.has_password ? "修改密码" : "设置密码（当前用 Google 登录，还没设密码）";
+  changePasswordLabel.textContent = data.has_password ? t("settings.changePassword") : t("settings.changePasswordUnset");
   newPasswordInput.value = "";
   changePasswordStatus.textContent = "";
 
   newUsernameInput.value = "";
   changeUsernameStatus.textContent = "";
 
-  googleLinkStatus.textContent = data.has_google ? `已关联：${data.google_email}` : "还没关联，只能用用户名密码登录";
-  btnLinkGoogle.textContent = data.has_google ? "重新关联/换绑" : "关联 Google 账号";
+  googleLinkStatus.textContent = data.has_google
+    ? t("settings.googleLinkedStatus", { email: data.google_email })
+    : t("settings.googleUnlinkedStatus");
+  btnLinkGoogle.textContent = data.has_google ? t("settings.googleLinkBtnRelink") : t("settings.googleLinkBtn");
 
   inviteBlock.classList.toggle("hidden", !data.is_owner);
   if (data.is_owner) loadInvitedUsers();
@@ -1276,14 +1368,14 @@ async function loadSettingsIntoPanel() {
 
 btnLinkGoogle.addEventListener("click", async () => {
   btnLinkGoogle.disabled = true;
-  googleLinkStatus.textContent = "跳转到 Google 授权页...";
+  googleLinkStatus.textContent = currentUiLanguage === "en" ? "Redirecting to Google sign-in..." : "跳转到 Google 授权页...";
   try {
     const res = await apiFetch("/api/auth/google/link-init", { method: "POST" });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     location.href = "/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce);
   } catch (err) {
-    googleLinkStatus.textContent = "关联失败: " + err.message;
+    googleLinkStatus.textContent = (currentUiLanguage === "en" ? "Linking failed: " : "关联失败: ") + err.message;
     btnLinkGoogle.disabled = false;
   }
 });
@@ -1292,7 +1384,7 @@ btnChangeUsername.addEventListener("click", async () => {
   const newUsername = newUsernameInput.value.trim();
   if (!newUsername) return;
   btnChangeUsername.disabled = true;
-  changeUsernameStatus.textContent = "保存中...";
+  changeUsernameStatus.textContent = t("common.saving");
   try {
     const res = await apiFetch("/api/change-username", {
       method: "POST",
@@ -1302,11 +1394,14 @@ btnChangeUsername.addEventListener("click", async () => {
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     newUsernameInput.value = "";
-    changeUsernameStatus.textContent = "用户名已更新";
+    changeUsernameStatus.textContent = t("common.saved");
     if (currentUser) currentUser.name = data.name;
-    settingsUserLine.textContent = `登录身份：${data.name}${settingsDataCache && settingsDataCache.is_owner ? "（主账号）" : ""}`;
+    settingsUserLine.textContent = t("settings.userLine", {
+      name: data.name,
+      ownerTag: settingsDataCache && settingsDataCache.is_owner ? t("settings.ownerTag") : "",
+    });
   } catch (err) {
-    changeUsernameStatus.textContent = "修改失败: " + err.message;
+    changeUsernameStatus.textContent = t("common.saveFailed", { message: err.message });
   } finally {
     btnChangeUsername.disabled = false;
   }
@@ -1316,7 +1411,7 @@ btnChangePassword.addEventListener("click", async () => {
   const newPassword = newPasswordInput.value;
   if (!newPassword) return;
   btnChangePassword.disabled = true;
-  changePasswordStatus.textContent = "保存中...";
+  changePasswordStatus.textContent = t("common.saving");
   try {
     const res = await apiFetch("/api/change-password", {
       method: "POST",
@@ -1325,10 +1420,10 @@ btnChangePassword.addEventListener("click", async () => {
     });
     if (!res.ok) throw new Error(await res.text());
     newPasswordInput.value = "";
-    changePasswordStatus.textContent = "密码已更新，下次登录用新密码";
-    changePasswordLabel.textContent = "修改密码";
+    changePasswordStatus.textContent = t("common.saved");
+    changePasswordLabel.textContent = t("settings.changePassword");
   } catch (err) {
-    changePasswordStatus.textContent = "修改失败: " + err.message;
+    changePasswordStatus.textContent = t("common.saveFailed", { message: err.message });
   } finally {
     btnChangePassword.disabled = false;
   }
@@ -1336,7 +1431,7 @@ btnChangePassword.addEventListener("click", async () => {
 
 btnExportData.addEventListener("click", async () => {
   btnExportData.disabled = true;
-  accountDataStatus.textContent = "导出中...";
+  accountDataStatus.textContent = t("account.exporting");
   try {
     const res = await apiFetch("/api/account/export");
     if (!res.ok) throw new Error(await res.text());
@@ -1350,32 +1445,31 @@ btnExportData.addEventListener("click", async () => {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    accountDataStatus.textContent = "已导出";
+    accountDataStatus.textContent = t("account.exported");
   } catch (err) {
-    accountDataStatus.textContent = "导出失败: " + err.message;
+    accountDataStatus.textContent = t("account.exportFailed", { message: err.message });
   } finally {
     btnExportData.disabled = false;
   }
 });
 
 btnDeleteAccount.addEventListener("click", async () => {
-  const step1 = confirm(
-    "确定要删除账号吗？这会永久删除你保存的所有文章、生词、句子笔记，且无法恢复。\n\n建议先点「导出我的数据」备份一份。"
-  );
+  const step1 = confirm(t("account.deleteConfirm1"));
   if (!step1) return;
-  const step2 = prompt('删除操作无法撤销。请输入"删除"两个字确认：');
-  if (step2 !== "删除") return;
+  const confirmWord = t("account.deleteConfirmWord");
+  const step2 = prompt(t("account.deleteConfirmPrompt"));
+  if ((step2 || "").trim().toLowerCase() !== confirmWord.toLowerCase()) return;
 
   btnDeleteAccount.disabled = true;
-  accountDataStatus.textContent = "删除中...";
+  accountDataStatus.textContent = t("account.deleting");
   try {
     const res = await apiFetch("/api/account", { method: "DELETE" });
     if (!res.ok) throw new Error(await res.text());
     localStorage.removeItem("authToken");
-    alert("账号已删除");
+    alert(t("account.deleted"));
     location.reload();
   } catch (err) {
-    accountDataStatus.textContent = "删除失败: " + err.message;
+    accountDataStatus.textContent = t("account.deleteFailed", { message: err.message });
     btnDeleteAccount.disabled = false;
   }
 });
@@ -1384,7 +1478,7 @@ async function loadInvitedUsers() {
   const res = await apiFetch("/api/admin/users");
   if (!res.ok) return;
   const users = await res.json();
-  invitedUsersList.textContent = users.map((u) => u.name + (u.is_owner ? "（你）" : "")).join("、");
+  invitedUsersList.textContent = users.map((u) => u.name + (u.is_owner ? t("settings.youTag") : "")).join(currentUiLanguage === "en" ? ", " : "、");
 }
 
 function updateKeyHint() {
@@ -1392,15 +1486,16 @@ function updateKeyHint() {
   aiApiKeyInput.value = "";
   const status = settingsDataCache.ai_key_status[aiProviderSelect.value] || {};
   aiKeyHint.textContent = status.has_key
-    ? `已设置(${status.masked})，重新填写可以替换`
-    : "还没填这个服务商的 key，划词解析、AI 推荐这些功能用不了";
+    ? t("settings.apiKeyHintSet", { masked: status.masked })
+    : t("settings.apiKeyHintUnset");
 }
 
 aiProviderSelect.addEventListener("change", updateKeyHint);
 
 btnSettingsSave.addEventListener("click", async () => {
   btnSettingsSave.disabled = true;
-  settingsSaveStatus.textContent = "保存中...";
+  settingsSaveStatus.textContent = t("common.saving");
+  const newUiLanguage = uiLanguageSelect.value;
   try {
     const res = await apiFetch("/api/settings", {
       method: "POST",
@@ -1409,13 +1504,23 @@ btnSettingsSave.addEventListener("click", async () => {
         ai_provider: aiProviderSelect.value,
         ai_api_key: aiApiKeyInput.value.trim(),
         sheets_sync_enabled: sheetsSyncToggle.checked,
+        ui_language: newUiLanguage,
+        explain_language: explainLanguageSelect.value,
       }),
     });
     if (!res.ok) throw new Error(await res.text());
+    if (newUiLanguage !== currentUiLanguage) {
+      // 界面语言变了：已经渲染到页面上的动态内容(历史记录空状态、文档列表标签等)
+      // 不会跟着 applyI18n() 自动重译，最简单可靠的办法是刷新页面，让整个初始化流程
+      // 用新语言重新走一遍，而不是挨个去补一堆"语言切换时重渲染"的特殊逻辑。
+      localStorage.setItem("uiLanguage", newUiLanguage);
+      location.reload();
+      return;
+    }
     await loadSettingsIntoPanel();
-    settingsSaveStatus.textContent = "已保存";
+    settingsSaveStatus.textContent = t("common.saved");
   } catch (err) {
-    settingsSaveStatus.textContent = "保存失败: " + err.message;
+    settingsSaveStatus.textContent = t("common.saveFailed", { message: err.message });
   } finally {
     btnSettingsSave.disabled = false;
   }
@@ -1452,13 +1557,29 @@ async function initApp() {
   loadUsage();
 }
 
-function enterApp(token, me) {
+async function enterApp(token, me) {
   authToken = token;
   localStorage.setItem("authToken", token);
   currentUser = me;
+  if (me.ui_language && me.ui_language !== currentUiLanguage) await loadI18n(me.ui_language);
   loginOverlay.classList.add("hidden");
   initApp();
 }
+
+function showWelcomeModal(data) {
+  welcomeBody.textContent = t("welcome.body");
+  if (data.house_trial_enabled) {
+    welcomeHouseTrialLine.textContent = t("welcome.houseTrialLine", { count: data.house_calls_total });
+    welcomeHouseTrialLine.classList.remove("hidden");
+  } else {
+    welcomeHouseTrialLine.classList.add("hidden");
+  }
+  welcomeModalOverlay.classList.remove("hidden");
+}
+
+btnWelcomeClose.addEventListener("click", () => {
+  welcomeModalOverlay.classList.add("hidden");
+});
 
 btnLoginSubmit.addEventListener("click", async () => {
   const username = loginUsernameInput.value.trim();
@@ -1474,9 +1595,12 @@ btnLoginSubmit.addEventListener("click", async () => {
       body: JSON.stringify({ username, password, turnstile_token: turnstileToken }),
       cache: "no-store",
     });
-    if (!res.ok) throw new Error((await res.json().catch(() => null))?.detail || "用户名或密码不对，再检查一下");
+    if (!res.ok) {
+      const fallback = currentUiLanguage === "en" ? "Username or password is wrong, double-check it" : "用户名或密码不对，再检查一下";
+      throw new Error((await res.json().catch(() => null))?.detail || fallback);
+    }
     const data = await res.json();
-    enterApp(data.token, data);
+    await enterApp(data.token, data);
   } catch (err) {
     loginError.textContent = err.message;
     loginError.classList.remove("hidden");
@@ -1491,7 +1615,7 @@ btnRegisterSubmit.addEventListener("click", async () => {
   const username = loginUsernameInput.value.trim();
   const password = loginPasswordInput.value;
   if (!username || !password) {
-    loginError.textContent = "用户名和密码都要填";
+    loginError.textContent = currentUiLanguage === "en" ? "Username and password are both required" : "用户名和密码都要填";
     loginError.classList.remove("hidden");
     return;
   }
@@ -1512,9 +1636,10 @@ btnRegisterSubmit.addEventListener("click", async () => {
       throw new Error(detail);
     }
     const data = await res.json();
-    enterApp(data.token, data);
+    await enterApp(data.token, data);
+    showWelcomeModal(data);
   } catch (err) {
-    loginError.textContent = "注册失败: " + err.message;
+    loginError.textContent = (currentUiLanguage === "en" ? "Registration failed: " : "注册失败: ") + err.message;
     loginError.classList.remove("hidden");
     resetTurnstile();
   } finally {
@@ -1532,6 +1657,8 @@ btnGoogleLogin.addEventListener("click", () => {
 });
 
 (async () => {
+  await loadI18n(currentUiLanguage);
+
   // Google 登录/关联跳回来的时候，token 会带在地址栏的 #token=... 里
   const hashMatch = location.hash.match(/token=([^&]+)/);
   const justLinkedGoogle = /(^|&)google_linked=1/.test(location.hash);
@@ -1540,7 +1667,7 @@ btnGoogleLogin.addEventListener("click", () => {
     history.replaceState(null, "", location.pathname + location.search);
     const me = await checkToken(token);
     if (me) {
-      enterApp(token, me);
+      await enterApp(token, me);
       if (justLinkedGoogle) {
         alert("Google 账号关联成功，以后用 Google 登录也能看到这个账号下的内容");
         btnAccountSettings.click();
@@ -1553,6 +1680,7 @@ btnGoogleLogin.addEventListener("click", () => {
     const me = await checkToken(authToken);
     if (me) {
       currentUser = me;
+      if (me.ui_language && me.ui_language !== currentUiLanguage) await loadI18n(me.ui_language);
       initApp();
       return;
     }

@@ -1,0 +1,183 @@
+{
+  "app": { "title": "英语阅读学习器" },
+  "common": {
+    "close": "关闭",
+    "cancel": "取消",
+    "confirm": "确认修改",
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "已保存",
+    "saveFailed": "保存失败: {message}"
+  },
+  "topbar": {
+    "addArticle": "添加文章",
+    "upload": "上传文件",
+    "vocab": "生词本"
+  },
+  "nav": {
+    "reader": "阅读",
+    "vocab": "生词本",
+    "recommend": "AI 推荐",
+    "settings": "设置",
+    "comingSoon": "敬请期待"
+  },
+  "readerSettings": {
+    "fontSize": "字号",
+    "small": "小",
+    "medium": "中",
+    "large": "大",
+    "xlarge": "特大",
+    "width": "宽度",
+    "narrow": "窄",
+    "mediumWidth": "中",
+    "wide": "宽",
+    "font": "字体",
+    "sans": "无衬线",
+    "serif": "衬线"
+  },
+  "recommend": {
+    "title": "今日推荐",
+    "refresh": "换一批",
+    "loading": "正在挑选适合你的文章，大概几秒钟...",
+    "empty": "暂时没有合适的推荐，点\"换一批\"再试试",
+    "failed": "推荐失败：{message}",
+    "difficulty": "难度 · {level}",
+    "readThis": "读这篇",
+    "fetching": "抓取中..."
+  },
+  "paste": {
+    "tabPaste": "粘贴文本",
+    "tabUrl": "网址导入",
+    "titlePlaceholder": "文章标题 / 来源（例如：纽约时报-2026年7月）",
+    "contentPlaceholder": "把文章粘贴到这里...",
+    "urlPlaceholder": "https://www.bbc.com/news/... 或 theguardian.com 的文章链接",
+    "urlHint": "支持 BBC、The Guardian 等新闻网站，会自动提取正文，跳过导航栏和广告",
+    "learningLanguage": "正在学习的语言",
+    "submit": "开始阅读",
+    "needContent": "先把文章内容粘贴进去",
+    "needUrl": "先粘贴一个文章网址",
+    "saveFailed": "保存失败: {message}",
+    "fetchFailed": "抓取失败: {message}"
+  },
+  "search": {
+    "placeholder": "搜索单词、释义、例句、来源文章...（留空显示全部）",
+    "loading": "加载中...",
+    "empty": "还没有生词或笔记记录，读文章的时候划词/划句开始积累吧",
+    "noMatch": "没找到匹配的记录"
+  },
+  "settings": {
+    "uiLanguage": "界面语言",
+    "explainLanguage": "AI 讲解语言",
+    "explainFollowUI": "跟随界面语言",
+    "aiProvider": "AI 服务商",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "填入这个服务商的 API Key",
+    "apiKeyHintSet": "已设置({masked})，重新填写可以替换",
+    "apiKeyHintUnset": "还没填这个服务商的 key，划词解析、AI 推荐这些功能用不了",
+    "houseTrialLeft": "不填 key 也能先用体验额度，还剩 {left}/{total} 次",
+    "houseTrialUsedUp": "体验额度已用完（{total}/{total}），要继续用 AI 解析得自己填 key",
+    "sheetsSync": "同步到 Google Sheet",
+    "changeUsername": "修改用户名",
+    "newUsernamePlaceholder": "填新用户名",
+    "changePassword": "修改密码",
+    "changePasswordUnset": "设置密码（当前用 Google 登录，还没设密码）",
+    "newPasswordPlaceholder": "填新密码，至少 8 位",
+    "googleLink": "Google 账号关联",
+    "googleLinkBtn": "关联 Google 账号",
+    "googleLinkBtnRelink": "重新关联/换绑",
+    "googleLinkedStatus": "已关联：{email}",
+    "googleUnlinkedStatus": "还没关联，只能用用户名密码登录",
+    "logout": "退出登录",
+    "registeredUsers": "已注册用户",
+    "accountData": "账号数据",
+    "exportData": "导出我的数据",
+    "deleteAccount": "删除账号",
+    "userLine": "登录身份：{name}{ownerTag}",
+    "ownerTag": "（主账号）",
+    "youTag": "（你）"
+  },
+  "welcome": {
+    "title": "欢迎，账号已经注册好了 🎉",
+    "body": "以后每次划词或划句都可以用 AI 解析，记得先去设置里填一个你自己的 AI Key。",
+    "houseTrialLine": "不填 key 也没关系，你还有 {count} 次免费体验额度可以先用起来。",
+    "gotIt": "知道了"
+  },
+  "login": {
+    "title": "登录",
+    "hint": "用户名随便填，密码至少 8 位；第一个注册的账号会自动成为主账号",
+    "username": "用户名",
+    "password": "密码",
+    "registerBtn": "注册新账号",
+    "loginBtn": "登录",
+    "or": "或",
+    "googleLogin": "用 Google 登录",
+    "legalPrefix": "继续即表示你同意",
+    "terms": "服务条款",
+    "and": "和",
+    "privacy": "隐私政策"
+  },
+  "empty": { "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读" },
+  "sidebar": { "history": "历史记录", "saveAll": "一键保存", "print": "🖨️ 打印" },
+  "languages": {
+    "en": "英语", "zh": "中文", "ja": "日语", "ko": "韩语", "fr": "法语",
+    "es": "西班牙语", "de": "德语", "it": "意大利语", "pt": "葡萄牙语",
+    "ru": "俄语", "ar": "阿拉伯语", "th": "泰语"
+  },
+  "article": {
+    "charCount": "约 {count} 字",
+    "wordCount": "约 {count} 词",
+    "readTime": "预计阅读 {minutes} 分钟"
+  },
+  "usage": {
+    "cost": "本月约花费 {cost}",
+    "count": "本月已调用 {count} 次"
+  },
+  "toolbar": {
+    "saveWord": "🔖 记录生词",
+    "analyzeSentence": "💡 AI 解析句子"
+  },
+  "annotation": {
+    "word": "生词",
+    "sentence": "句子",
+    "analyzing": "AI 分析中...",
+    "saveWordBtn": "存入生词表",
+    "saveSentenceBtn": "存入句子笔记",
+    "saved": "已保存",
+    "duplicate": "已存过",
+    "duplicateStatus": "⚠️ 生词表里已经有 \"{text}\" 了，没有重复添加",
+    "syncOk": "✅ 已同步 Sheet",
+    "syncFail": "⚠️ Sheet 同步失败(本地已存)",
+    "saving": "保存中...",
+    "saveFailed": "保存失败，重试",
+    "analyzeFailedPrefix": "分析失败：{message}",
+    "retry": "🔄 重试",
+    "noResult": "(无解析结果)"
+  },
+  "history": {
+    "emptyDoc": "这篇文章还没有记录，划中单词或句子开始积累吧",
+    "emptyNoDoc": "先添加一篇文章，读完之后可以在这里看到相关的生词和笔记",
+    "deleteConfirm": "确定删除这条{label}记录吗？\n(本地会立即删除；如果之前同步过 Google Sheet，那边已经写入的行不会自动删除，需要手动去表格里清理)",
+    "deleteFailed": "删除失败: {message}",
+    "deleteBtn": "删除",
+    "jumpMissing": "这篇文章可能已经被删除或改名了，找不到了"
+  },
+  "saveAll": {
+    "empty": "现在没有待保存的解析结果",
+    "saving": "保存中...",
+    "done": "一键保存"
+  },
+  "account": {
+    "exporting": "导出中...",
+    "exported": "已导出",
+    "exportFailed": "导出失败: {message}",
+    "deleteConfirm1": "确定要删除账号吗？这会永久删除你保存的所有文章、生词、句子笔记，且无法恢复。\n\n建议先点「导出我的数据」备份一份。",
+    "deleteConfirmPrompt": "删除操作无法撤销。请输入\"删除\"两个字确认：",
+    "deleteConfirmWord": "删除",
+    "deleting": "删除中...",
+    "deleted": "账号已删除",
+    "deleteFailed": "删除失败: {message}"
+  },
+  "upload": {
+    "failed": "上传失败: {message}"
+  }
+}

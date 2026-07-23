@@ -20,7 +20,7 @@ import pdfplumber
 import trafilatura
 from docx import Document as DocxDocument
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -160,9 +160,13 @@ CREATE TABLE IF NOT EXISTS users (
     ai_api_keys TEXT NOT NULL DEFAULT '{}',
     sheets_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     house_calls_used INTEGER NOT NULL DEFAULT 0,
+    ui_language TEXT NOT NULL DEFAULT 'zh',
+    explain_language TEXT NOT NULL DEFAULT 'auto',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS house_calls_used INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_language TEXT NOT NULL DEFAULT 'zh';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAULT 'auto';
 CREATE TABLE IF NOT EXISTS house_usage (
     month TEXT PRIMARY KEY,
     calls INTEGER NOT NULL DEFAULT 0,
@@ -181,8 +185,10 @@ CREATE TABLE IF NOT EXISTS documents (
     type TEXT,
     content TEXT,
     source_url TEXT,
+    learning_language TEXT NOT NULL DEFAULT 'en',
     uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS learning_language TEXT NOT NULL DEFAULT 'en';
 CREATE TABLE IF NOT EXISTS vocab (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -193,8 +199,12 @@ CREATE TABLE IF NOT EXISTS vocab (
     pos TEXT,
     source_doc TEXT,
     date TEXT,
+    learning_language TEXT NOT NULL DEFAULT 'en',
+    explain_language TEXT NOT NULL DEFAULT 'zh',
     added_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE vocab ADD COLUMN IF NOT EXISTS learning_language TEXT NOT NULL DEFAULT 'en';
+ALTER TABLE vocab ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAULT 'zh';
 CREATE TABLE IF NOT EXISTS sentence_notes (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -202,8 +212,12 @@ CREATE TABLE IF NOT EXISTS sentence_notes (
     analysis TEXT,
     source_doc TEXT,
     date TEXT,
+    learning_language TEXT NOT NULL DEFAULT 'en',
+    explain_language TEXT NOT NULL DEFAULT 'zh',
     added_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE sentence_notes ADD COLUMN IF NOT EXISTS learning_language TEXT NOT NULL DEFAULT 'en';
+ALTER TABLE sentence_notes ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAULT 'zh';
 CREATE TABLE IF NOT EXISTS api_usage (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     month TEXT NOT NULL,
@@ -287,15 +301,16 @@ async def db_create_user(
     ai_provider: str = "deepseek",
     ai_api_keys: Optional[dict] = None,
     sheets_sync_enabled: bool = False,
+    ui_language: str = "zh",
 ) -> dict:
     pool = await get_pool()
     await pool.execute(
         """INSERT INTO users (id, name, username, password_salt, password_hash, google_id, google_email,
-                               is_owner, ai_provider, ai_api_keys, sheets_sync_enabled)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)""",
+                               is_owner, ai_provider, ai_api_keys, sheets_sync_enabled, ui_language)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
         id, name, username, password_salt, password_hash, google_id, google_email,
         is_owner, ai_provider, json.dumps({k: _encrypt_key(v) for k, v in (ai_api_keys or {}).items()}),
-        sheets_sync_enabled,
+        sheets_sync_enabled, ui_language,
     )
     return await db_get_user_by_id(id)
 
@@ -350,10 +365,11 @@ async def db_get_session_user(token: str) -> Optional[dict]:
 async def db_create_document(record: dict):
     pool = await get_pool()
     await pool.execute(
-        """INSERT INTO documents (id, user_id, filename, type, content, source_url, uploaded_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+        """INSERT INTO documents (id, user_id, filename, type, content, source_url, learning_language, uploaded_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
         record["id"], record["user_id"], record.get("filename"), record.get("type"),
-        record.get("content"), record.get("source_url"), _parse_dt(record.get("uploaded_at")),
+        record.get("content"), record.get("source_url"), record.get("learning_language", "en"),
+        _parse_dt(record.get("uploaded_at")),
     )
 
 
@@ -371,11 +387,14 @@ async def db_delete_documents_for_user(user_id: str):
 async def db_create_vocab(record: dict):
     pool = await get_pool()
     await pool.execute(
-        """INSERT INTO vocab (id, user_id, word, sentence, chinese_meaning, ipa, pos, source_doc, date, added_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)""",
+        """INSERT INTO vocab (id, user_id, word, sentence, chinese_meaning, ipa, pos, source_doc, date,
+                               learning_language, explain_language, added_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
         record["id"], record["user_id"], record.get("word"), record.get("sentence"),
         record.get("chinese_meaning"), record.get("ipa"), record.get("pos"),
-        record.get("source_doc"), record.get("date"), _parse_dt(record.get("added_at")),
+        record.get("source_doc"), record.get("date"),
+        record.get("learning_language", "en"), record.get("explain_language", "zh"),
+        _parse_dt(record.get("added_at")),
     )
 
 
@@ -412,10 +431,13 @@ async def db_delete_vocab_for_user(user_id: str):
 async def db_create_sentence_note(record: dict):
     pool = await get_pool()
     await pool.execute(
-        """INSERT INTO sentence_notes (id, user_id, sentence, analysis, source_doc, date, added_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+        """INSERT INTO sentence_notes (id, user_id, sentence, analysis, source_doc, date,
+                                        learning_language, explain_language, added_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)""",
         record["id"], record["user_id"], record.get("sentence"), record.get("analysis"),
-        record.get("source_doc"), record.get("date"), _parse_dt(record.get("added_at")),
+        record.get("source_doc"), record.get("date"),
+        record.get("learning_language", "en"), record.get("explain_language", "zh"),
+        _parse_dt(record.get("added_at")),
     )
 
 
@@ -732,7 +754,15 @@ async def register(request: Request, req: RegisterRequest):
     )
     _audit("register", user_id=new_user["id"], username=username)
     token = await db_create_session(new_user["id"])
-    return {"token": token, "id": new_user["id"], "name": username, "is_owner": new_user["is_owner"]}
+    return {
+        "token": token,
+        "id": new_user["id"],
+        "name": username,
+        "is_owner": new_user["is_owner"],
+        "ui_language": new_user.get("ui_language", "zh"),
+        "house_trial_enabled": bool(HOUSE_AI_API_KEY),
+        "house_calls_total": HOUSE_FREE_CALLS_PER_USER,
+    }
 
 
 class LoginRequest(BaseModel):
@@ -753,7 +783,13 @@ async def login(request: Request, req: LoginRequest):
     if not hmac.compare_digest(expected, user["password_hash"]):
         raise HTTPException(401, "用户名或密码不对")
     token = await db_create_session(user["id"])
-    return {"token": token, "id": user["id"], "name": user.get("name", ""), "is_owner": user.get("is_owner", False)}
+    return {
+        "token": token,
+        "id": user["id"],
+        "name": user.get("name", ""),
+        "is_owner": user.get("is_owner", False),
+        "ui_language": user.get("ui_language", "zh"),
+    }
 
 
 @app.post("/api/logout")
@@ -774,7 +810,12 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
 
 @app.get("/api/me")
 async def get_me(user: dict = Depends(get_current_user)):
-    return {"id": user["id"], "name": user.get("name", ""), "is_owner": user.get("is_owner", False)}
+    return {
+        "id": user["id"],
+        "name": user.get("name", ""),
+        "is_owner": user.get("is_owner", False),
+        "ui_language": user.get("ui_language", "zh"),
+    }
 
 
 class ChangePasswordRequest(BaseModel):
@@ -993,6 +1034,28 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
 
 # ---------- 文档管理(粘贴文本 / 网址导入 / PDF·DOCX 上传，最终都存成统一的文字文档) ----------
 
+# 学习语言自动检测：只按 Unicode 字符区间做粗略判断，不依赖任何第三方语言检测库。
+# 对日语/韩语/中文/俄语/阿拉伯语/泰语这些"文字系统本身就不一样"的语言，字符区间足够准确；
+# 拉丁字母语系(英/法/西/德/意/葡...)彼此没法靠字符区分，统一先猜成英语，
+# 用户在添加文章的时候可以在下拉框里手动改成正确的语言。
+_SCRIPT_RANGES = [
+    ("ja", re.compile(r"[぀-ヿ]")),  # 平假名/片假名，只要出现就几乎能确定是日语
+    ("ko", re.compile(r"[가-힣]")),  # 谚文
+    ("zh", re.compile(r"[一-鿿]")),  # CJK 统一表意文字(没有假名的情况下判定为中文)
+    ("ru", re.compile(r"[Ѐ-ӿ]")),  # 西里尔字母
+    ("ar", re.compile(r"[؀-ۿ]")),  # 阿拉伯字母
+    ("th", re.compile(r"[฀-๿]")),  # 泰文
+]
+
+
+def detect_learning_language(text: str) -> str:
+    sample = text[:2000]
+    for lang, pattern in _SCRIPT_RANGES:
+        if pattern.search(sample):
+            return lang
+    return "en"
+
+
 def extract_pdf_text(file_bytes: bytes) -> str:
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
         pages = [page.extract_text() or "" for page in pdf.pages]
@@ -1006,7 +1069,11 @@ def extract_docx_text(file_bytes: bytes) -> str:
 
 
 @app.post("/api/upload")
-async def upload_document(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+async def upload_document(
+    file: UploadFile = File(...),
+    learning_language: str = Form(""),
+    user: dict = Depends(get_current_user),
+):
     ext = Path(file.filename).suffix.lower()
     if ext not in (".pdf", ".docx"):
         raise HTTPException(400, "只支持 PDF 或 DOCX 文件")
@@ -1030,6 +1097,7 @@ async def upload_document(file: UploadFile = File(...), user: dict = Depends(get
         "filename": Path(file.filename).stem,
         "type": "text",
         "content": content,
+        "learning_language": learning_language.strip() or detect_learning_language(content),
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
     await db_create_document(record)
@@ -1039,6 +1107,7 @@ async def upload_document(file: UploadFile = File(...), user: dict = Depends(get
 class PasteRequest(BaseModel):
     title: str = ""
     content: str
+    learning_language: str = ""
 
 
 @app.post("/api/paste")
@@ -1053,6 +1122,7 @@ async def paste_document(req: PasteRequest, user: dict = Depends(get_current_use
         "filename": req.title.strip() or f"粘贴文章-{doc_id}",
         "type": "text",
         "content": req.content,
+        "learning_language": req.learning_language.strip() or detect_learning_language(req.content),
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
     await db_create_document(record)
@@ -1061,6 +1131,7 @@ async def paste_document(req: PasteRequest, user: dict = Depends(get_current_use
 
 class UrlFetchRequest(BaseModel):
     url: str
+    learning_language: str = ""
 
 
 @app.post("/api/fetch-url")
@@ -1099,6 +1170,7 @@ async def fetch_url_document(req: UrlFetchRequest, user: dict = Depends(get_curr
         "type": "text",
         "content": content,
         "source_url": url,
+        "learning_language": req.learning_language.strip() or detect_learning_language(content),
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
     await db_create_document(record)
@@ -1108,6 +1180,28 @@ async def fetch_url_document(req: UrlFetchRequest, user: dict = Depends(get_curr
 @app.get("/api/documents")
 async def list_documents(user: dict = Depends(get_current_user)):
     return await db_list_documents(user["id"])
+
+
+# ---------- 界面语言 / AI 讲解语言 / 学习语言 ----------
+# ui_language：界面文案用哪种语言，目前只开放中/英两个选项。
+# explain_language：AI 讲解输出用哪种语言，'auto' 表示跟随 ui_language 实时计算，
+# 用户也可以手动固定成某一种，不受界面语言变化影响。
+# learning_language：某一篇文章/某一条生词笔记正在学习的目标语言，开放式的，不是只有中英两个选项。
+UI_LANGUAGES = ["zh", "en"]
+EXPLAIN_LANGUAGE_CHOICES = ["auto", "zh", "en"]
+
+LANGUAGE_LABELS = {
+    "zh": "中文", "en": "英文", "ja": "日语", "ko": "韩语", "fr": "法语",
+    "es": "西班牙语", "de": "德语", "it": "意大利语", "pt": "葡萄牙语",
+    "ru": "俄语", "ar": "阿拉伯语", "th": "泰语",
+}
+
+
+def resolve_explain_language(user: dict) -> str:
+    explain = user.get("explain_language", "auto")
+    if explain == "auto":
+        return user.get("ui_language", "zh")
+    return explain
 
 
 # ---------- AI 调用(多服务商：DeepSeek / OpenAI / Claude / Gemini，用各自用户自己填的 key) ----------
@@ -1269,23 +1363,27 @@ async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> 
     return text
 
 
-def build_word_prompt(word: str, context: str) -> str:
+def build_word_prompt(word: str, context: str, learning_language: str, explain_language: str) -> str:
+    learn_label = LANGUAGE_LABELS.get(learning_language, learning_language)
+    explain_label = LANGUAGE_LABELS.get(explain_language, explain_language)
     return (
-        "你是一个英语学习助手。用户在阅读英文材料时选中了下面这个单词，正在学习积累生词。\n"
-        f"单词：{word}\n"
-        f"该单词所在的例句：{context or '（无）'}\n\n"
-        "请结合例句的语境，以 JSON 格式返回，包含以下字段，不要输出任何多余文字：\n"
-        '{"chinese_meaning": "这个词在该语境下的准确中文释义，简洁，不超过15个字", '
-        '"ipa": "国际音标，不带斜杠符号", '
-        '"pos": "词性缩写，如 n. / v. / adj. / adv. / prep. 等"}'
+        f"你是一个{learn_label}学习助手。用户正在学习{learn_label}，阅读材料时选中了下面这个词，正在积累生词。\n"
+        f"单词/词语：{word}\n"
+        f"该词所在的例句：{context or '（无）'}\n\n"
+        f"请结合例句的语境，以 JSON 格式返回，包含以下字段，不要输出任何多余文字：\n"
+        f'{{"chinese_meaning": "这个词在该语境下的准确释义，用{explain_label}表达，简洁，不超过15个字", '
+        f'"ipa": "这个词的注音标记(比如{learn_label}有对应的音标/拼音/罗马音等系统就给出，不带斜杠符号；如果这门语言没有这类概念就留空字符串)", '
+        f'"pos": "词性缩写，如 n. / v. / adj. / adv. / prep. 等；如果这门语言没有对应概念就留空字符串"}}'
     )
 
 
-def build_passage_prompt(text: str) -> str:
+def build_passage_prompt(text: str, learning_language: str, explain_language: str) -> str:
+    learn_label = LANGUAGE_LABELS.get(learning_language, learning_language)
+    explain_label = LANGUAGE_LABELS.get(explain_language, explain_language)
     return (
-        "你是一个英语学习助手。用户在阅读英文材料时选中了下面这句话，觉得理解起来有难度。\n"
+        f"你是一个{learn_label}学习助手。用户正在学习{learn_label}，阅读材料时选中了下面这句话，觉得理解起来有难度。\n"
         f"选中内容：{text}\n\n"
-        "请用简洁的中文回答，包含：\n"
+        f"请用简洁的{explain_label}回答，包含：\n"
         "1) 这句话的整体意思\n"
         "2) 语法结构拆解或值得注意的表达方式（如果有难点的话）\n"
         "直接给出结果，不要客套话，不要重复原文。"
@@ -1296,6 +1394,7 @@ class AnalyzeRequest(BaseModel):
     text: str
     context: str = ""
     mode: str  # "word" | "passage"
+    learning_language: str = "en"
 
 
 class AnalyzeResponse(BaseModel):
@@ -1309,8 +1408,10 @@ class AnalyzeResponse(BaseModel):
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 @limiter.limit("30/minute")
 async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = Depends(get_current_user)):
+    explain_language = resolve_explain_language(user)
     if req.mode == "word":
-        raw = await call_ai_for_user(build_word_prompt(req.text, req.context), user, json_mode=True)
+        prompt = build_word_prompt(req.text, req.context, req.learning_language, explain_language)
+        raw = await call_ai_for_user(prompt, user, json_mode=True)
         try:
             parsed = json.loads(raw)
         except json.JSONDecodeError:
@@ -1322,7 +1423,8 @@ async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = 
             pos=parsed.get("pos", ""),
         )
 
-    explanation = await call_ai_for_user(build_passage_prompt(req.text), user)
+    prompt = build_passage_prompt(req.text, req.learning_language, explain_language)
+    explanation = await call_ai_for_user(prompt, user)
     return AnalyzeResponse(mode="passage", explanation=explanation)
 
 
@@ -1453,6 +1555,10 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "house_trial_enabled": bool(HOUSE_AI_API_KEY),
         "house_calls_used": user.get("house_calls_used", 0),
         "house_calls_total": HOUSE_FREE_CALLS_PER_USER,
+        "ui_language": user.get("ui_language", "zh"),
+        "ui_languages": UI_LANGUAGES,
+        "explain_language": user.get("explain_language", "auto"),
+        "explain_language_choices": EXPLAIN_LANGUAGE_CHOICES,
     }
 
 
@@ -1460,17 +1566,28 @@ class SettingsRequest(BaseModel):
     ai_provider: str
     ai_api_key: str = ""  # 留空表示不修改这个服务商已保存的 key
     sheets_sync_enabled: bool = False
+    ui_language: str = "zh"
+    explain_language: str = "auto"
 
 
 @app.post("/api/settings")
 async def update_settings(req: SettingsRequest, user: dict = Depends(get_current_user)):
     if req.ai_provider not in PROVIDER_CONFIG:
         raise HTTPException(400, "不支持的 AI 服务商")
+    if req.ui_language not in UI_LANGUAGES:
+        raise HTTPException(400, "不支持的界面语言")
+    if req.explain_language not in EXPLAIN_LANGUAGE_CHOICES:
+        raise HTTPException(400, "不支持的 AI 讲解语言")
 
     keys = dict(user.get("ai_api_keys", {}))
     if req.ai_api_key:
         keys[req.ai_provider] = req.ai_api_key
-    update_fields = {"ai_provider": req.ai_provider, "ai_api_keys": keys}
+    update_fields = {
+        "ai_provider": req.ai_provider,
+        "ai_api_keys": keys,
+        "ui_language": req.ui_language,
+        "explain_language": req.explain_language,
+    }
     if user.get("is_owner"):
         update_fields["sheets_sync_enabled"] = req.sheets_sync_enabled
     await db_update_user_fields(user["id"], **update_fields)
@@ -1499,6 +1616,7 @@ class SaveRequest(BaseModel):
     ipa: str = ""
     pos: str = ""
     source_doc: str = ""
+    learning_language: str = "en"
 
 
 @app.post("/api/save")
@@ -1506,6 +1624,7 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
     today = datetime.now().strftime("%Y-%m-%d")
     now_iso = datetime.now(timezone.utc).isoformat()
     should_sync = bool(user.get("is_owner")) and bool(user.get("sheets_sync_enabled"))
+    explain_language = resolve_explain_language(user)
 
     if req.mode == "word":
         existing = await db_find_vocab_by_word(user["id"], req.text)
@@ -1522,6 +1641,8 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
             "pos": req.pos,
             "source_doc": req.source_doc,
             "date": today,
+            "learning_language": req.learning_language,
+            "explain_language": explain_language,
             "added_at": now_iso,
         }
         await db_create_vocab(record)
@@ -1546,6 +1667,8 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
             "analysis": req.explanation,
             "source_doc": req.source_doc,
             "date": today,
+            "learning_language": req.learning_language,
+            "explain_language": explain_language,
             "added_at": now_iso,
         }
         await db_create_sentence_note(record)

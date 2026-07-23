@@ -599,6 +599,110 @@ body {
   transform: translateY(-1px);
 }
 
+/* ---------- 左侧导航栏 ---------- */
+
+#sideNav {
+  width: 84px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 16px 10px;
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background var(--ease) 0.15s, color var(--ease) 0.15s;
+  font-family: inherit;
+}
+
+.navItem:hover:not(:disabled) {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.navItem.active {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.navItem-disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.navIcon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.navLabel {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.navDivider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 6px;
+}
+
+/* ---------- 欢迎弹层(注册成功) ---------- */
+
+#welcomeModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.18s var(--ease);
+}
+
+#welcomeModalOverlay.hidden {
+  display: none;
+}
+
+#welcomePanel {
+  width: min(420px, 90vw);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: popIn 0.22s var(--ease);
+}
+
+#welcomePanel h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.pasteLanguageRow {
+  margin-top: 2px;
+}
+
 /* ---------- 主体布局 ---------- */
 
 #main {

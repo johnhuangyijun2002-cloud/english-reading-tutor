@@ -1,0 +1,183 @@
+{
+  "app": { "title": "English Reading Tutor" },
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Saved",
+    "saveFailed": "Save failed: {message}"
+  },
+  "topbar": {
+    "addArticle": "Add Article",
+    "upload": "Upload File",
+    "vocab": "Vocabulary"
+  },
+  "nav": {
+    "reader": "Reader",
+    "vocab": "Vocabulary",
+    "recommend": "AI Picks",
+    "settings": "Settings",
+    "comingSoon": "Coming soon"
+  },
+  "readerSettings": {
+    "fontSize": "Font size",
+    "small": "S",
+    "medium": "M",
+    "large": "L",
+    "xlarge": "XL",
+    "width": "Width",
+    "narrow": "Narrow",
+    "mediumWidth": "Medium",
+    "wide": "Wide",
+    "font": "Font",
+    "sans": "Sans",
+    "serif": "Serif"
+  },
+  "recommend": {
+    "title": "Today's Picks",
+    "refresh": "Refresh",
+    "loading": "Picking articles that fit your level, a few seconds...",
+    "empty": "No good picks right now, try \"Refresh\"",
+    "failed": "Failed to load picks: {message}",
+    "difficulty": "Difficulty · {level}",
+    "readThis": "Read this",
+    "fetching": "Fetching..."
+  },
+  "paste": {
+    "tabPaste": "Paste Text",
+    "tabUrl": "Import URL",
+    "titlePlaceholder": "Title / source (e.g. NYT - July 2026)",
+    "contentPlaceholder": "Paste the article here...",
+    "urlPlaceholder": "https://www.bbc.com/news/... or a Guardian article link",
+    "urlHint": "Supports BBC, The Guardian and similar news sites — extracts the article body automatically, skipping nav/ads",
+    "learningLanguage": "Language you're learning",
+    "submit": "Start Reading",
+    "needContent": "Paste the article content first",
+    "needUrl": "Paste an article URL first",
+    "saveFailed": "Save failed: {message}",
+    "fetchFailed": "Fetch failed: {message}"
+  },
+  "search": {
+    "placeholder": "Search words, meanings, sentences, source articles... (leave blank to show all)",
+    "loading": "Loading...",
+    "empty": "No vocab or notes yet — select a word or sentence while reading to start building your collection",
+    "noMatch": "No matching records found"
+  },
+  "settings": {
+    "uiLanguage": "Interface Language",
+    "explainLanguage": "AI Explanation Language",
+    "explainFollowUI": "Follow interface language",
+    "aiProvider": "AI Provider",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter this provider's API key",
+    "apiKeyHintSet": "Set ({masked}) — re-enter to replace",
+    "apiKeyHintUnset": "No key set for this provider — word/sentence analysis and AI picks won't work",
+    "houseTrialLeft": "You can use the free trial without a key — {left}/{total} calls left",
+    "houseTrialUsedUp": "Free trial used up ({total}/{total}) — add your own AI key to keep using AI analysis",
+    "sheetsSync": "Sync to Google Sheet",
+    "changeUsername": "Change Username",
+    "newUsernamePlaceholder": "New username",
+    "changePassword": "Change Password",
+    "changePasswordUnset": "Set a password (currently signed in with Google, no password yet)",
+    "newPasswordPlaceholder": "New password, at least 8 characters",
+    "googleLink": "Google Account Link",
+    "googleLinkBtn": "Link Google Account",
+    "googleLinkBtnRelink": "Re-link / switch account",
+    "googleLinkedStatus": "Linked: {email}",
+    "googleUnlinkedStatus": "Not linked — can only sign in with username/password",
+    "logout": "Log Out",
+    "registeredUsers": "Registered Users",
+    "accountData": "Account Data",
+    "exportData": "Export My Data",
+    "deleteAccount": "Delete Account",
+    "userLine": "Signed in as: {name}{ownerTag}",
+    "ownerTag": " (owner)",
+    "youTag": " (you)"
+  },
+  "welcome": {
+    "title": "Welcome — your account is ready 🎉",
+    "body": "From now on, select any word or sentence while reading to get an AI explanation. Add your own AI key in Settings when you're ready.",
+    "houseTrialLine": "No key yet? No problem — you have {count} free trial calls to get started.",
+    "gotIt": "Got it"
+  },
+  "login": {
+    "title": "Sign In",
+    "hint": "Any username works; password needs at least 8 characters. The first account to register automatically becomes the owner.",
+    "username": "Username",
+    "password": "Password",
+    "registerBtn": "Register",
+    "loginBtn": "Sign In",
+    "or": "or",
+    "googleLogin": "Sign in with Google",
+    "legalPrefix": "By continuing you agree to the ",
+    "terms": "Terms of Service",
+    "and": " and ",
+    "privacy": "Privacy Policy"
+  },
+  "empty": { "noDocument": "Paste an article, or upload a PDF/DOCX file to start reading closely" },
+  "sidebar": { "history": "History", "saveAll": "Save All", "print": "🖨️ Print" },
+  "languages": {
+    "en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "fr": "French",
+    "es": "Spanish", "de": "German", "it": "Italian", "pt": "Portuguese",
+    "ru": "Russian", "ar": "Arabic", "th": "Thai"
+  },
+  "article": {
+    "charCount": "~{count} characters",
+    "wordCount": "~{count} words",
+    "readTime": "~{minutes} min read"
+  },
+  "usage": {
+    "cost": "~{cost} spent this month",
+    "count": "{count} calls this month"
+  },
+  "toolbar": {
+    "saveWord": "🔖 Save word",
+    "analyzeSentence": "💡 AI explain sentence"
+  },
+  "annotation": {
+    "word": "Word",
+    "sentence": "Sentence",
+    "analyzing": "AI analyzing...",
+    "saveWordBtn": "Save to vocab",
+    "saveSentenceBtn": "Save to sentence notes",
+    "saved": "Saved",
+    "duplicate": "Already saved",
+    "duplicateStatus": "⚠️ \"{text}\" is already in your vocab list, not added again",
+    "syncOk": "✅ Synced to Sheet",
+    "syncFail": "⚠️ Sheet sync failed (saved locally)",
+    "saving": "Saving...",
+    "saveFailed": "Save failed, retry",
+    "analyzeFailedPrefix": "Analysis failed: {message}",
+    "retry": "🔄 Retry",
+    "noResult": "(no result)"
+  },
+  "history": {
+    "emptyDoc": "No records for this article yet — select a word or sentence to start collecting",
+    "emptyNoDoc": "Add an article first — words and notes you save will show up here",
+    "deleteConfirm": "Delete this {label} record?\n(Removed locally right away; if it was already synced to Google Sheets, that row won't be auto-deleted — clean it up there manually if needed)",
+    "deleteFailed": "Delete failed: {message}",
+    "deleteBtn": "Delete",
+    "jumpMissing": "This article may have been deleted or renamed — can't find it"
+  },
+  "saveAll": {
+    "empty": "Nothing pending to save right now",
+    "saving": "Saving...",
+    "done": "Save All"
+  },
+  "account": {
+    "exporting": "Exporting...",
+    "exported": "Exported",
+    "exportFailed": "Export failed: {message}",
+    "deleteConfirm1": "Delete your account? This permanently deletes all your saved articles, vocab, and sentence notes — it cannot be undone.\n\nConsider clicking \"Export My Data\" first to back it up.",
+    "deleteConfirmPrompt": "This cannot be undone. Type \"delete\" to confirm:",
+    "deleteConfirmWord": "delete",
+    "deleting": "Deleting...",
+    "deleted": "Account deleted",
+    "deleteFailed": "Delete failed: {message}"
+  },
+  "upload": {
+    "failed": "Upload failed: {message}"
+  }
+}
