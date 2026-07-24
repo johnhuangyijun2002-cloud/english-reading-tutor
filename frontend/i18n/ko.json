@@ -78,6 +78,7 @@
   },
   "settings": {
     "uiLanguage": "화면 언어",
+    "learningLanguage": "학습 언어",
     "explainLanguage": "AI 설명 언어",
     "explainFollowUI": "화면 언어와 동일하게",
     "aiProvider": "AI 제공업체",

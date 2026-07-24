@@ -1676,8 +1676,9 @@ def fetch_headlines(learning_language: str) -> list:
     return items
 
 
-def build_recommend_prompt(items: list, learning_language: str) -> str:
+def build_recommend_prompt(items: list, learning_language: str, explain_language: str) -> str:
     lang_label = LANGUAGE_LABELS.get(learning_language, learning_language)
+    explain_label = LANGUAGE_LABELS.get(explain_language, explain_language)
     level_desc = RECOMMEND_LEVEL_DESC.get(learning_language, DEFAULT_RECOMMEND_LEVEL_DESC)
     listing = "\n".join(f"{i}. [{it['source']}] {it['title']} — {it['summary']}" for i, it in enumerate(items))
     return (
@@ -1688,10 +1689,12 @@ def build_recommend_prompt(items: list, learning_language: str) -> str:
         "2) 话题尽量多样化，覆盖不同领域，不要挑到好几篇话题重复的\n"
         "3) 优先挑叙事性强、可读性好、有完整信息量的文章\n\n"
         f"{listing}\n\n"
-        '请以 JSON 格式返回：{"picks": [{"index": 原列表序号(数字), '
-        '"tags": ["1到2个中文话题标签，如\\"科技\\"、\\"文化\\"、\\"环境\\""], '
-        '"difficulty": "适中/较易/较难 三选一", '
-        '"reason": "一句话说明推荐理由，中文，不超过30字"}]}\n'
+        f"请以 JSON 格式返回，其中 tags / difficulty / reason 这三个字段的内容都要用{explain_label}表达"
+        f"(不要用{lang_label}或其它语言)：\n"
+        '{"picks": [{"index": 原列表序号(数字), '
+        f'"tags": ["1到2个{explain_label}话题标签"], '
+        f'"difficulty": "用{explain_label}表达的难度，大致对应中等偏易/中等/偏难三档中的一档", '
+        f'"reason": "一句话说明推荐理由，用{explain_label}表达，不超过30字"}}]}}\n'
         "只返回这个 JSON，不要有其他文字。"
     )
 
@@ -1702,8 +1705,14 @@ async def get_recommendations(
     learning_language: str = "en",
     user: dict = Depends(get_current_user),
 ):
-    lang = learning_language if learning_language in LANGUAGE_SOURCES else DEFAULT_RECOMMEND_LANGUAGE
-    cache_key = (user["id"], lang)
+    if learning_language not in LANGUAGE_SOURCES:
+        lang_label = LANGUAGE_LABELS.get(learning_language, learning_language)
+        supported = "、".join(LANGUAGE_LABELS.get(code, code) for code in LANGUAGE_SOURCES)
+        raise HTTPException(400, f"暂时还没有给「{lang_label}」配置推荐新闻源，目前支持：{supported}")
+
+    lang = learning_language
+    explain_language = resolve_explain_language(user)
+    cache_key = (user["id"], lang, explain_language)
     now = datetime.now(timezone.utc)
     cache_entry = _recommend_cache.get(cache_key)
     if not refresh and cache_entry:
@@ -1716,7 +1725,7 @@ async def get_recommendations(
         source_names = dict.fromkeys(s["name"] for s in LANGUAGE_SOURCES.get(lang, []))
         raise HTTPException(502, f"{' / '.join(source_names)} 暂时无法访问，请稍后重试")
 
-    raw = await call_ai_for_user(build_recommend_prompt(items, lang), user, json_mode=True)
+    raw = await call_ai_for_user(build_recommend_prompt(items, lang, explain_language), user, json_mode=True)
     try:
         picks = json.loads(raw).get("picks", [])
     except json.JSONDecodeError:

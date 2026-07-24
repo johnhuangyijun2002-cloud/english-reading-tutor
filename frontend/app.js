@@ -52,6 +52,7 @@ function applyI18n() {
     el.placeholder = t(el.dataset.i18nPlaceholder);
   });
   populateLearningLanguageOptions();
+  populateLearningLanguageOptionsFor("settingsLearningLanguageSelect");
 }
 
 async function loadI18n(lang) {
@@ -93,11 +94,15 @@ function showLanguagePicker(onDone) {
 
 // ---------- 学习语言(每篇文章一个值，跟界面语言是两回事) ----------
 
-const LEARNING_LANGUAGE_CODES = ["en", "zh", "ja", "ko", "fr", "es", "de", "it", "pt", "ru", "ar", "th"];
+// 只保留 AI 推荐功能已经配好新闻源的语言，避免选到一个抓不到推荐文章的语言。
+const LEARNING_LANGUAGE_CODES = ["en", "ja", "ko", "fr", "es", "de"];
 const LAST_LEARNING_LANGUAGE_KEY = "lastLearningLanguage";
 
 function getLastLearningLanguage() {
-  return localStorage.getItem(LAST_LEARNING_LANGUAGE_KEY) || "en";
+  const stored = localStorage.getItem(LAST_LEARNING_LANGUAGE_KEY);
+  // 之前的版本允许选到现在已经去掉的语言(比如中文)，这里做兜底，
+  // 避免读到一个 AI 推荐功能已经不支持的旧值。
+  return LEARNING_LANGUAGE_CODES.includes(stored) ? stored : "en";
 }
 
 function populateLearningLanguageOptionsFor(selectId) {
@@ -197,6 +202,7 @@ const btnAccountSettings = document.getElementById("btnAccountSettings");
 const accountSettingsPanelOverlay = document.getElementById("accountSettingsPanelOverlay");
 const settingsUserLine = document.getElementById("settingsUserLine");
 const uiLanguageSelect = document.getElementById("uiLanguageSelect");
+const settingsLearningLanguageSelect = document.getElementById("settingsLearningLanguageSelect");
 const explainLanguageSelect = document.getElementById("explainLanguageSelect");
 const aiProviderSelect = document.getElementById("aiProviderSelect");
 const aiApiKeyInput = document.getElementById("aiApiKeyInput");
@@ -608,6 +614,10 @@ pastePanelOverlay.addEventListener("click", (e) => {
 
 learningLanguageSelect.addEventListener("change", () => {
   localStorage.setItem(LAST_LEARNING_LANGUAGE_KEY, learningLanguageSelect.value);
+});
+
+settingsLearningLanguageSelect.addEventListener("change", () => {
+  localStorage.setItem(LAST_LEARNING_LANGUAGE_KEY, settingsLearningLanguageSelect.value);
 });
 
 pasteTabs.forEach((tab) => {
@@ -1527,6 +1537,8 @@ async function loadSettingsIntoPanel() {
   settingsUserLine.textContent = t("settings.userLine", { name: data.name, ownerTag: data.is_owner ? t("settings.ownerTag") : "" });
 
   uiLanguageSelect.value = data.ui_language || "zh";
+  populateLearningLanguageOptionsFor("settingsLearningLanguageSelect");
+  settingsLearningLanguageSelect.value = getLastLearningLanguage();
   explainLanguageSelect.value = data.explain_language || "auto";
 
   aiProviderSelect.innerHTML = "";

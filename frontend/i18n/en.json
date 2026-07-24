@@ -78,6 +78,7 @@
   },
   "settings": {
     "uiLanguage": "Interface Language",
+    "learningLanguage": "Learning Language",
     "explainLanguage": "AI Explanation Language",
     "explainFollowUI": "Follow interface language",
     "aiProvider": "AI Provider",

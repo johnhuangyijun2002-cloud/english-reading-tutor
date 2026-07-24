@@ -78,6 +78,7 @@
   },
   "settings": {
     "uiLanguage": "界面语言",
+    "learningLanguage": "学习语言",
     "explainLanguage": "AI 讲解语言",
     "explainFollowUI": "跟随界面语言",
     "aiProvider": "AI 服务商",
