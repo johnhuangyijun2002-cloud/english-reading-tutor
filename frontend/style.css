@@ -1590,6 +1590,10 @@ body {
   color: var(--text);
 }
 
+#aiRelayBlock.hidden {
+  display: none;
+}
+
 .settingsSelect,
 #accountSettingsPanel input[type="password"],
 #accountSettingsPanel input[type="text"] {

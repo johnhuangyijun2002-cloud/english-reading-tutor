@@ -151,6 +151,12 @@
         <p id="houseTrialHint" class="urlHint hidden"></p>
       </div>
 
+      <div id="aiRelayBlock" class="settingsBlock hidden">
+        <span class="settingsBlockLabel">AI 中转站地址（可选）</span>
+        <input type="text" id="aiRelayUrlInput" placeholder="例如 https://your-relay.example.com/v1，留空用官方地址" />
+        <p class="urlHint">仅对 DeepSeek / OpenAI 生效，用来绕开网络限制访问官方接口；不清楚是什么可以不填</p>
+      </div>
+
       <div id="sheetsSyncBlock" class="settingsBlock settingsBlockRow hidden">
         <span class="settingsBlockLabel" data-i18n="settings.sheetsSync">同步到 Google Sheet</span>
         <input type="checkbox" id="sheetsSyncToggle" />
@@ -247,7 +253,7 @@
           <div class="welcomeFeatureDesc" data-i18n="welcome.feature2Desc"></div>
         </div>
         <div class="welcomeFeatureCard">
-          <span class="welcomeFeatureIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3" /><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" /></svg></span>
+          <span class="welcomeFeatureIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg></span>
           <div class="welcomeFeatureTitle" data-i18n="welcome.feature3Title"></div>
           <div class="welcomeFeatureDesc" data-i18n="welcome.feature3Desc"></div>
         </div>

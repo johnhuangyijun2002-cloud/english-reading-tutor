@@ -63,6 +63,15 @@ async function loadI18n(lang) {
   applyI18n();
 }
 
+// 界面语言第一次被设成中文时，提示一下"设置"里有个中转站地址可以配置(只提示一次)。
+const RELAY_HINT_SHOWN_KEY = "relayHintShown";
+
+function maybeShowRelayHint(lang) {
+  if (lang !== "zh" || localStorage.getItem(RELAY_HINT_SHOWN_KEY)) return;
+  localStorage.setItem(RELAY_HINT_SHOWN_KEY, "1");
+  alert("提示：如果访问 AI 接口不稳定，可以去「设置」里填一个「AI 中转站地址」代替官方地址（仅对 DeepSeek / OpenAI 生效）。");
+}
+
 // ---------- 首次打开弹出的语言选择弹窗 ----------
 
 function showLanguagePicker(onDone) {
@@ -86,6 +95,7 @@ function showLanguagePicker(onDone) {
       localStorage.setItem(LANGUAGE_PICKED_KEY, "1");
       await loadI18n(selectedInterfaceLang);
       languagePickerOverlay.classList.add("hidden");
+      maybeShowRelayHint(selectedInterfaceLang);
       onDone();
     },
     { once: true },
@@ -208,6 +218,8 @@ const aiProviderSelect = document.getElementById("aiProviderSelect");
 const aiApiKeyInput = document.getElementById("aiApiKeyInput");
 const aiKeyHint = document.getElementById("aiKeyHint");
 const houseTrialHint = document.getElementById("houseTrialHint");
+const aiRelayBlock = document.getElementById("aiRelayBlock");
+const aiRelayUrlInput = document.getElementById("aiRelayUrlInput");
 const sheetsSyncBlock = document.getElementById("sheetsSyncBlock");
 const sheetsSyncToggle = document.getElementById("sheetsSyncToggle");
 const btnSettingsSave = document.getElementById("btnSettingsSave");
@@ -1540,6 +1552,8 @@ async function loadSettingsIntoPanel() {
   populateLearningLanguageOptionsFor("settingsLearningLanguageSelect");
   settingsLearningLanguageSelect.value = getLastLearningLanguage();
   explainLanguageSelect.value = data.explain_language || "auto";
+  aiRelayUrlInput.value = data.ai_relay_base_url || "";
+  aiRelayBlock.classList.toggle("hidden", uiLanguageSelect.value !== "zh");
 
   aiProviderSelect.innerHTML = "";
   data.providers.forEach((p) => {
@@ -1709,6 +1723,10 @@ function updateKeyHint() {
 
 aiProviderSelect.addEventListener("change", updateKeyHint);
 
+uiLanguageSelect.addEventListener("change", () => {
+  aiRelayBlock.classList.toggle("hidden", uiLanguageSelect.value !== "zh");
+});
+
 btnSettingsSave.addEventListener("click", async () => {
   btnSettingsSave.disabled = true;
   settingsSaveStatus.textContent = t("common.saving");
@@ -1723,6 +1741,7 @@ btnSettingsSave.addEventListener("click", async () => {
         sheets_sync_enabled: sheetsSyncToggle.checked,
         ui_language: newUiLanguage,
         explain_language: explainLanguageSelect.value,
+        ai_relay_base_url: aiRelayUrlInput.value.trim(),
       }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -1731,6 +1750,7 @@ btnSettingsSave.addEventListener("click", async () => {
       // 不会跟着 applyI18n() 自动重译，最简单可靠的办法是刷新页面，让整个初始化流程
       // 用新语言重新走一遍，而不是挨个去补一堆"语言切换时重渲染"的特殊逻辑。
       localStorage.setItem("uiLanguage", newUiLanguage);
+      maybeShowRelayHint(newUiLanguage);
       location.reload();
       return;
     }

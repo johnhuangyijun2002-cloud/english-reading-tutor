@@ -169,11 +169,13 @@ CREATE TABLE IF NOT EXISTS users (
     house_calls_used INTEGER NOT NULL DEFAULT 0,
     ui_language TEXT NOT NULL DEFAULT 'en',
     explain_language TEXT NOT NULL DEFAULT 'auto',
+    ai_relay_base_url TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS house_calls_used INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_language TEXT NOT NULL DEFAULT 'en';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAULT 'auto';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_relay_base_url TEXT NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS house_usage (
     month TEXT PRIMARY KEY,
     calls INTEGER NOT NULL DEFAULT 0,
@@ -1440,8 +1442,10 @@ async def _call_gemini(api_key: str, prompt: str, json_mode: bool):
         raise HTTPException(502, f"Gemini 返回格式异常: {data}")
 
 
-async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False):
-    """返回 (回复文本, 这次调用的估算花费 usd)。"""
+async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False, relay_base_url: str = ""):
+    """返回 (回复文本, 这次调用的估算花费 usd)。relay_base_url 只在用户自己配置的 DeepSeek/OpenAI
+    调用上生效(kind=="openai")，用来替换默认的官方地址；绝不能用在公共体验 key 上，
+    否则用户能把站长的 key 通过自己指定的中转地址偷偷转发出去。"""
     if not api_key:
         raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
     cfg = PROVIDER_CONFIG.get(provider)
@@ -1449,7 +1453,8 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
         raise HTTPException(400, f"不支持的 AI 服务商: {provider}")
 
     if cfg["kind"] == "openai":
-        text, in_tok, out_tok = await _call_openai_compatible(cfg["url"], cfg["model"], api_key, prompt, json_mode)
+        url = f"{relay_base_url.rstrip('/')}/chat/completions" if relay_base_url else cfg["url"]
+        text, in_tok, out_tok = await _call_openai_compatible(url, cfg["model"], api_key, prompt, json_mode)
     elif cfg["kind"] == "claude":
         text, in_tok, out_tok = await _call_claude(api_key, prompt, json_mode)
     elif cfg["kind"] == "gemini":
@@ -1495,7 +1500,8 @@ async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> 
             raise HTTPException(400, "公共体验额度这个月已经用满了，去设置里填一个你自己的 AI Key 才能继续用")
         raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
 
-    text, cost = await call_ai(prompt, provider, api_key, user["id"], json_mode=json_mode)
+    relay_base_url = "" if using_house else (user.get("ai_relay_base_url") or "")
+    text, cost = await call_ai(prompt, provider, api_key, user["id"], json_mode=json_mode, relay_base_url=relay_base_url)
 
     if using_house:
         await db_increment_house_calls_used(user["id"])
@@ -1761,6 +1767,7 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "ui_languages": UI_LANGUAGES,
         "explain_language": user.get("explain_language", "auto"),
         "explain_language_choices": EXPLAIN_LANGUAGE_CHOICES,
+        "ai_relay_base_url": user.get("ai_relay_base_url", ""),
     }
 
 
@@ -1770,6 +1777,7 @@ class SettingsRequest(BaseModel):
     sheets_sync_enabled: bool = False
     ui_language: str = "en"
     explain_language: str = "auto"
+    ai_relay_base_url: str = ""  # 中转站地址，只对 DeepSeek/OpenAI 生效，留空用官方地址
 
 
 @app.post("/api/settings")
@@ -1781,6 +1789,10 @@ async def update_settings(req: SettingsRequest, user: dict = Depends(get_current
     if req.explain_language not in EXPLAIN_LANGUAGE_CHOICES:
         raise HTTPException(400, "不支持的 AI 讲解语言")
 
+    relay_base_url = req.ai_relay_base_url.strip()
+    if relay_base_url and not (relay_base_url.startswith("http://") or relay_base_url.startswith("https://")):
+        raise HTTPException(400, "中转站地址得是 http:// 或 https:// 开头的完整地址")
+
     keys = dict(user.get("ai_api_keys", {}))
     if req.ai_api_key:
         keys[req.ai_provider] = req.ai_api_key
@@ -1789,6 +1801,7 @@ async def update_settings(req: SettingsRequest, user: dict = Depends(get_current
         "ai_api_keys": keys,
         "ui_language": req.ui_language,
         "explain_language": req.explain_language,
+        "ai_relay_base_url": relay_base_url,
     }
     if user.get("is_owner"):
         update_fields["sheets_sync_enabled"] = req.sheets_sync_enabled

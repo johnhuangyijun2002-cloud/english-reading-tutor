@@ -117,8 +117,8 @@
     "feature1Desc": "텍스트 붙여넣기, PDF/DOCX 업로드, URL 가져오기 모두 가능해요",
     "feature2Title": "AI 설명",
     "feature2Desc": "단어나 문장을 선택하면 바로 AI 설명을 받아요",
-    "feature3Title": "하이라이트",
-    "feature3Desc": "읽으면서 중요한 부분을 색으로 표시해요",
+    "feature3Title": "AI 추천 기사",
+    "feature3Desc": "학습 언어에 맞춰 뉴스 소스를 자동으로 매칭해서 수준에 맞는 글을 골라줘요",
     "feature4Title": "단어장",
     "feature4Desc": "저장한 단어와 노트를 한곳에서 검색해요",
     "gotIt": "시작하기"
