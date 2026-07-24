@@ -1576,8 +1576,10 @@ async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = 
 # 除了 en 之外的这几个源地址是按各家媒体一贯的 RSS 惯例整理的，这个沙箱环境出站网络受限，
 # 没能逐一实测连通性——上线后如果发现某个源失效或改版了，把对应条目删掉/换新地址即可，
 # fetch_headlines() 已经做了"单个源抓取失败不影响其它源、也不会导致整个接口报错"的容错。
-# kind="nhk_easy" 是因为 NHK NEWS EASY 没有标准 RSS，用的是它自己的新闻列表 JSON 接口，
-# 其余都是标准 RSS/Atom，统一走 feedparser。
+# de/fr/ja 原本想接各家的"简易/学习者"专区(DW Deutsch Lernen、RFI Français Facile、
+# NHK NEWS EASY)，但这几个专区要么没有公开 RSS，要么用的是非标准接口，上线后确认连不通；
+# 换成了这几家媒体本身有文档、其它项目也验证过的常规新闻 RSS——内容不是专门简化过的，
+# 但 AI 推荐时本来就会按用户水平挑难度适中的文章，不是完全没有筛选。
 LANGUAGE_SOURCES = {
     "en": [
         {"name": "BBC", "url": "https://feeds.bbci.co.uk/news/rss.xml"},
@@ -1593,13 +1595,14 @@ LANGUAGE_SOURCES = {
         {"name": "KBS뉴스", "url": "https://world.kbs.co.kr/rss/rss_news.htm?lang=k"},
     ],
     "ja": [
-        {"name": "NHK NEWS EASY", "url": "https://www3.nhk.or.jp/news/easy/news-list.json", "kind": "nhk_easy"},
+        {"name": "NHK", "url": "https://www3.nhk.or.jp/rss/news/cat0.xml"},
     ],
     "fr": [
-        {"name": "RFI Français Facile", "url": "https://francaisfacile.rfi.fr/fr/podcasts/journal-en-fran%C3%A7ais-facile/rss.xml"},
+        {"name": "RFI", "url": "https://www.rfi.fr/fr/rss"},
     ],
     "de": [
-        {"name": "DW Deutsch Lernen", "url": "https://rss.dw.com/rdf/rss-de-lernen"},
+        {"name": "DW", "url": "https://rss.dw.com/rdf/rss-de-top"},
+        {"name": "DW", "url": "https://rss.dw.com/rdf/rss-de-all"},
     ],
     "es": [
         {"name": "BBC Mundo", "url": "https://feeds.bbci.co.uk/mundo/rss.xml"},
@@ -1641,38 +1644,11 @@ def _fetch_rss_headlines(source_name: str, feed_url: str) -> list:
     return items
 
 
-def _fetch_nhk_easy_headlines(source_name: str, list_url: str) -> list:
-    items = []
-    try:
-        resp = httpx.get(list_url, timeout=8, follow_redirects=True)
-        resp.raise_for_status()
-        data = resp.json()
-        for day_block in data:
-            for entries in day_block.values():
-                for entry in entries[:8]:
-                    news_id = entry.get("news_id")
-                    title = (entry.get("title") or "").strip()
-                    if not news_id or not title:
-                        continue
-                    items.append({
-                        "source": source_name,
-                        "title": title,
-                        "summary": "",
-                        "url": f"https://www3.nhk.or.jp/news/easy/{news_id}/{news_id}.html",
-                    })
-    except Exception:
-        pass
-    return items
-
-
 def fetch_headlines(learning_language: str) -> list:
     sources = LANGUAGE_SOURCES.get(learning_language) or LANGUAGE_SOURCES[DEFAULT_RECOMMEND_LANGUAGE]
     items = []
     for source in sources:
-        if source.get("kind") == "nhk_easy":
-            items.extend(_fetch_nhk_easy_headlines(source["name"], source["url"]))
-        else:
-            items.extend(_fetch_rss_headlines(source["name"], source["url"]))
+        items.extend(_fetch_rss_headlines(source["name"], source["url"]))
     return items
 
 
