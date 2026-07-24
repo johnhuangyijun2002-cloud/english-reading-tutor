@@ -69,7 +69,7 @@ const RELAY_HINT_SHOWN_KEY = "relayHintShown";
 function maybeShowRelayHint(lang) {
   if (lang !== "zh" || localStorage.getItem(RELAY_HINT_SHOWN_KEY)) return;
   localStorage.setItem(RELAY_HINT_SHOWN_KEY, "1");
-  alert("提示：如果访问 AI 接口不稳定，可以去「设置」里填一个「AI 中转站地址」代替官方地址（仅对 DeepSeek / OpenAI 生效）。");
+  alert("提示：如果访问 AI 接口不稳定，可以去「设置」里填一个「AI 中转站地址」代替官方地址。");
 }
 
 // ---------- 首次打开弹出的语言选择弹窗 ----------

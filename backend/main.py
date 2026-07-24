@@ -1443,18 +1443,22 @@ async def _call_gemini(api_key: str, prompt: str, json_mode: bool):
 
 
 async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False, relay_base_url: str = ""):
-    """返回 (回复文本, 这次调用的估算花费 usd)。relay_base_url 只在用户自己配置的 DeepSeek/OpenAI
-    调用上生效(kind=="openai")，用来替换默认的官方地址；绝不能用在公共体验 key 上，
-    否则用户能把站长的 key 通过自己指定的中转地址偷偷转发出去。"""
+    """返回 (回复文本, 这次调用的估算花费 usd)。relay_base_url 只在用户自己配置了 key 时生效，
+    绝不能用在公共体验 key 上，否则用户能把站长的 key 通过自己指定的中转地址偷偷转发出去。
+    配了中转地址后，四个服务商统一走 OpenAI 兼容接口转发——绝大多数"中转站"不管实际代理的
+    是哪家模型，对外都是暴露一个统一的 OpenAI 兼容接口，所以这么处理兼容性最好；没配中转
+    地址时，Claude/Gemini 仍然各自走官方原生接口(格式跟 OpenAI 完全不同，没法直接对调)。"""
     if not api_key:
         raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
     cfg = PROVIDER_CONFIG.get(provider)
     if not cfg:
         raise HTTPException(400, f"不支持的 AI 服务商: {provider}")
 
-    if cfg["kind"] == "openai":
-        url = f"{relay_base_url.rstrip('/')}/chat/completions" if relay_base_url else cfg["url"]
+    if relay_base_url:
+        url = f"{relay_base_url.rstrip('/')}/chat/completions"
         text, in_tok, out_tok = await _call_openai_compatible(url, cfg["model"], api_key, prompt, json_mode)
+    elif cfg["kind"] == "openai":
+        text, in_tok, out_tok = await _call_openai_compatible(cfg["url"], cfg["model"], api_key, prompt, json_mode)
     elif cfg["kind"] == "claude":
         text, in_tok, out_tok = await _call_claude(api_key, prompt, json_mode)
     elif cfg["kind"] == "gemini":
