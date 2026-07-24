@@ -975,9 +975,25 @@ body {
   opacity: 0.88;
 }
 
-.langPickerOption.is-default {
+.langPickerOption.is-selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+}
+
+.languagePickerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.languagePickerSection .settingsBlockLabel {
+  margin: 0;
+}
+
+.languagePickerSection .doc-select {
+  width: 100%;
+  max-width: none;
 }
 
 #languagePickerHint {
@@ -985,6 +1001,10 @@ body {
   font-size: 11px;
   line-height: 1.6;
   color: var(--text-secondary);
+}
+
+#btnLanguagePickerConfirm {
+  width: 100%;
 }
 
 /* ---------- 主体布局 ---------- */

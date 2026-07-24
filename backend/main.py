@@ -167,12 +167,12 @@ CREATE TABLE IF NOT EXISTS users (
     ai_api_keys TEXT NOT NULL DEFAULT '{}',
     sheets_sync_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     house_calls_used INTEGER NOT NULL DEFAULT 0,
-    ui_language TEXT NOT NULL DEFAULT 'zh',
+    ui_language TEXT NOT NULL DEFAULT 'en',
     explain_language TEXT NOT NULL DEFAULT 'auto',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS house_calls_used INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_language TEXT NOT NULL DEFAULT 'zh';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_language TEXT NOT NULL DEFAULT 'en';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAULT 'auto';
 CREATE TABLE IF NOT EXISTS house_usage (
     month TEXT PRIMARY KEY,
@@ -308,7 +308,7 @@ async def db_create_user(
     ai_provider: str = "deepseek",
     ai_api_keys: Optional[dict] = None,
     sheets_sync_enabled: bool = False,
-    ui_language: str = "zh",
+    ui_language: str = "en",
 ) -> dict:
     pool = await get_pool()
     await pool.execute(
@@ -744,7 +744,7 @@ class RegisterRequest(BaseModel):
     username: str
     password: str
     turnstile_token: str = ""
-    ui_language: str = "zh"
+    ui_language: str = "en"
 
 
 @app.post("/api/register")
@@ -770,7 +770,7 @@ async def register(request: Request, req: RegisterRequest):
         password_salt=salt,
         password_hash=_hash_password(password, salt),
         is_owner=(user_count == 0),
-        ui_language=req.ui_language if req.ui_language in UI_LANGUAGES else "zh",
+        ui_language=req.ui_language if req.ui_language in UI_LANGUAGES else "en",
     )
     _audit("register", user_id=new_user["id"], username=username)
     token = await db_create_session(new_user["id"])
@@ -779,7 +779,7 @@ async def register(request: Request, req: RegisterRequest):
         "id": new_user["id"],
         "name": username,
         "is_owner": new_user["is_owner"],
-        "ui_language": new_user.get("ui_language", "zh"),
+        "ui_language": new_user.get("ui_language", "en"),
         "house_trial_enabled": bool(HOUSE_AI_API_KEY),
         "house_calls_total": HOUSE_FREE_CALLS_PER_USER,
     }
@@ -808,7 +808,7 @@ async def login(request: Request, req: LoginRequest):
         "id": user["id"],
         "name": user.get("name", ""),
         "is_owner": user.get("is_owner", False),
-        "ui_language": user.get("ui_language", "zh"),
+        "ui_language": user.get("ui_language", "en"),
     }
 
 
@@ -834,7 +834,7 @@ async def get_me(user: dict = Depends(get_current_user)):
         "id": user["id"],
         "name": user.get("name", ""),
         "is_owner": user.get("is_owner", False),
-        "ui_language": user.get("ui_language", "zh"),
+        "ui_language": user.get("ui_language", "en"),
     }
 
 
@@ -1342,7 +1342,7 @@ LANGUAGE_LABELS = {
 def resolve_explain_language(user: dict) -> str:
     explain = user.get("explain_language", "auto")
     if explain == "auto":
-        return user.get("ui_language", "zh")
+        return user.get("ui_language", "en")
     return explain
 
 
@@ -1697,7 +1697,7 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "house_trial_enabled": bool(HOUSE_AI_API_KEY),
         "house_calls_used": user.get("house_calls_used", 0),
         "house_calls_total": HOUSE_FREE_CALLS_PER_USER,
-        "ui_language": user.get("ui_language", "zh"),
+        "ui_language": user.get("ui_language", "en"),
         "ui_languages": UI_LANGUAGES,
         "explain_language": user.get("explain_language", "auto"),
         "explain_language_choices": EXPLAIN_LANGUAGE_CHOICES,
@@ -1708,7 +1708,7 @@ class SettingsRequest(BaseModel):
     ai_provider: str
     ai_api_key: str = ""  # 留空表示不修改这个服务商已保存的 key
     sheets_sync_enabled: bool = False
-    ui_language: str = "zh"
+    ui_language: str = "en"
     explain_language: str = "auto"
 
 

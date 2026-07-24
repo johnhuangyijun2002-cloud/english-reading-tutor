@@ -27,7 +27,7 @@ function iconHTML(name, extraClass) {
 // ---------- 界面语言(i18n) ----------
 // ui_language 决定界面文案；真正生效的值以登录后账号里存的为准，这里的 localStorage
 // 缓存只是给"页面刚加载、还没拿到账号信息"这段时间一个合理的默认显示语言用。
-let currentUiLanguage = localStorage.getItem("uiLanguage") || "zh";
+let currentUiLanguage = localStorage.getItem("uiLanguage") || "en";
 let i18nStrings = {};
 
 function t(key, vars) {
@@ -65,19 +65,30 @@ async function loadI18n(lang) {
 // ---------- 首次打开弹出的语言选择弹窗 ----------
 
 function showLanguagePicker(onDone) {
+  let selectedInterfaceLang = "en";
   languagePickerOverlay.classList.remove("hidden");
-  languagePickerOverlay.querySelectorAll(".langPickerOption").forEach((btn) => {
-    btn.addEventListener(
-      "click",
-      async () => {
-        localStorage.setItem(LANGUAGE_PICKED_KEY, "1");
-        await loadI18n(btn.dataset.lang);
-        languagePickerOverlay.classList.add("hidden");
-        onDone();
-      },
-      { once: true },
-    );
+  populateLearningLanguageOptionsFor("onboardingLearningLanguageSelect");
+
+  const pillButtons = languagePickerOverlay.querySelectorAll(".langPickerOption");
+  pillButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      selectedInterfaceLang = btn.dataset.lang;
+      pillButtons.forEach((b) => b.classList.toggle("is-selected", b === btn));
+    });
   });
+
+  document.getElementById("btnLanguagePickerConfirm").addEventListener(
+    "click",
+    async () => {
+      const learningLang = document.getElementById("onboardingLearningLanguageSelect").value;
+      localStorage.setItem(LAST_LEARNING_LANGUAGE_KEY, learningLang);
+      localStorage.setItem(LANGUAGE_PICKED_KEY, "1");
+      await loadI18n(selectedInterfaceLang);
+      languagePickerOverlay.classList.add("hidden");
+      onDone();
+    },
+    { once: true },
+  );
 }
 
 // ---------- 学习语言(每篇文章一个值，跟界面语言是两回事) ----------
@@ -89,8 +100,8 @@ function getLastLearningLanguage() {
   return localStorage.getItem(LAST_LEARNING_LANGUAGE_KEY) || "en";
 }
 
-function populateLearningLanguageOptions() {
-  const select = document.getElementById("learningLanguageSelect");
+function populateLearningLanguageOptionsFor(selectId) {
+  const select = document.getElementById(selectId);
   if (!select) return;
   const prevValue = select.value || getLastLearningLanguage();
   select.innerHTML = "";
@@ -101,6 +112,10 @@ function populateLearningLanguageOptions() {
     select.appendChild(opt);
   });
   select.value = LEARNING_LANGUAGE_CODES.includes(prevValue) ? prevValue : "en";
+}
+
+function populateLearningLanguageOptions() {
+  populateLearningLanguageOptionsFor("learningLanguageSelect");
 }
 
 function apiFetch(url, opts = {}) {

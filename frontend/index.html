@@ -201,12 +201,24 @@
   <div id="languagePickerOverlay" class="hidden">
     <div id="languagePickerPanel">
       <h2 id="languagePickerHeading">Choose your language<br />选择语言<br />언어를 선택하세요</h2>
-      <div id="languagePickerOptions">
-        <button type="button" class="langPickerOption is-default" data-lang="en">English</button>
-        <button type="button" class="langPickerOption" data-lang="zh">简体中文</button>
-        <button type="button" class="langPickerOption" data-lang="ko">한국어</button>
+
+      <div class="languagePickerSection">
+        <p class="settingsBlockLabel">Interface Language · 界面语言 · 인터페이스 언어</p>
+        <div id="languagePickerOptions">
+          <button type="button" class="langPickerOption is-selected" data-lang="en">English</button>
+          <button type="button" class="langPickerOption" data-lang="zh">简体中文</button>
+          <button type="button" class="langPickerOption" data-lang="ko">한국어</button>
+        </div>
       </div>
+
+      <div class="languagePickerSection">
+        <p class="settingsBlockLabel">Learning Language · 学习语言 · 학습 언어</p>
+        <select id="onboardingLearningLanguageSelect" class="doc-select"></select>
+      </div>
+
       <p id="languagePickerHint">You can change this anytime in Settings · 以后可以在设置里修改 · 설정에서 나중에 변경할 수 있어요</p>
+
+      <button type="button" id="btnLanguagePickerConfirm" class="btn btn-primary">Continue · 继续 · 계속</button>
     </div>
   </div>
 
