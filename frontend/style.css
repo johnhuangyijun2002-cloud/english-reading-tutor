@@ -55,6 +55,10 @@
   box-sizing: border-box;
 }
 
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -200,6 +204,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   padding: 3px 10px;
+  white-space: nowrap;
 }
 
 .topbar-actions {
@@ -820,6 +825,12 @@ body {
   height: 1px;
   background: var(--border);
   margin: 8px 6px;
+}
+
+/* 这两个按钮只在窄屏(见文件末尾的响应式区块)才用得上——桌面端 #sidebar 一直显示，不需要开关 */
+#btnToggleSidebar,
+#btnCloseSidebar {
+  display: none;
 }
 
 /* ---------- 欢迎弹层(注册成功) ---------- */
@@ -1841,5 +1852,134 @@ body {
 
   #printArea {
     display: block !important;
+  }
+}
+
+/* ---------- 响应式：窄屏(平板及以下) ---------- */
+
+@media (max-width: 860px) {
+  /* 顶栏在窄屏下可能换行变成两行，高度不再是固定的 57px，#main 也就不能再用
+     calc(100vh - 57px) 这种写死的算法——改成让 body 用 flex 竖着排列，
+     顶栏按实际内容撑开高度，#main 自动吃掉剩下的空间，不用猜顶栏到底多高。 */
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  #topbar {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .topbar-actions {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* 高度交给上面的 body flex 布局自动算，这里只需要额外用 padding-bottom
+     留出贴底导航栏(64px)的空间，不然 #viewer 的框会延伸到导航栏底下。 */
+  #main {
+    height: auto;
+    flex: 1;
+    min-height: 0; /* 让里面 #viewer 的 overflow:auto 在 flex 容器里正常生效 */
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+    box-sizing: border-box;
+  }
+
+  /* 左侧图标栏在桌面是竖排的侧栏，这里改成贴底的横向 Tab 栏 */
+  #sideNav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    height: 64px;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 0;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    border-right: none;
+    border-top: 1px solid var(--glass-border);
+    z-index: 150;
+  }
+
+  .navItem {
+    flex: 1;
+    padding: 4px 2px;
+  }
+
+  /* "更多功能开发中" 占位按钮和分隔线在底部栏这么窄的空间里意义不大，先藏起来 */
+  .navDivider,
+  .navItem-disabled {
+    display: none;
+  }
+
+  #btnToggleSidebar {
+    display: flex;
+  }
+
+  #viewerContent {
+    padding: 24px 16px;
+  }
+
+  .text-doc {
+    padding: 24px 20px;
+  }
+
+  /* 历史记录侧栏桌面端一直显示；窄屏下默认收起，点开时整块滑到最前面盖满全屏。
+     桌面端半透明的玻璃背景是设计给"旁边露一点内容"的窄栏用的，盖满全屏之后
+     半透明反而看不清，这里改成跟其它全屏弹层一样的不透明背景。 */
+  #sidebar {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    border-left: none;
+    z-index: 190;
+    background: var(--surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transform: translateX(100%);
+    transition: transform 0.25s var(--spring-ease);
+  }
+
+  #sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  #btnCloseSidebar {
+    display: inline-flex;
+  }
+
+  #pastePanel,
+  #welcomePanel,
+  #accountSettingsPanel {
+    max-height: 82vh;
+    overflow-y: auto;
+  }
+
+  #languagePickerPanel,
+  #loginPanel {
+    max-height: 78vh;
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .doc-select {
+    max-width: 140px;
+  }
+
+  #viewerContent {
+    padding: 16px 12px;
+  }
+
+  .text-doc {
+    padding: 20px 16px;
   }
 }

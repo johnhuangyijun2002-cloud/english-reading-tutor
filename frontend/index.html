@@ -299,6 +299,12 @@
         </span>
         <span class="navLabel" data-i18n="nav.reader">阅读</span>
       </button>
+      <button class="navItem" id="btnToggleSidebar">
+        <span class="navIcon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></svg>
+        </span>
+        <span class="navLabel" data-i18n="sidebar.history">历史记录</span>
+      </button>
       <button class="navItem" id="btnSearchHistory">
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 6 4 14" /><path d="M12 6v14" /><path d="M8 8v12" /><path d="M4 4v16" /></svg>
@@ -345,6 +351,7 @@
         <div class="sidebarHeaderActions">
           <button id="btnSaveAll" class="btn btn-ghost btn-small" data-i18n="sidebar.saveAll" title="把当前还没存的解析结果一次性全部存进去">一键保存</button>
           <button id="btnPrint" class="btn btn-ghost btn-small hidden" title="把文章和划过的生词/句子打印出来"><svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg><span data-i18n="sidebar.print">打印</span></button>
+          <button id="btnCloseSidebar" class="btn btn-ghost btn-small" data-i18n="common.close">关闭</button>
         </div>
       </div>
       <div id="annotationList"></div>

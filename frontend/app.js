@@ -167,6 +167,9 @@ const viewer = document.getElementById("viewer");
 const viewerContent = document.getElementById("viewerContent");
 const readingProgressFill = document.getElementById("readingProgressFill");
 const annotationList = document.getElementById("annotationList");
+const sidebar = document.getElementById("sidebar");
+const btnToggleSidebar = document.getElementById("btnToggleSidebar");
+const btnCloseSidebar = document.getElementById("btnCloseSidebar");
 const selectionToolbar = document.getElementById("selectionToolbar");
 const btnAnalyze = document.getElementById("btnAnalyze");
 const btnPronounce = document.getElementById("btnPronounce");
@@ -1152,6 +1155,17 @@ async function deleteRecord(record) {
   }
   return true;
 }
+
+// ---------- 手机端：历史记录侧栏改成全屏滑出，需要一个开关 ----------
+// 桌面端 #sidebar 一直显示，没有这个概念；这两个按钮只在窄屏下可见(见 style.css)。
+
+btnToggleSidebar.addEventListener("click", () => {
+  sidebar.classList.add("mobile-open");
+});
+
+btnCloseSidebar.addEventListener("click", () => {
+  sidebar.classList.remove("mobile-open");
+});
 
 // ---------- 全局搜索(跨所有文章的生词/句子笔记) ----------
 
