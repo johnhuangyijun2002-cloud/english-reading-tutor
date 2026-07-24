@@ -469,6 +469,12 @@ body {
   letter-spacing: -0.01em;
 }
 
+#recommendLangHint {
+  margin: -6px 0 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
 #recommendList {
   overflow-y: auto;
   display: flex;

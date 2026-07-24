@@ -1570,21 +1570,50 @@ async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = 
     return AnalyzeResponse(mode="passage", explanation=explanation)
 
 
-# ---------- AI 文章推荐(拉 RSS 标题 + AI 按难度/话题筛选打标签) ----------
+# ---------- AI 文章推荐(按学习语言匹配新闻源，拉标题 + AI 按难度/话题筛选打标签) ----------
 
-USER_LEVEL_DESC = "大学英语四级已通过，六级考了480分，属于中等偏下的中高级学习者（约B1-B2水平）"
+# 每种学习语言对应的推荐新闻源，按顺序尝试(第一个是首选源，后面的当兜底/补充)。
+# 除了 en 之外的这几个源地址是按各家媒体一贯的 RSS 惯例整理的，这个沙箱环境出站网络受限，
+# 没能逐一实测连通性——上线后如果发现某个源失效或改版了，把对应条目删掉/换新地址即可，
+# fetch_headlines() 已经做了"单个源抓取失败不影响其它源、也不会导致整个接口报错"的容错。
+# kind="nhk_easy" 是因为 NHK NEWS EASY 没有标准 RSS，用的是它自己的新闻列表 JSON 接口，
+# 其余都是标准 RSS/Atom，统一走 feedparser。
+LANGUAGE_SOURCES = {
+    "en": [
+        {"name": "BBC", "url": "https://feeds.bbci.co.uk/news/rss.xml"},
+        {"name": "BBC", "url": "https://feeds.bbci.co.uk/news/technology/rss.xml"},
+        {"name": "BBC", "url": "https://feeds.bbci.co.uk/news/business/rss.xml"},
+        {"name": "BBC", "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"},
+        {"name": "Guardian", "url": "https://www.theguardian.com/world/rss"},
+        {"name": "Guardian", "url": "https://www.theguardian.com/culture/rss"},
+        {"name": "Guardian", "url": "https://www.theguardian.com/science/rss"},
+    ],
+    "ko": [
+        {"name": "연합뉴스", "url": "https://www.yna.co.kr/rss/news.xml"},
+        {"name": "KBS뉴스", "url": "https://world.kbs.co.kr/rss/rss_news.htm?lang=k"},
+    ],
+    "ja": [
+        {"name": "NHK NEWS EASY", "url": "https://www3.nhk.or.jp/news/easy/news-list.json", "kind": "nhk_easy"},
+    ],
+    "fr": [
+        {"name": "RFI Français Facile", "url": "https://francaisfacile.rfi.fr/fr/podcasts/journal-en-fran%C3%A7ais-facile/rss.xml"},
+    ],
+    "de": [
+        {"name": "DW Deutsch Lernen", "url": "https://rss.dw.com/rdf/rss-de-lernen"},
+    ],
+    "es": [
+        {"name": "BBC Mundo", "url": "https://feeds.bbci.co.uk/mundo/rss.xml"},
+    ],
+}
+DEFAULT_RECOMMEND_LANGUAGE = "en"
 
-RSS_FEEDS = [
-    ("BBC", "https://feeds.bbci.co.uk/news/rss.xml"),
-    ("BBC", "https://feeds.bbci.co.uk/news/technology/rss.xml"),
-    ("BBC", "https://feeds.bbci.co.uk/news/business/rss.xml"),
-    ("BBC", "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"),
-    ("Guardian", "https://www.theguardian.com/world/rss"),
-    ("Guardian", "https://www.theguardian.com/culture/rss"),
-    ("Guardian", "https://www.theguardian.com/science/rss"),
-]
+# 只有 en 是根据这个具体用户的真实水平写的；其它语言用一个通用的中等水平描述。
+RECOMMEND_LEVEL_DESC = {
+    "en": "大学英语四级已通过，六级考了480分，属于中等偏下的中高级学习者（约B1-B2水平）",
+}
+DEFAULT_RECOMMEND_LEVEL_DESC = "中等水平的语言学习者（约B1-B2水平），能读懂大意但生词量还有限"
 
-_recommend_cache = {}  # user_id -> {"data": [...], "ts": datetime}
+_recommend_cache = {}  # (user_id, learning_language) -> {"data": [...], "ts": datetime}
 RECOMMEND_CACHE_SECONDS = 3 * 60 * 60
 
 
@@ -1592,9 +1621,9 @@ def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text or "").strip()
 
 
-def fetch_headlines() -> list:
+def _fetch_rss_headlines(source_name: str, feed_url: str) -> list:
     items = []
-    for source, feed_url in RSS_FEEDS:
+    try:
         parsed = feedparser.parse(feed_url)
         for entry in parsed.entries[:8]:
             title = entry.get("title", "").strip()
@@ -1602,19 +1631,58 @@ def fetch_headlines() -> list:
             if not title or not url:
                 continue
             items.append({
-                "source": source,
+                "source": source_name,
                 "title": title,
                 "summary": _strip_html(entry.get("summary", ""))[:220],
                 "url": url,
             })
+    except Exception:
+        pass
     return items
 
 
-def build_recommend_prompt(items: list) -> str:
+def _fetch_nhk_easy_headlines(source_name: str, list_url: str) -> list:
+    items = []
+    try:
+        resp = httpx.get(list_url, timeout=8, follow_redirects=True)
+        resp.raise_for_status()
+        data = resp.json()
+        for day_block in data:
+            for entries in day_block.values():
+                for entry in entries[:8]:
+                    news_id = entry.get("news_id")
+                    title = (entry.get("title") or "").strip()
+                    if not news_id or not title:
+                        continue
+                    items.append({
+                        "source": source_name,
+                        "title": title,
+                        "summary": "",
+                        "url": f"https://www3.nhk.or.jp/news/easy/{news_id}/{news_id}.html",
+                    })
+    except Exception:
+        pass
+    return items
+
+
+def fetch_headlines(learning_language: str) -> list:
+    sources = LANGUAGE_SOURCES.get(learning_language) or LANGUAGE_SOURCES[DEFAULT_RECOMMEND_LANGUAGE]
+    items = []
+    for source in sources:
+        if source.get("kind") == "nhk_easy":
+            items.extend(_fetch_nhk_easy_headlines(source["name"], source["url"]))
+        else:
+            items.extend(_fetch_rss_headlines(source["name"], source["url"]))
+    return items
+
+
+def build_recommend_prompt(items: list, learning_language: str) -> str:
+    lang_label = LANGUAGE_LABELS.get(learning_language, learning_language)
+    level_desc = RECOMMEND_LEVEL_DESC.get(learning_language, DEFAULT_RECOMMEND_LEVEL_DESC)
     listing = "\n".join(f"{i}. [{it['source']}] {it['title']} — {it['summary']}" for i, it in enumerate(items))
     return (
-        f"你是一个英语学习内容推荐助手。用户的英语水平：{USER_LEVEL_DESC}。\n"
-        "下面是一批当天的英文新闻标题和摘要，请帮用户从中挑出 6-8 篇适合精读积累的文章。\n"
+        f"你是一个{lang_label}学习内容推荐助手。用户正在学习{lang_label}，水平：{level_desc}。\n"
+        f"下面是一批当天的{lang_label}新闻标题和摘要，请帮用户从中挑出 6-8 篇适合精读积累的文章。\n"
         "挑选标准：\n"
         "1) 难度要适中——不要挑长难句堆砌、专业术语密集的深度调查或学术性文章，也不要挑过短的快讯简报\n"
         "2) 话题尽量多样化，覆盖不同领域，不要挑到好几篇话题重复的\n"
@@ -1629,19 +1697,26 @@ def build_recommend_prompt(items: list) -> str:
 
 
 @app.get("/api/recommendations")
-async def get_recommendations(refresh: bool = False, user: dict = Depends(get_current_user)):
+async def get_recommendations(
+    refresh: bool = False,
+    learning_language: str = "en",
+    user: dict = Depends(get_current_user),
+):
+    lang = learning_language if learning_language in LANGUAGE_SOURCES else DEFAULT_RECOMMEND_LANGUAGE
+    cache_key = (user["id"], lang)
     now = datetime.now(timezone.utc)
-    cache_entry = _recommend_cache.get(user["id"])
+    cache_entry = _recommend_cache.get(cache_key)
     if not refresh and cache_entry:
         age = (now - cache_entry["ts"]).total_seconds()
         if age < RECOMMEND_CACHE_SECONDS:
             return cache_entry["data"]
 
-    items = await asyncio.to_thread(fetch_headlines)
+    items = await asyncio.to_thread(fetch_headlines, lang)
     if not items:
-        raise HTTPException(502, "没能拉到新闻列表，可能是网络问题或者 RSS 源暂时不可用")
+        source_names = dict.fromkeys(s["name"] for s in LANGUAGE_SOURCES.get(lang, []))
+        raise HTTPException(502, f"{' / '.join(source_names)} 暂时无法访问，请稍后重试")
 
-    raw = await call_ai_for_user(build_recommend_prompt(items), user, json_mode=True)
+    raw = await call_ai_for_user(build_recommend_prompt(items, lang), user, json_mode=True)
     try:
         picks = json.loads(raw).get("picks", [])
     except json.JSONDecodeError:
@@ -1664,7 +1739,7 @@ async def get_recommendations(refresh: bool = False, user: dict = Depends(get_cu
             "reason": p.get("reason", ""),
         })
 
-    _recommend_cache[user["id"]] = {"data": results, "ts": now}
+    _recommend_cache[cache_key] = {"data": results, "ts": now}
     return results
 
 

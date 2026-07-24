@@ -48,6 +48,7 @@
   "recommend": {
     "title": "Today's Picks",
     "refresh": "Refresh",
+    "forLanguage": "Sources matched to your learning language: {language}",
     "loading": "Picking articles that fit your level, a few seconds...",
     "empty": "No good picks right now, try \"Refresh\"",
     "failed": "Failed to load picks: {message}",

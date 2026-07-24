@@ -48,6 +48,7 @@
   "recommend": {
     "title": "今日推荐",
     "refresh": "换一批",
+    "forLanguage": "已根据你的学习语言自动匹配来源：{language}",
     "loading": "正在挑选适合你的文章，大概几秒钟...",
     "empty": "暂时没有合适的推荐，点\"换一批\"再试试",
     "failed": "推荐失败：{message}",

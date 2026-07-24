@@ -48,6 +48,7 @@
   "recommend": {
     "title": "오늘의 추천",
     "refresh": "다시 추천받기",
+    "forLanguage": "학습 언어에 맞춰 자동으로 소스를 매칭했어요: {language}",
     "loading": "수준에 맞는 글을 고르는 중, 잠시만요...",
     "empty": "지금은 맞는 추천이 없어요. \"다시 추천받기\"를 눌러보세요",
     "failed": "추천 실패: {message}",

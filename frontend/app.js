@@ -708,10 +708,16 @@ async function loadRecommendations(refresh) {
   recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.loading")}</p>`;
   btnRecommendRefresh.disabled = true;
   try {
-    const res = await apiFetch(`/api/recommendations${refresh ? "?refresh=true" : ""}`);
+    const learningLanguage = getLastLearningLanguage();
+    document.getElementById("recommendLangHint").textContent = t("recommend.forLanguage", {
+      language: t(`languages.${learningLanguage}`),
+    });
+    const params = new URLSearchParams({ learning_language: learningLanguage });
+    if (refresh) params.set("refresh", "true");
+    const res = await apiFetch(`/api/recommendations?${params.toString()}`);
     if (!res.ok) throw new Error(await res.text());
     const picks = await res.json();
-    renderRecommendations(picks);
+    renderRecommendations(picks, learningLanguage);
     loadUsage();
   } catch (err) {
     recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.failed", { message: err.message })}</p>`;
@@ -720,7 +726,7 @@ async function loadRecommendations(refresh) {
   }
 }
 
-function renderRecommendations(picks) {
+function renderRecommendations(picks, learningLanguage) {
   if (!picks || picks.length === 0) {
     recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.empty")}</p>`;
     return;
@@ -761,8 +767,7 @@ function renderRecommendations(picks) {
       readBtn.disabled = true;
       readBtn.textContent = t("recommend.fetching");
       try {
-        // 推荐源目前只拉英文新闻 RSS，不管用户平时读什么语言的文章，这里都固定标成 en。
-        const doc = await fetchUrlAsDocument(pick.url, "en");
+        const doc = await fetchUrlAsDocument(pick.url, learningLanguage);
         await refreshDocuments(doc.id);
         recommendPanelOverlay.classList.add("hidden");
       } catch (err) {
