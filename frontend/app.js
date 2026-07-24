@@ -549,6 +549,28 @@ function highlightKnownWords(text) {
   return result;
 }
 
+// ---------- 弹出层贴边定位：水平方向超出屏幕就往回收，垂直方向放不下就翻到锚点上方 ----------
+
+function clampPopupPosition(el, anchorRect, { gapBelow = 8, gapAbove = 8, margin = 12 } = {}) {
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
+
+  let left = window.scrollX + anchorRect.left;
+  const maxLeft = window.scrollX + vw - w - margin;
+  if (left > maxLeft) left = Math.max(window.scrollX + margin, maxLeft);
+
+  let top = window.scrollY + anchorRect.bottom + gapBelow;
+  if (anchorRect.bottom + h + gapBelow > vh) {
+    const flippedTop = window.scrollY + anchorRect.top - h - gapAbove;
+    top = flippedTop > window.scrollY + margin ? flippedTop : window.scrollY + vh - h - margin;
+  }
+
+  el.style.left = left + "px";
+  el.style.top = top + "px";
+}
+
 // ---------- 点击已高亮的生词，弹出之前存的释义 ----------
 
 const wordPopup = document.getElementById("wordPopup");
@@ -594,12 +616,7 @@ function showWordPopup(mark) {
 
   const rect = mark.getBoundingClientRect();
   wordPopup.classList.remove("hidden");
-  const popupWidth = wordPopup.offsetWidth;
-  let left = window.scrollX + rect.left;
-  const maxLeft = window.scrollX + document.documentElement.clientWidth - popupWidth - 12;
-  if (left > maxLeft) left = Math.max(12, maxLeft);
-  wordPopup.style.left = left + "px";
-  wordPopup.style.top = window.scrollY + rect.bottom + 8 + "px";
+  clampPopupPosition(wordPopup, rect);
 }
 
 function hideWordPopup() {
@@ -828,8 +845,7 @@ function speakText(text, learningLanguage) {
 
 // ---------- 划词 / 划句 ----------
 
-document.addEventListener("mouseup", (e) => {
-  if (selectionToolbar.contains(e.target)) return;
+function showSelectionToolbarForCurrentSelection() {
   const selection = window.getSelection();
   const text = selection.toString().trim();
   if (!text || selection.rangeCount === 0 || !viewerContent.contains(selection.anchorNode)) {
@@ -843,8 +859,6 @@ document.addEventListener("mouseup", (e) => {
 
   const range = selection.getRangeAt(0);
   const rect = range.getBoundingClientRect();
-  selectionToolbar.style.top = window.scrollY + rect.bottom + 6 + "px";
-  selectionToolbar.style.left = window.scrollX + rect.left + "px";
   btnAnalyze.innerHTML =
     pendingSelectionMode === "word"
       ? iconHTML("bookmark") + t("toolbar.saveWord")
@@ -852,6 +866,23 @@ document.addEventListener("mouseup", (e) => {
   btnPronounce.classList.toggle("hidden", !(pendingSelectionMode === "word" && canSpeak()));
   btnPronounce.title = t("common.pronounce");
   selectionToolbar.classList.remove("hidden");
+  clampPopupPosition(selectionToolbar, rect, { gapBelow: 6 });
+}
+
+document.addEventListener("mouseup", (e) => {
+  if (selectionToolbar.contains(e.target)) return;
+  showSelectionToolbarForCurrentSelection();
+});
+
+// 触屏设备的长按选字不一定能可靠触发 mouseup，这里用 selectionchange 补一条路径，
+// 只在触屏设备上生效(靠 pointer:coarse 判断)，不影响桌面端已有的 mouseup 行为，
+// 做了防抖避免选区还没定型就频繁触发。
+const isCoarsePointerDevice = window.matchMedia("(pointer: coarse)").matches;
+let selectionChangeDebounceTimer = null;
+document.addEventListener("selectionchange", () => {
+  if (!isCoarsePointerDevice) return;
+  clearTimeout(selectionChangeDebounceTimer);
+  selectionChangeDebounceTimer = setTimeout(showSelectionToolbarForCurrentSelection, 250);
 });
 
 btnPronounce.addEventListener("click", (e) => {
