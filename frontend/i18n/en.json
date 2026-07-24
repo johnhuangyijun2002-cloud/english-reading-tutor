@@ -8,7 +8,10 @@
     "saving": "Saving...",
     "saved": "Saved",
     "saveFailed": "Save failed: {message}",
-    "pronounce": "Pronounce"
+    "pronounce": "Pronounce",
+    "off": "Off",
+    "on": "On",
+    "skip": "Skip"
   },
   "topbar": {
     "addArticle": "Add Article",
@@ -43,7 +46,17 @@
     "wide": "Wide",
     "font": "Font",
     "sans": "Sans",
-    "serif": "Serif"
+    "serif": "Serif",
+    "immersion": "Immersion mode",
+    "immersionStart": "Start ratio",
+    "immersionEnd": "End ratio"
+  },
+  "immersion": {
+    "saveTitle": "Save this session's words?",
+    "saveConfirm": "Save selected words",
+    "saveWord": "Save to vocab book",
+    "planFailed": "Couldn't set up immersion mode: {message}",
+    "saveFailed": "Save failed: {message}"
   },
   "recommend": {
     "title": "Today's Picks",
@@ -79,6 +92,12 @@
   "settings": {
     "uiLanguage": "Interface Language",
     "learningLanguage": "Learning Language",
+    "immersionTargetLanguage": "Immersion Mode Target Language",
+    "immersionFollowLearning": "Follow learning language",
+    "immersionSourcePriority": "Word Selection Priority",
+    "immersionVocabFirst": "Vocab book first",
+    "immersionFrequencyFirst": "High-frequency words first",
+    "immersionExcludeProperNouns": "Exclude proper nouns/numbers",
     "explainLanguage": "AI Explanation Language",
     "explainFollowUI": "Follow interface language",
     "aiProvider": "AI Provider",

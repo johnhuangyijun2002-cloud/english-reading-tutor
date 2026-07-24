@@ -42,6 +42,23 @@
               <button data-value="serif" data-i18n="readerSettings.serif">衬线</button>
             </div>
           </div>
+          <div class="settingsRow">
+            <span class="settingsLabel" data-i18n="readerSettings.immersion">沉浸模式</span>
+            <div class="settingsOptions immersionToggle" data-setting="immersionEnabled">
+              <button data-value="off" data-i18n="common.off">关</button>
+              <button data-value="on" data-i18n="common.on">开</button>
+            </div>
+          </div>
+          <div class="settingsRow settingsRow-slider hidden" id="immersionRatioRow1">
+            <span class="settingsLabel" data-i18n="readerSettings.immersionStart">起始替换比例</span>
+            <input type="range" id="immersionStartSlider" min="10" max="60" step="5" value="10" />
+            <span id="immersionStartValue" class="settingsSliderValue">10%</span>
+          </div>
+          <div class="settingsRow settingsRow-slider hidden" id="immersionRatioRow2">
+            <span class="settingsLabel" data-i18n="readerSettings.immersionEnd">最终替换比例</span>
+            <input type="range" id="immersionEndSlider" min="30" max="80" step="5" value="30" />
+            <span id="immersionEndValue" class="settingsSliderValue">30%</span>
+          </div>
         </div>
       </div>
     </div>
@@ -111,6 +128,17 @@
     </div>
   </div>
 
+  <div id="immersionSaveOverlay" class="hidden">
+    <div id="immersionSavePanel">
+      <h2 data-i18n="immersion.saveTitle">保存本次沉浸阅读的生词？</h2>
+      <div id="immersionSaveList"></div>
+      <div class="pasteActions">
+        <button id="btnImmersionSaveSkip" class="btn btn-ghost" data-i18n="common.skip">不保存</button>
+        <button id="btnImmersionSaveConfirm" class="btn btn-primary" data-i18n="immersion.saveConfirm">保存选中的词</button>
+      </div>
+    </div>
+  </div>
+
   <div id="accountSettingsPanelOverlay" class="hidden">
     <div id="accountSettingsPanel">
       <h2 data-i18n="nav.settings">设置</h2>
@@ -128,6 +156,26 @@
       <div class="settingsBlock">
         <span class="settingsBlockLabel" data-i18n="settings.learningLanguage">学习语言</span>
         <select id="settingsLearningLanguageSelect" class="settingsSelect"></select>
+      </div>
+
+      <div class="settingsBlock">
+        <span class="settingsBlockLabel" data-i18n="settings.immersionTargetLanguage">沉浸模式目标语言</span>
+        <select id="immersionTargetLanguageSelect" class="settingsSelect">
+          <option value="follow" data-i18n="settings.immersionFollowLearning">跟随学习语言</option>
+        </select>
+      </div>
+
+      <div class="settingsBlock">
+        <span class="settingsBlockLabel" data-i18n="settings.immersionSourcePriority">选词优先策略</span>
+        <div class="settingsOptions" data-setting="immersionSourcePriority">
+          <button data-value="vocab" data-i18n="settings.immersionVocabFirst">生词本优先</button>
+          <button data-value="frequency" data-i18n="settings.immersionFrequencyFirst">高频词优先</button>
+        </div>
+      </div>
+
+      <div class="settingsBlock settingsBlockRow">
+        <span class="settingsBlockLabel" data-i18n="settings.immersionExcludeProperNouns">排除专有名词/数字</span>
+        <input type="checkbox" id="immersionExcludeProperNounsToggle" checked />
       </div>
 
       <div class="settingsBlock">

@@ -129,6 +129,24 @@ function populateLearningLanguageOptionsFor(selectId) {
   select.value = LEARNING_LANGUAGE_CODES.includes(prevValue) ? prevValue : "en";
 }
 
+function populateImmersionTargetLanguageOptions() {
+  const select = document.getElementById("immersionTargetLanguageSelect");
+  if (!select) return;
+  const prevValue = select.value || "follow";
+  select.innerHTML = "";
+  const followOpt = document.createElement("option");
+  followOpt.value = "follow";
+  followOpt.textContent = t("settings.immersionFollowLearning");
+  select.appendChild(followOpt);
+  LEARNING_LANGUAGE_CODES.forEach((code) => {
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = t(`languages.${code}`);
+    select.appendChild(opt);
+  });
+  select.value = ["follow", ...LEARNING_LANGUAGE_CODES].includes(prevValue) ? prevValue : "follow";
+}
+
 function populateLearningLanguageOptions() {
   populateLearningLanguageOptionsFor("learningLanguageSelect");
 }
@@ -161,6 +179,15 @@ let pendingSelectionText = "";
 let pendingSelectionMode = "word"; // "word" | "passage"
 let pendingSelectionContext = "";
 
+// ---------- 渐进沉浸阅读模式：会话级状态，每次 loadDocument() 都会重置 ----------
+let immersionEnabled = false;
+let immersionStartRatio = 10;
+let immersionEndRatio = 30;
+let immersionPlan = null; // 后端 /api/immersion/plan 的返回值，缓存到切换文章为止
+let immersionResolvedLanguage = "en"; // 沉浸模式实际用的目标语言（可能是全局覆盖值，不一定等于 currentDocLearningLanguage）
+let immersionWordsMap = new Map(); // 小写目标词 -> {word, chinese_meaning, ipa, pos, sentence, ...}，形状故意跟 knownWordsMap 一致
+let immersionClickedWords = new Set(); // 本次阅读点开看过的沉浸替换词，结束时弹窗默认勾选这些
+
 const fileInput = document.getElementById("fileInput");
 const docSelect = document.getElementById("docSelect");
 const viewer = document.getElementById("viewer");
@@ -179,6 +206,17 @@ const printArea = document.getElementById("printArea");
 
 const btnReaderSettings = document.getElementById("btnReaderSettings");
 const readerSettingsPanel = document.getElementById("readerSettingsPanel");
+
+const immersionRatioRow1 = document.getElementById("immersionRatioRow1");
+const immersionRatioRow2 = document.getElementById("immersionRatioRow2");
+const immersionStartSlider = document.getElementById("immersionStartSlider");
+const immersionEndSlider = document.getElementById("immersionEndSlider");
+const immersionStartValue = document.getElementById("immersionStartValue");
+const immersionEndValue = document.getElementById("immersionEndValue");
+const immersionSaveOverlay = document.getElementById("immersionSaveOverlay");
+const immersionSaveList = document.getElementById("immersionSaveList");
+const btnImmersionSaveSkip = document.getElementById("btnImmersionSaveSkip");
+const btnImmersionSaveConfirm = document.getElementById("btnImmersionSaveConfirm");
 
 const btnAddArticle = document.getElementById("btnAddArticle");
 const pastePanelOverlay = document.getElementById("pastePanelOverlay");
@@ -216,6 +254,8 @@ const accountSettingsPanelOverlay = document.getElementById("accountSettingsPane
 const settingsUserLine = document.getElementById("settingsUserLine");
 const uiLanguageSelect = document.getElementById("uiLanguageSelect");
 const settingsLearningLanguageSelect = document.getElementById("settingsLearningLanguageSelect");
+const immersionTargetLanguageSelect = document.getElementById("immersionTargetLanguageSelect");
+const immersionExcludeProperNounsToggle = document.getElementById("immersionExcludeProperNounsToggle");
 const explainLanguageSelect = document.getElementById("explainLanguageSelect");
 const aiProviderSelect = document.getElementById("aiProviderSelect");
 const aiApiKeyInput = document.getElementById("aiApiKeyInput");
@@ -337,15 +377,26 @@ docSelect.addEventListener("change", () => {
 });
 
 function loadDocument(doc) {
+  // 切换到另一篇文章之前，如果上一篇开着沉浸模式还有没保存的替换词，先留个快照，
+  // 等新文章加载完再弹出确认框——不阻塞切换文章本身，用户看到的是"已经在看新文章了，
+  // 同时弹出一个要不要保存上一篇生词的提示"，而不是被卡住必须先处理完才能继续。
+  const pendingWords = immersionEnabled && immersionWordsMap.size > 0 ? new Map(immersionWordsMap) : null;
+  const pendingClicked = pendingWords ? new Set(immersionClickedWords) : null;
+
   currentDocId = doc.id;
   currentDocName = doc.filename;
   currentDocContent = doc.content;
   currentDocSourceUrl = doc.source_url || "";
   currentDocLearningLanguage = doc.learning_language || "en";
+  resetImmersionSessionState();
   btnReaderSettings.classList.remove("hidden");
   btnPrint.classList.remove("hidden");
   renderHistoryForDoc(doc.filename);
   renderTextDocument(doc.content, doc.filename, doc.source_url);
+
+  if (pendingWords) {
+    showImmersionSaveDialog(pendingWords, pendingClicked);
+  }
 }
 
 function renderTextDocument(content, title, sourceUrl) {
@@ -353,13 +404,15 @@ function renderTextDocument(content, title, sourceUrl) {
   const container = document.createElement("div");
   container.className = "text-doc";
   container.appendChild(buildArticleHeader(content, title, sourceUrl));
-  const paragraphs = content.split(/\n+/);
-  paragraphs.forEach((p) => {
-    const trimmed = p.trim();
-    if (!trimmed) return;
+  const paragraphs = content.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  paragraphs.forEach((trimmed, index) => {
     const el = document.createElement("p");
     el.className = "text-para";
-    el.innerHTML = highlightKnownWords(trimmed);
+    let html = highlightKnownWords(trimmed);
+    if (immersionEnabled && immersionPlan) {
+      html = applyImmersionSubstitutions(html, index, trimmed);
+    }
+    el.innerHTML = html;
     container.appendChild(el);
   });
   viewerContent.appendChild(container);
@@ -466,7 +519,7 @@ function applyReaderSettings(settings) {
   document.documentElement.style.setProperty("--reader-max-width", settings.maxWidth + "px");
   document.documentElement.style.setProperty("--reader-font-family", FONT_FAMILY_VALUES[settings.fontFamily]);
 
-  readerSettingsPanel.querySelectorAll(".settingsOptions").forEach((group) => {
+  readerSettingsPanel.querySelectorAll(".settingsOptions:not(.immersionToggle)").forEach((group) => {
     const key = group.dataset.setting;
     group.querySelectorAll("button").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.value === String(settings[key]));
@@ -477,7 +530,7 @@ function applyReaderSettings(settings) {
 let readerSettings = loadReaderSettings();
 applyReaderSettings(readerSettings);
 
-readerSettingsPanel.querySelectorAll(".settingsOptions button").forEach((btn) => {
+readerSettingsPanel.querySelectorAll(".settingsOptions:not(.immersionToggle) button").forEach((btn) => {
   btn.addEventListener("click", () => {
     const key = btn.closest(".settingsOptions").dataset.setting;
     readerSettings[key] = btn.dataset.value;
@@ -549,6 +602,231 @@ function highlightKnownWords(text) {
   return result;
 }
 
+// ---------- 渐进沉浸阅读模式 ----------
+
+function resetImmersionSessionState() {
+  immersionEnabled = false;
+  immersionPlan = null;
+  immersionWordsMap = new Map();
+  immersionClickedWords = new Set();
+  document.querySelectorAll(".immersionToggle button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === "off");
+  });
+  immersionRatioRow1.classList.add("hidden");
+  immersionRatioRow2.classList.add("hidden");
+}
+
+function applyImmersionSubstitutions(html, paragraphIndex, paragraphText) {
+  const entry = immersionPlan.paragraphs.find((p) => p.index === paragraphIndex);
+  if (!entry || entry.substitutions.length === 0) return html;
+  let result = html;
+  entry.substitutions.forEach((sub) => {
+    const targetLower = sub.target_word.toLowerCase();
+    let mark;
+    if (knownWordsMap.has(targetLower)) {
+      // 这个目标词已经真的存进生词本了，按正常已学生词的样式显示，
+      // 不再当"还没学"的沉浸替换词处理，也不用再塞进 immersionWordsMap。
+      mark = `<mark class="known-word" data-word="${escapeHtml(targetLower)}">${escapeHtml(sub.target_word)}</mark>`;
+    } else {
+      immersionWordsMap.set(targetLower, {
+        word: sub.target_word,
+        chinese_meaning: sub.original_word,
+        ipa: sub.ipa || "",
+        pos: sub.pos || "",
+        sentence: paragraphText,
+        learning_language: immersionResolvedLanguage,
+        source_doc: currentDocName,
+      });
+      mark = `<mark class="immersion-word" data-word="${escapeHtml(targetLower)}">${escapeHtml(sub.target_word)}</mark>`;
+    }
+    // original_word 只会是母语(中文)字符，跟已经插入的 .known-word(只包裹拉丁字符)的 HTML
+    // 标签/属性不可能有重叠，直接按原文做字符串替换是安全的。
+    result = result.split(sub.original_word).join(mark);
+  });
+  return result;
+}
+
+async function fetchImmersionPlan() {
+  if (!currentDocId) return;
+  const settingsRes = await apiFetch("/api/settings");
+  if (!settingsRes.ok) return;
+  const settingsData = await settingsRes.json();
+  immersionResolvedLanguage =
+    settingsData.immersion_target_language === "follow"
+      ? currentDocLearningLanguage
+      : settingsData.immersion_target_language;
+
+  immersionPlan = null;
+  immersionWordsMap = new Map();
+  immersionClickedWords = new Set();
+
+  try {
+    const res = await apiFetch("/api/immersion/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: currentDocContent,
+        learning_language: immersionResolvedLanguage,
+        start_ratio: immersionStartRatio,
+        end_ratio: immersionEndRatio,
+        exclude_proper_nouns: settingsData.immersion_exclude_proper_nouns,
+        source_priority: settingsData.immersion_source_priority,
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    immersionPlan = await res.json();
+  } catch (err) {
+    alert(t("immersion.planFailed", { message: err.message }));
+    immersionEnabled = false;
+    document.querySelectorAll(".immersionToggle button").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.value === "off");
+    });
+  }
+  renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+}
+
+async function saveVocabEntry(record) {
+  try {
+    const res = await apiFetch("/api/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "word",
+        text: record.word,
+        context: record.sentence || "",
+        chinese_meaning: record.chinese_meaning || "",
+        ipa: record.ipa || "",
+        pos: record.pos || "",
+        source_doc: record.source_doc || currentDocName,
+        learning_language: record.learning_language || currentDocLearningLanguage,
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return true;
+  } catch (err) {
+    alert(t("immersion.saveFailed", { message: err.message }));
+    return false;
+  }
+}
+
+document.querySelectorAll(".immersionToggle button").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const turningOn = btn.dataset.value === "on";
+    document.querySelectorAll(".immersionToggle button").forEach((b) => b.classList.toggle("active", b === btn));
+    immersionRatioRow1.classList.toggle("hidden", !turningOn);
+    immersionRatioRow2.classList.toggle("hidden", !turningOn);
+    immersionEnabled = turningOn;
+    if (turningOn) {
+      if (!currentDocId) return;
+      await fetchImmersionPlan();
+    } else {
+      immersionPlan = null;
+      renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+    }
+  });
+});
+
+// 「选词优先策略」在设置弹层里，不属于 readerSettingsPanel 那套持久化到 localStorage 的
+// 通用逻辑，这里单独维护按钮的选中态；实际保存/读取走 GET/POST /api/settings。
+document.querySelectorAll('.settingsOptions[data-setting="immersionSourcePriority"] button').forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document
+      .querySelectorAll('.settingsOptions[data-setting="immersionSourcePriority"] button')
+      .forEach((b) => b.classList.toggle("active", b === btn));
+  });
+});
+
+function updateImmersionSliderDisplay() {
+  let startVal = Number(immersionStartSlider.value);
+  let endVal = Number(immersionEndSlider.value);
+  if (startVal > endVal) {
+    endVal = startVal;
+    immersionEndSlider.value = String(endVal);
+  }
+  immersionStartValue.textContent = startVal + "%";
+  immersionEndValue.textContent = endVal + "%";
+  immersionStartRatio = startVal;
+  immersionEndRatio = endVal;
+}
+
+function updateImmersionSliderDisplayFromEnd() {
+  let endVal = Number(immersionEndSlider.value);
+  let startVal = Number(immersionStartSlider.value);
+  if (endVal < startVal) {
+    startVal = endVal;
+    immersionStartSlider.value = String(startVal);
+  }
+  immersionStartValue.textContent = startVal + "%";
+  immersionEndValue.textContent = endVal + "%";
+  immersionStartRatio = startVal;
+  immersionEndRatio = endVal;
+}
+
+immersionStartSlider.addEventListener("input", updateImmersionSliderDisplay);
+immersionEndSlider.addEventListener("input", updateImmersionSliderDisplayFromEnd);
+immersionStartSlider.addEventListener("change", async () => {
+  if (immersionEnabled) await fetchImmersionPlan();
+});
+immersionEndSlider.addEventListener("change", async () => {
+  if (immersionEnabled) await fetchImmersionPlan();
+});
+
+let immersionSaveSnapshot = null; // {wordsMap, clickedSet}，弹窗当前展示的是哪一批词
+
+function renderImmersionSaveList(wordsMap, clickedSet) {
+  immersionSaveList.innerHTML = "";
+  wordsMap.forEach((record, key) => {
+    const row = document.createElement("div");
+    row.className = "immersionSaveRow";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = clickedSet.has(key);
+    checkbox.dataset.word = key;
+    const text = document.createElement("div");
+    text.className = "immersionSaveRow-text";
+    const targetSpan = document.createElement("span");
+    targetSpan.className = "immersionSaveRow-target";
+    targetSpan.textContent = record.word;
+    const originalSpan = document.createElement("span");
+    originalSpan.className = "immersionSaveRow-original";
+    originalSpan.textContent = record.chinese_meaning;
+    text.append(targetSpan, document.createTextNode(" · "), originalSpan);
+    row.append(checkbox, text);
+    immersionSaveList.appendChild(row);
+  });
+}
+
+function showImmersionSaveDialog(wordsMap, clickedSet) {
+  if (!wordsMap || wordsMap.size === 0) return;
+  immersionSaveSnapshot = { wordsMap, clickedSet };
+  renderImmersionSaveList(wordsMap, clickedSet);
+  immersionSaveOverlay.classList.remove("hidden");
+}
+
+btnImmersionSaveSkip.addEventListener("click", () => {
+  immersionSaveOverlay.classList.add("hidden");
+  immersionSaveSnapshot = null;
+});
+
+btnImmersionSaveConfirm.addEventListener("click", async () => {
+  if (!immersionSaveSnapshot) return;
+  const checked = [...immersionSaveList.querySelectorAll("input[type=checkbox]:checked")];
+  btnImmersionSaveConfirm.disabled = true;
+  btnImmersionSaveConfirm.textContent = t("common.saving");
+  for (const checkbox of checked) {
+    const record = immersionSaveSnapshot.wordsMap.get(checkbox.dataset.word);
+    if (record) await saveVocabEntry(record);
+  }
+  if (checked.length > 0) {
+    await loadKnownWords();
+    renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+  }
+  btnImmersionSaveConfirm.disabled = false;
+  btnImmersionSaveConfirm.textContent = t("immersion.saveConfirm");
+  immersionSaveOverlay.classList.add("hidden");
+  immersionSaveSnapshot = null;
+});
+
 // ---------- 弹出层贴边定位：水平方向超出屏幕就往回收，垂直方向放不下就翻到锚点上方 ----------
 
 function clampPopupPosition(el, anchorRect, { gapBelow = 8, gapAbove = 8, margin = 12 } = {}) {
@@ -571,19 +849,24 @@ function clampPopupPosition(el, anchorRect, { gapBelow = 8, gapAbove = 8, margin
   el.style.top = top + "px";
 }
 
-// ---------- 点击已高亮的生词，弹出之前存的释义 ----------
+// ---------- 点击已高亮的生词/沉浸模式替换词，弹出释义 ----------
 
 const wordPopup = document.getElementById("wordPopup");
 
 viewerContent.addEventListener("click", (e) => {
-  const mark = e.target.closest(".known-word");
+  const mark = e.target.closest(".known-word, .immersion-word");
   if (!mark) return;
+  if (mark.classList.contains("immersion-word")) {
+    immersionClickedWords.add(mark.dataset.word);
+  }
   showWordPopup(mark);
 });
 
 function showWordPopup(mark) {
-  const record = knownWordsMap.get(mark.dataset.word);
+  // 已经存进生词本的词优先显示真实状态，即使它同时也是沉浸模式替换出来的词
+  const record = knownWordsMap.get(mark.dataset.word) || immersionWordsMap.get(mark.dataset.word);
   if (!record) return;
+  const isSaved = knownWordsMap.has(mark.dataset.word);
 
   const meta = [record.pos, record.ipa].filter(Boolean).join("  ·  ");
   wordPopup.innerHTML = `
@@ -595,17 +878,36 @@ function showWordPopup(mark) {
     <div class="wordPopup-meaning"></div>
     <div class="wordPopup-sentence"></div>
     <div class="wordPopup-actions">
-      <button class="wordPopup-delete">从生词表删除</button>
+      ${isSaved
+        ? `<button class="wordPopup-delete">从生词表删除</button>`
+        : `<button class="wordPopup-save-immersion">${t("immersion.saveWord")}</button>`}
     </div>
   `;
   wordPopup.querySelector(".wordPopup-word").textContent = record.word || "";
   wordPopup.querySelector(".wordPopup-meta").textContent = meta;
   wordPopup.querySelector(".wordPopup-meaning").textContent = record.chinese_meaning || "";
   wordPopup.querySelector(".wordPopup-sentence").textContent = record.sentence || "";
-  wordPopup.querySelector(".wordPopup-delete").addEventListener("click", async () => {
-    const ok = await deleteRecord({ ...record, mode: "word" });
-    if (ok) hideWordPopup();
-  });
+  const deleteBtn = wordPopup.querySelector(".wordPopup-delete");
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", async () => {
+      const ok = await deleteRecord({ ...record, mode: "word" });
+      if (ok) hideWordPopup();
+    });
+  }
+  const saveImmersionBtn = wordPopup.querySelector(".wordPopup-save-immersion");
+  if (saveImmersionBtn) {
+    saveImmersionBtn.addEventListener("click", async () => {
+      saveImmersionBtn.disabled = true;
+      const ok = await saveVocabEntry(record);
+      if (ok) {
+        await loadKnownWords();
+        renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+        hideWordPopup();
+      } else {
+        saveImmersionBtn.disabled = false;
+      }
+    });
+  }
   const wordPopupPronounceBtn = wordPopup.querySelector(".pronounce-btn");
   if (wordPopupPronounceBtn) {
     wordPopupPronounceBtn.addEventListener("click", (e) => {
@@ -625,7 +927,7 @@ function hideWordPopup() {
 
 document.addEventListener("click", (e) => {
   if (wordPopup.classList.contains("hidden")) return;
-  if (!wordPopup.contains(e.target) && !e.target.closest(".known-word")) {
+  if (!wordPopup.contains(e.target) && !e.target.closest(".known-word, .immersion-word")) {
     hideWordPopup();
   }
 });
@@ -1596,6 +1898,12 @@ async function loadSettingsIntoPanel() {
   uiLanguageSelect.value = data.ui_language || "zh";
   populateLearningLanguageOptionsFor("settingsLearningLanguageSelect");
   settingsLearningLanguageSelect.value = getLastLearningLanguage();
+  populateImmersionTargetLanguageOptions();
+  immersionTargetLanguageSelect.value = data.immersion_target_language || "follow";
+  document.querySelectorAll('.settingsOptions[data-setting="immersionSourcePriority"] button').forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === (data.immersion_source_priority || "vocab"));
+  });
+  immersionExcludeProperNounsToggle.checked = data.immersion_exclude_proper_nouns !== false;
   explainLanguageSelect.value = data.explain_language || "auto";
   aiRelayUrlInput.value = data.ai_relay_base_url || "";
   aiRelayBlock.classList.toggle("hidden", uiLanguageSelect.value !== "zh");
@@ -1787,6 +2095,10 @@ btnSettingsSave.addEventListener("click", async () => {
         ui_language: newUiLanguage,
         explain_language: explainLanguageSelect.value,
         ai_relay_base_url: aiRelayUrlInput.value.trim(),
+        immersion_target_language: immersionTargetLanguageSelect.value,
+        immersion_source_priority:
+          document.querySelector('.settingsOptions[data-setting="immersionSourcePriority"] button.active')?.dataset.value || "vocab",
+        immersion_exclude_proper_nouns: immersionExcludeProperNounsToggle.checked,
       }),
     });
     if (!res.ok) throw new Error(await res.text());

@@ -300,6 +300,27 @@ body {
   font-weight: 600;
 }
 
+.settingsRow-slider {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.settingsRow-slider.hidden {
+  display: none;
+}
+
+.settingsRow-slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.settingsSliderValue {
+  font-size: 12px;
+  color: var(--text-secondary);
+  align-self: flex-end;
+}
+
 /* ---------- 粘贴文章弹层 ---------- */
 
 #pastePanelOverlay {
@@ -739,6 +760,79 @@ body {
   color: #fff;
 }
 
+/* ---------- 沉浸阅读结束后的"保存本次生词"确认弹层 ---------- */
+
+#immersionSaveOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.18s var(--ease);
+}
+
+#immersionSaveOverlay.hidden {
+  display: none;
+}
+
+#immersionSavePanel {
+  width: min(480px, 90vw);
+  max-height: 78vh;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: popIn 0.28s var(--spring-ease);
+}
+
+#immersionSavePanel h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+#immersionSaveList {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.immersionSaveRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: var(--glass-bg-soft);
+}
+
+.immersionSaveRow-text {
+  font-size: 13px;
+  min-width: 0;
+}
+
+.immersionSaveRow-target {
+  font-weight: 600;
+}
+
+.immersionSaveRow-original {
+  color: var(--text-secondary);
+}
+
 .docCard-delete {
   background: transparent;
   color: var(--text-secondary);
@@ -1138,6 +1232,16 @@ body {
   background: transparent;
   color: inherit;
   border-bottom: 2px solid rgba(52, 199, 89, 0.55);
+  padding-bottom: 1px;
+  cursor: pointer;
+}
+
+/* 沉浸模式里 AI 自动替换的词——虚线下划线，跟已经存进生词本的实线 .known-word 区分开，
+   一眼能看出"这个还没学"跟"这个已经学过了"的区别 */
+.immersion-word {
+  background: transparent;
+  color: inherit;
+  border-bottom: 2px dashed var(--accent);
   padding-bottom: 1px;
   cursor: pointer;
 }

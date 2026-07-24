@@ -8,7 +8,10 @@
     "saving": "保存中...",
     "saved": "已保存",
     "saveFailed": "保存失败: {message}",
-    "pronounce": "朗读发音"
+    "pronounce": "朗读发音",
+    "off": "关",
+    "on": "开",
+    "skip": "跳过"
   },
   "topbar": {
     "addArticle": "添加文章",
@@ -43,7 +46,17 @@
     "wide": "宽",
     "font": "字体",
     "sans": "无衬线",
-    "serif": "衬线"
+    "serif": "衬线",
+    "immersion": "沉浸模式",
+    "immersionStart": "起始替换比例",
+    "immersionEnd": "最终替换比例"
+  },
+  "immersion": {
+    "saveTitle": "保存本次沉浸阅读的生词？",
+    "saveConfirm": "保存选中的词",
+    "saveWord": "存入生词本",
+    "planFailed": "沉浸模式准备失败：{message}",
+    "saveFailed": "保存失败：{message}"
   },
   "recommend": {
     "title": "今日推荐",
@@ -79,6 +92,12 @@
   "settings": {
     "uiLanguage": "界面语言",
     "learningLanguage": "学习语言",
+    "immersionTargetLanguage": "沉浸模式目标语言",
+    "immersionFollowLearning": "跟随学习语言",
+    "immersionSourcePriority": "选词优先策略",
+    "immersionVocabFirst": "生词本优先",
+    "immersionFrequencyFirst": "高频词优先",
+    "immersionExcludeProperNouns": "排除专有名词/数字",
     "explainLanguage": "AI 讲解语言",
     "explainFollowUI": "跟随界面语言",
     "aiProvider": "AI 服务商",

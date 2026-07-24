@@ -10,3 +10,4 @@ python-docx
 asyncpg
 cryptography
 slowapi
+jieba

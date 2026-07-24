@@ -16,6 +16,7 @@ import asyncpg
 import feedparser
 from cryptography.fernet import Fernet, InvalidToken
 import httpx
+import jieba.posseg as pseg
 import pdfplumber
 import trafilatura
 from docx import Document as DocxDocument
@@ -170,12 +171,18 @@ CREATE TABLE IF NOT EXISTS users (
     ui_language TEXT NOT NULL DEFAULT 'en',
     explain_language TEXT NOT NULL DEFAULT 'auto',
     ai_relay_base_url TEXT NOT NULL DEFAULT '',
+    immersion_target_language TEXT NOT NULL DEFAULT 'follow',
+    immersion_source_priority TEXT NOT NULL DEFAULT 'vocab',
+    immersion_exclude_proper_nouns BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS house_calls_used INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_language TEXT NOT NULL DEFAULT 'en';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAULT 'auto';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_relay_base_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_target_language TEXT NOT NULL DEFAULT 'follow';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_source_priority TEXT NOT NULL DEFAULT 'vocab';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_exclude_proper_nouns BOOLEAN NOT NULL DEFAULT TRUE;
 CREATE TABLE IF NOT EXISTS house_usage (
     month TEXT PRIMARY KEY,
     calls INTEGER NOT NULL DEFAULT 0,
@@ -1580,6 +1587,185 @@ async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = 
     return AnalyzeResponse(mode="passage", explanation=explanation)
 
 
+# ---------- 渐进沉浸阅读模式(把母语文章里挑一些实义词换成目标学习语言) ----------
+
+# jieba 词性标注里，这几个前缀算"实义内容词"(名词/动词/形容词/副词及其派生形式如 vn/an/ad)，
+# 才有资格被替换；介词/连词/代词/助词等虚词天然不在这几个前缀里，不用额外排除。
+_IMMERSION_CONTENT_POS_PREFIXES = ("n", "v", "a", "d")
+# 默认排除专有名词(nr人名/ns地名/nt机构名/nz其它专名)和数字类(m数字/q量词)。
+_IMMERSION_EXCLUDED_POS = {"nr", "ns", "nt", "nz", "m", "q"}
+# 这几个是语素/成分标记，不是完整的词，不适合单独替换。
+_IMMERSION_NON_WORD_POS = {"ng", "vg", "ag", "dg"}
+
+IMMERSION_PARAGRAPH_CHUNK_SIZE = 7  # 每次 AI 调用最多带几个段落，避免一篇文章打成几十次调用
+
+
+def extract_immersion_candidates(paragraph: str, exclude_proper_nouns: bool) -> list:
+    """给一段母语文本分词，挑出可以被替换的实义词，按出现顺序去重。"""
+    seen = set()
+    candidates = []
+    for word, flag in pseg.cut(paragraph):
+        word = word.strip()
+        if not word or word in seen or flag in _IMMERSION_NON_WORD_POS:
+            continue
+        if exclude_proper_nouns and flag in _IMMERSION_EXCLUDED_POS:
+            continue
+        if flag.startswith(_IMMERSION_CONTENT_POS_PREFIXES):
+            seen.add(word)
+            candidates.append(word)
+    return candidates
+
+
+def compute_immersion_replace_counts(candidate_counts: list, start_pct: float, end_pct: float) -> list:
+    """candidate_counts[i] = 第 i 段候选词数量；按段落顺序在 start_pct~end_pct 之间线性递增，
+    返回每段该替换几个词。"""
+    n = len(candidate_counts)
+    counts = []
+    for i, n_candidates in enumerate(candidate_counts):
+        pct = start_pct + (end_pct - start_pct) * i / max(1, n - 1)
+        counts.append(min(n_candidates, round(pct / 100 * n_candidates)))
+    return counts
+
+
+def build_immersion_prompt(paragraph_group: list, learning_language: str, explain_language: str,
+                            known_vocab: list, source_priority: str) -> str:
+    """paragraph_group: [{"index", "text", "candidates", "replace_count"}, ...]"""
+    lang_label = LANGUAGE_LABELS.get(learning_language, learning_language)
+    explain_label = LANGUAGE_LABELS.get(explain_language, explain_language)
+
+    listing = "\n\n".join(
+        f'段落{p["index"]}(需要替换{p["replace_count"]}个词): "{p["text"]}"\n'
+        f'候选词(只能从这些词里选，不要选列表外的词): {"、".join(p["candidates"])}'
+        for p in paragraph_group
+    )
+
+    if source_priority == "vocab" and known_vocab:
+        priority_hint = f"优先选下面这个用户正在学的{lang_label}生词表里已有对应意思的词：{', '.join(known_vocab)}；生词表里没有对应意思的，再从候选词里挑常见词翻译"
+    else:
+        priority_hint = f"优先挑常见、高频的{lang_label}词汇，不要选生僻词"
+
+    return (
+        f"你在帮一个正在学{lang_label}的用户做「沉浸式阅读」——把母语文章里的一部分实义词换成对应的"
+        f"{lang_label}词，读起来大部分还是母语，但穿插一些{lang_label}词帮助学习。\n"
+        f"{priority_hint}。\n"
+        "每个段落后面给了一份「候选词」列表(已经按词性筛过，都是名词/动词/形容词/副词这类实义词)，"
+        "请从每段候选词列表里，挑出题目要求数量的词，翻译成对应的" + lang_label + "词。"
+        "只能选候选词列表里原样出现的词，不要自己造词或选列表之外的词。\n\n"
+        f"{listing}\n\n"
+        '请以 JSON 格式返回：{"paragraphs": [{"index": 段落编号(数字), "substitutions": '
+        f'[{{"original_word": "母语原词(必须是候选词列表里的原词)", "target_word": "翻译成的{lang_label}词", '
+        f'"ipa": "该{lang_label}词的注音(音标/拼音/罗马音等，没有就留空字符串)", '
+        '"pos": "词性缩写，如 n./v./adj./adv.，没有就留空字符串"}]}]}\n'
+        "只返回这个 JSON，不要有其他文字。"
+    )
+
+
+class ImmersionPlanRequest(BaseModel):
+    content: str
+    learning_language: str = "en"
+    start_ratio: float = 10  # 百分比，10 表示 10%
+    end_ratio: float = 30
+    exclude_proper_nouns: bool = True
+    source_priority: str = "vocab"  # "vocab" | "frequency"
+
+
+class ImmersionSubstitution(BaseModel):
+    original_word: str
+    target_word: str
+    ipa: str = ""
+    pos: str = ""
+
+
+class ImmersionParagraphPlan(BaseModel):
+    index: int
+    substitutions: list[ImmersionSubstitution]
+
+
+class ImmersionPlanResponse(BaseModel):
+    paragraphs: list[ImmersionParagraphPlan]
+
+
+@app.post("/api/immersion/plan", response_model=ImmersionPlanResponse)
+@limiter.limit("10/minute")
+async def get_immersion_plan(request: Request, req: ImmersionPlanRequest, user: dict = Depends(get_current_user)):
+    if req.learning_language not in LANGUAGE_LABELS:
+        raise HTTPException(400, f"不支持的目标语言: {req.learning_language}")
+    if req.source_priority not in IMMERSION_SOURCE_PRIORITY_CHOICES:
+        raise HTTPException(400, "不支持的选词策略")
+
+    # 沉浸模式一篇文章要拆好几次 AI 调用，公共体验额度经不起这么用，只对配了自己 key 的用户开放。
+    own_key = user.get("ai_api_keys", {}).get(user.get("ai_provider", "deepseek"), "")
+    if not own_key:
+        raise HTTPException(400, "沉浸阅读模式一次要消耗好几次 AI 调用，暂时只对配置了自己 AI Key 的用户开放，去设置里填一个吧")
+
+    # 跟前端 renderTextDocument() 的 content.split(/\n+/) + 去空段 保持段落索引完全对齐，
+    # 这里是等价写法：按换行切开，过滤掉空段。
+    paragraphs = [p.strip() for p in re.split(r"\n+", req.content) if p.strip()]
+    if not paragraphs:
+        return ImmersionPlanResponse(paragraphs=[])
+
+    candidates_per_paragraph = [extract_immersion_candidates(p, req.exclude_proper_nouns) for p in paragraphs]
+    replace_counts = compute_immersion_replace_counts(
+        [len(c) for c in candidates_per_paragraph], req.start_ratio, req.end_ratio
+    )
+
+    known_vocab = []
+    if req.source_priority == "vocab":
+        vocab_rows = await db_list_vocab(user["id"])
+        known_vocab = [
+            v["word"] for v in vocab_rows
+            if v.get("learning_language") == req.learning_language and v.get("word")
+        ][:80]  # 避免生词表太长把 prompt 撑爆
+
+    explain_language = resolve_explain_language(user)
+
+    groups = []
+    current_group = []
+    for i, (para_text, candidates, count) in enumerate(zip(paragraphs, candidates_per_paragraph, replace_counts)):
+        if count <= 0 or not candidates:
+            continue
+        current_group.append({"index": i, "text": para_text, "candidates": candidates, "replace_count": count})
+        if len(current_group) >= IMMERSION_PARAGRAPH_CHUNK_SIZE:
+            groups.append(current_group)
+            current_group = []
+    if current_group:
+        groups.append(current_group)
+
+    plan_paragraphs = {}
+    for group in groups:
+        prompt = build_immersion_prompt(group, req.learning_language, explain_language, known_vocab, req.source_priority)
+        raw = await call_ai_for_user(prompt, user, json_mode=True)
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        for p in parsed.get("paragraphs", []):
+            idx = p.get("index")
+            if not isinstance(idx, int) or not (0 <= idx < len(candidates_per_paragraph)):
+                continue
+            valid_candidates = set(candidates_per_paragraph[idx])
+            subs = []
+            for s in p.get("substitutions", []):
+                original = (s.get("original_word") or "").strip()
+                target = (s.get("target_word") or "").strip()
+                # 只信任真的来自候选词列表的词，防止 AI 编出文章里没有的词导致前端替换失败/找不到位置。
+                if not original or not target or original not in valid_candidates:
+                    continue
+                subs.append(ImmersionSubstitution(
+                    original_word=original, target_word=target,
+                    ipa=s.get("ipa", ""), pos=s.get("pos", ""),
+                ))
+            if subs:
+                plan_paragraphs[idx] = subs
+
+    return ImmersionPlanResponse(
+        paragraphs=[
+            ImmersionParagraphPlan(index=idx, substitutions=subs)
+            for idx, subs in sorted(plan_paragraphs.items())
+        ]
+    )
+
+
 # ---------- AI 文章推荐(按学习语言匹配新闻源，拉标题 + AI 按难度/话题筛选打标签) ----------
 
 # 每种学习语言对应的推荐新闻源，按顺序尝试(第一个是首选源，后面的当兜底/补充)。
@@ -1772,7 +1958,13 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "explain_language": user.get("explain_language", "auto"),
         "explain_language_choices": EXPLAIN_LANGUAGE_CHOICES,
         "ai_relay_base_url": user.get("ai_relay_base_url", ""),
+        "immersion_target_language": user.get("immersion_target_language", "follow"),
+        "immersion_source_priority": user.get("immersion_source_priority", "vocab"),
+        "immersion_exclude_proper_nouns": user.get("immersion_exclude_proper_nouns", True),
     }
+
+
+IMMERSION_SOURCE_PRIORITY_CHOICES = ["vocab", "frequency"]
 
 
 class SettingsRequest(BaseModel):
@@ -1782,6 +1974,9 @@ class SettingsRequest(BaseModel):
     ui_language: str = "en"
     explain_language: str = "auto"
     ai_relay_base_url: str = ""  # 中转站地址，只对 DeepSeek/OpenAI 生效，留空用官方地址
+    immersion_target_language: str = "follow"  # 沉浸模式目标语言，"follow" 表示跟随文章的学习语言
+    immersion_source_priority: str = "vocab"  # "vocab"=生词本优先 / "frequency"=高频词优先
+    immersion_exclude_proper_nouns: bool = True
 
 
 @app.post("/api/settings")
@@ -1792,6 +1987,10 @@ async def update_settings(req: SettingsRequest, user: dict = Depends(get_current
         raise HTTPException(400, "不支持的界面语言")
     if req.explain_language not in EXPLAIN_LANGUAGE_CHOICES:
         raise HTTPException(400, "不支持的 AI 讲解语言")
+    if req.immersion_target_language not in ({"follow"} | set(LANGUAGE_SOURCES.keys())):
+        raise HTTPException(400, "不支持的沉浸模式目标语言")
+    if req.immersion_source_priority not in IMMERSION_SOURCE_PRIORITY_CHOICES:
+        raise HTTPException(400, "不支持的沉浸模式选词策略")
 
     relay_base_url = req.ai_relay_base_url.strip()
     if relay_base_url and not (relay_base_url.startswith("http://") or relay_base_url.startswith("https://")):
@@ -1806,6 +2005,9 @@ async def update_settings(req: SettingsRequest, user: dict = Depends(get_current
         "ui_language": req.ui_language,
         "explain_language": req.explain_language,
         "ai_relay_base_url": relay_base_url,
+        "immersion_target_language": req.immersion_target_language,
+        "immersion_source_priority": req.immersion_source_priority,
+        "immersion_exclude_proper_nouns": req.immersion_exclude_proper_nouns,
     }
     if user.get("is_owner"):
         update_fields["sheets_sync_enabled"] = req.sheets_sync_enabled

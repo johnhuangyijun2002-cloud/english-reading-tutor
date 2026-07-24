@@ -8,7 +8,10 @@
     "saving": "저장 중...",
     "saved": "저장됨",
     "saveFailed": "저장 실패: {message}",
-    "pronounce": "발음 듣기"
+    "pronounce": "발음 듣기",
+    "off": "끄기",
+    "on": "켜기",
+    "skip": "건너뛰기"
   },
   "topbar": {
     "addArticle": "글 추가",
@@ -43,7 +46,17 @@
     "wide": "넓게",
     "font": "글꼴",
     "sans": "고딕체",
-    "serif": "명조체"
+    "serif": "명조체",
+    "immersion": "몰입 모드",
+    "immersionStart": "시작 대체 비율",
+    "immersionEnd": "최종 대체 비율"
+  },
+  "immersion": {
+    "saveTitle": "이번 몰입 읽기에서 배운 단어를 저장할까요?",
+    "saveConfirm": "선택한 단어 저장",
+    "saveWord": "단어장에 저장",
+    "planFailed": "몰입 모드 준비 실패: {message}",
+    "saveFailed": "저장 실패: {message}"
   },
   "recommend": {
     "title": "오늘의 추천",
@@ -79,6 +92,12 @@
   "settings": {
     "uiLanguage": "화면 언어",
     "learningLanguage": "학습 언어",
+    "immersionTargetLanguage": "몰입 모드 목표 언어",
+    "immersionFollowLearning": "학습 언어와 동일하게",
+    "immersionSourcePriority": "단어 선택 우선순위",
+    "immersionVocabFirst": "단어장 우선",
+    "immersionFrequencyFirst": "고빈도 단어 우선",
+    "immersionExcludeProperNouns": "고유명사/숫자 제외",
     "explainLanguage": "AI 설명 언어",
     "explainFollowUI": "화면 언어와 동일하게",
     "aiProvider": "AI 제공업체",
