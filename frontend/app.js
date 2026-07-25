@@ -670,7 +670,8 @@ async function fetchImmersionPlan() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         content: currentDocContent,
-        source_language: currentDocLearningLanguage,
+        // 文章母语不在这里传：learning_language 是"这篇文章在学什么"，不是"文章是什么语言写的"，
+        // 后端会直接从 content 检测真实语言来选分词器。
         learning_language: immersionResolvedLanguage,
         start_ratio: immersionStartRatio,
         end_ratio: immersionEndRatio,

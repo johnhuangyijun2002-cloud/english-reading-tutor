@@ -1603,7 +1603,8 @@ async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = 
 
 # ---------- 渐进沉浸阅读模式(把母语文章里挑一些实义词换成目标学习语言) ----------
 #
-# 按文章的母语(source_language，即该文档的 learning_language 字段，见 ImmersionPlanRequest)
+# 按文章的母语(source_language，由后端从文章内容自动检测——不能用文档的 learning_language，
+# 那是"这篇文章在学什么语言"，跟"文章本身是什么语言写的"是两回事)
 # 分发到不同的分词实现，每个实现的输出形状必须一致：给一段文本，返回一份"实义候选词"字符串列表
 # (按出现顺序去重)。这份候选词表有两个用途：(1) 驱动替换比例的斜坡计算；(2) 约束 AI 只能从
 # 候选词里选词替换——AI 返回结果后会逐个校验 original_word 是否在对应段落的候选集合里，不在就丢弃。
@@ -1818,7 +1819,7 @@ def build_immersion_prompt(paragraph_group: list, learning_language: str, explai
 
 class ImmersionPlanRequest(BaseModel):
     content: str
-    source_language: str = "zh"  # 这篇文章本身是用什么语言写的，决定用哪个分词器
+    source_language: str = ""  # 文章本身的语言；留空(默认)由后端从内容自动检测，不要传文档的 learning_language
     learning_language: str = "en"
     start_ratio: float = 10  # 百分比，10 表示 10%
     end_ratio: float = 30
@@ -1861,8 +1862,11 @@ async def get_immersion_plan(request: Request, req: ImmersionPlanRequest, user: 
     if not paragraphs:
         return ImmersionPlanResponse(paragraphs=[])
 
+    # 文章母语从内容自动检测(字符区间判断，中/日/韩等直接可辨；拉丁语系统一按英语规则分词，
+    # 对法/西/德也够用——同样是空格分词+首字母大写判专名)。请求里显式传了就用传的。
+    source_language = req.source_language.strip() or detect_learning_language(req.content)
     candidates_per_paragraph = [
-        extract_immersion_candidates(p, req.source_language, req.exclude_proper_nouns) for p in paragraphs
+        extract_immersion_candidates(p, source_language, req.exclude_proper_nouns) for p in paragraphs
     ]
     replace_counts = compute_immersion_replace_counts(
         [len(c) for c in candidates_per_paragraph], req.start_ratio, req.end_ratio
