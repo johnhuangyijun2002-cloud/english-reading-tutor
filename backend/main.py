@@ -172,6 +172,7 @@ CREATE TABLE IF NOT EXISTS users (
     ui_language TEXT NOT NULL DEFAULT 'en',
     explain_language TEXT NOT NULL DEFAULT 'auto',
     ai_relay_base_url TEXT NOT NULL DEFAULT '',
+    ai_relay_model TEXT NOT NULL DEFAULT '',
     immersion_target_language TEXT NOT NULL DEFAULT 'follow',
     immersion_source_priority TEXT NOT NULL DEFAULT 'vocab',
     immersion_exclude_proper_nouns BOOLEAN NOT NULL DEFAULT TRUE,
@@ -181,6 +182,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS house_calls_used INTEGER NOT NULL DEF
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_language TEXT NOT NULL DEFAULT 'en';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAULT 'auto';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_relay_base_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_relay_model TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_target_language TEXT NOT NULL DEFAULT 'follow';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_source_priority TEXT NOT NULL DEFAULT 'vocab';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_exclude_proper_nouns BOOLEAN NOT NULL DEFAULT TRUE;
@@ -1450,12 +1452,16 @@ async def _call_gemini(api_key: str, prompt: str, json_mode: bool):
         raise HTTPException(502, f"Gemini 返回格式异常: {data}")
 
 
-async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False, relay_base_url: str = ""):
-    """返回 (回复文本, 这次调用的估算花费 usd)。relay_base_url 只在用户自己配置了 key 时生效，
-    绝不能用在公共体验 key 上，否则用户能把站长的 key 通过自己指定的中转地址偷偷转发出去。
+async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False,
+                   relay_base_url: str = "", relay_model: str = ""):
+    """返回 (回复文本, 这次调用的估算花费 usd)。relay_base_url/relay_model 只在用户自己配置了 key 时
+    生效，绝不能用在公共体验 key 上，否则用户能把站长的 key 通过自己指定的中转地址偷偷转发出去。
     配了中转地址后，四个服务商统一走 OpenAI 兼容接口转发——绝大多数"中转站"不管实际代理的
     是哪家模型，对外都是暴露一个统一的 OpenAI 兼容接口，所以这么处理兼容性最好；没配中转
-    地址时，Claude/Gemini 仍然各自走官方原生接口(格式跟 OpenAI 完全不同，没法直接对调)。"""
+    地址时，Claude/Gemini 仍然各自走官方原生接口(格式跟 OpenAI 完全不同，没法直接对调)。
+    relay_model：不同中转站给同一个服务商用的模型名可能跟官方不一样(比如把 DeepSeek 的
+    deepseek-chat 换成自己的 deepseek-v4-pro 之类)，配了就用这个名字覆盖默认值，没配就还是
+    用 PROVIDER_CONFIG 里的官方模型名。"""
     if not api_key:
         raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
     cfg = PROVIDER_CONFIG.get(provider)
@@ -1464,7 +1470,8 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
 
     if relay_base_url:
         url = f"{relay_base_url.rstrip('/')}/chat/completions"
-        text, in_tok, out_tok = await _call_openai_compatible(url, cfg["model"], api_key, prompt, json_mode)
+        model = relay_model.strip() or cfg["model"]
+        text, in_tok, out_tok = await _call_openai_compatible(url, model, api_key, prompt, json_mode)
     elif cfg["kind"] == "openai":
         text, in_tok, out_tok = await _call_openai_compatible(cfg["url"], cfg["model"], api_key, prompt, json_mode)
     elif cfg["kind"] == "claude":
@@ -1513,7 +1520,11 @@ async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> 
         raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
 
     relay_base_url = "" if using_house else (user.get("ai_relay_base_url") or "")
-    text, cost = await call_ai(prompt, provider, api_key, user["id"], json_mode=json_mode, relay_base_url=relay_base_url)
+    relay_model = "" if using_house else (user.get("ai_relay_model") or "")
+    text, cost = await call_ai(
+        prompt, provider, api_key, user["id"], json_mode=json_mode,
+        relay_base_url=relay_base_url, relay_model=relay_model,
+    )
 
     if using_house:
         await db_increment_house_calls_used(user["id"])
@@ -2104,6 +2115,7 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "explain_language": user.get("explain_language", "auto"),
         "explain_language_choices": EXPLAIN_LANGUAGE_CHOICES,
         "ai_relay_base_url": user.get("ai_relay_base_url", ""),
+        "ai_relay_model": user.get("ai_relay_model", ""),
         "immersion_target_language": user.get("immersion_target_language", "follow"),
         "immersion_source_priority": user.get("immersion_source_priority", "vocab"),
         "immersion_exclude_proper_nouns": user.get("immersion_exclude_proper_nouns", True),
@@ -2119,7 +2131,8 @@ class SettingsRequest(BaseModel):
     sheets_sync_enabled: bool = False
     ui_language: str = "en"
     explain_language: str = "auto"
-    ai_relay_base_url: str = ""  # 中转站地址，只对 DeepSeek/OpenAI 生效，留空用官方地址
+    ai_relay_base_url: str = ""  # 中转站地址，配了之后四个服务商都走这个地址，留空用官方地址
+    ai_relay_model: str = ""  # 中转站用的模型名，留空则用各服务商的官方默认模型名
     immersion_target_language: str = "follow"  # 沉浸模式目标语言，"follow" 表示跟随文章的学习语言
     immersion_source_priority: str = "vocab"  # "vocab"=生词本优先 / "frequency"=高频词优先
     immersion_exclude_proper_nouns: bool = True
@@ -2151,6 +2164,7 @@ async def update_settings(req: SettingsRequest, user: dict = Depends(get_current
         "ui_language": req.ui_language,
         "explain_language": req.explain_language,
         "ai_relay_base_url": relay_base_url,
+        "ai_relay_model": req.ai_relay_model.strip(),
         "immersion_target_language": req.immersion_target_language,
         "immersion_source_priority": req.immersion_source_priority,
         "immersion_exclude_proper_nouns": req.immersion_exclude_proper_nouns,

@@ -110,6 +110,8 @@
     "aiRelayLabel": "AI Relay Base URL (optional)",
     "aiRelayPlaceholder": "e.g. https://your-relay.example.com/v1 — leave blank to use the official endpoint",
     "aiRelayHint": "When set, requests to all four providers are routed through this address (must be an OpenAI-compatible endpoint). Leave blank if unsure.",
+    "aiRelayModelPlaceholder": "Leave blank to use each provider's default model name",
+    "aiRelayModelHint": "If the relay says the model name isn't supported, enter the model name the relay expects here",
     "houseTrialLeft": "You can use the free trial without a key — {left}/{total} calls left",
     "houseTrialUsedUp": "Free trial used up ({total}/{total}) — add your own AI key to keep using AI analysis",
     "sheetsSync": "Sync to Google Sheet",

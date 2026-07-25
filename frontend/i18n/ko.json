@@ -110,6 +110,8 @@
     "aiRelayLabel": "AI 릴레이 주소 (선택)",
     "aiRelayPlaceholder": "예: https://your-relay.example.com/v1 — 비워두면 공식 주소를 사용해요",
     "aiRelayHint": "설정하면 네 개 제공업체 요청이 모두 이 주소를 거쳐요 (OpenAI 호환 API여야 해요). 잘 모르면 비워두세요.",
+    "aiRelayModelPlaceholder": "비워두면 각 제공업체의 기본 모델명을 사용해요",
+    "aiRelayModelHint": "릴레이가 \"지원하지 않는 모델명\"이라고 하면, 릴레이가 요구하는 모델명을 여기에 입력하세요",
     "houseTrialLeft": "키가 없어도 체험 횟수로 사용할 수 있어요 — {left}/{total}회 남음",
     "houseTrialUsedUp": "체험 횟수를 모두 사용했어요 ({total}/{total}) — 계속 사용하려면 본인 AI 키를 등록해 주세요",
     "sheetsSync": "Google 시트에 동기화",

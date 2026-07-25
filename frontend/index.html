@@ -203,6 +203,8 @@
         <span class="settingsBlockLabel" data-i18n="settings.aiRelayLabel">AI 中转站地址（可选）</span>
         <input type="text" id="aiRelayUrlInput" data-i18n-placeholder="settings.aiRelayPlaceholder" placeholder="例如 https://your-relay.example.com/v1，留空用官方地址" />
         <p class="urlHint" data-i18n="settings.aiRelayHint">配置后，四个服务商的请求都会经过该地址（需为 OpenAI 兼容接口）；如不确定可留空</p>
+        <input type="text" id="aiRelayModelInput" data-i18n-placeholder="settings.aiRelayModelPlaceholder" placeholder="留空则用各服务商的默认模型名" />
+        <p class="urlHint" data-i18n="settings.aiRelayModelHint">如果中转站提示"不支持的模型名"，在这里填中转站要求的模型名</p>
       </div>
 
       <div id="sheetsSyncBlock" class="settingsBlock settingsBlockRow hidden">

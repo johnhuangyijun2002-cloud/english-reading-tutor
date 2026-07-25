@@ -110,6 +110,8 @@
     "aiRelayLabel": "AI 中转站地址（可选）",
     "aiRelayPlaceholder": "例如 https://your-relay.example.com/v1，留空用官方地址",
     "aiRelayHint": "配置后，四个服务商的请求都会经过该地址（需为 OpenAI 兼容接口）；如不确定可留空",
+    "aiRelayModelPlaceholder": "留空则用各服务商的默认模型名",
+    "aiRelayModelHint": "如果中转站提示\"不支持的模型名\"，在这里填中转站要求的模型名",
     "houseTrialLeft": "不填 key 也能先用体验额度，还剩 {left}/{total} 次",
     "houseTrialUsedUp": "体验额度已用完（{total}/{total}），要继续用 AI 解析得自己填 key",
     "sheetsSync": "同步到 Google Sheet",

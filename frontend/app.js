@@ -266,6 +266,7 @@ const aiKeyHint = document.getElementById("aiKeyHint");
 const houseTrialHint = document.getElementById("houseTrialHint");
 const aiRelayBlock = document.getElementById("aiRelayBlock");
 const aiRelayUrlInput = document.getElementById("aiRelayUrlInput");
+const aiRelayModelInput = document.getElementById("aiRelayModelInput");
 const sheetsSyncBlock = document.getElementById("sheetsSyncBlock");
 const sheetsSyncToggle = document.getElementById("sheetsSyncToggle");
 const btnSettingsSave = document.getElementById("btnSettingsSave");
@@ -1910,6 +1911,7 @@ async function loadSettingsIntoPanel() {
   immersionExcludeProperNounsToggle.checked = data.immersion_exclude_proper_nouns !== false;
   explainLanguageSelect.value = data.explain_language || "auto";
   aiRelayUrlInput.value = data.ai_relay_base_url || "";
+  aiRelayModelInput.value = data.ai_relay_model || "";
   aiRelayBlock.classList.toggle("hidden", uiLanguageSelect.value !== "zh");
 
   aiProviderSelect.innerHTML = "";
@@ -2099,6 +2101,7 @@ btnSettingsSave.addEventListener("click", async () => {
         ui_language: newUiLanguage,
         explain_language: explainLanguageSelect.value,
         ai_relay_base_url: aiRelayUrlInput.value.trim(),
+        ai_relay_model: aiRelayModelInput.value.trim(),
         immersion_target_language: immersionTargetLanguageSelect.value,
         immersion_source_priority:
           document.querySelector('.settingsOptions[data-setting="immersionSourcePriority"] button.active')?.dataset.value || "vocab",
