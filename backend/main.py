@@ -1360,20 +1360,23 @@ def resolve_explain_language(user: dict) -> str:
 
 # ---------- AI 调用(多服务商：DeepSeek / OpenAI / Claude / Gemini，用各自用户自己填的 key) ----------
 
+# 各家 API 会定期弃用旧模型名(2026 年上半年 deepseek-chat / claude-3.5-haiku / gemini-1.5-flash /
+# gpt-4o-mini 都先后失效过)，报 "不支持的模型名 / model not found" 这类错就是这里过期了，
+# 更新成各家当前的轻量档模型即可。Gemini 用官方的 -latest 别名自动跟随最新版，不用手动追。
 PROVIDER_CONFIG = {
-    "deepseek": {"label": "DeepSeek", "kind": "openai", "url": "https://api.deepseek.com/chat/completions", "model": "deepseek-chat"},
-    "openai": {"label": "OpenAI", "kind": "openai", "url": "https://api.openai.com/v1/chat/completions", "model": "gpt-4o-mini"},
-    "claude": {"label": "Claude (Anthropic)", "kind": "claude", "model": "claude-3-5-haiku-20241022"},
-    "gemini": {"label": "Gemini (Google)", "kind": "gemini", "model": "gemini-1.5-flash"},
+    "deepseek": {"label": "DeepSeek", "kind": "openai", "url": "https://api.deepseek.com/chat/completions", "model": "deepseek-v4-flash"},
+    "openai": {"label": "OpenAI", "kind": "openai", "url": "https://api.openai.com/v1/chat/completions", "model": "gpt-5-mini"},
+    "claude": {"label": "Claude (Anthropic)", "kind": "claude", "model": "claude-haiku-4-5-20251001"},
+    "gemini": {"label": "Gemini (Google)", "kind": "gemini", "model": "gemini-flash-latest"},
 }
 
 # 每百万 token 的价格(美元)，按写这段代码时各家官网公布的价格粗略估算，仅供参考——
 # 实际计费以服务商账单为准，价格会变，这里不会自动跟着更新。
 PROVIDER_PRICING = {
-    "deepseek": {"input": 0.27, "output": 1.10},
-    "openai": {"input": 0.15, "output": 0.60},
-    "claude": {"input": 0.80, "output": 4.00},
-    "gemini": {"input": 0.075, "output": 0.30},
+    "deepseek": {"input": 0.14, "output": 0.28},
+    "openai": {"input": 0.25, "output": 2.00},
+    "claude": {"input": 1.00, "output": 5.00},
+    "gemini": {"input": 0.30, "output": 2.50},
 }
 
 
@@ -1459,9 +1462,8 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
     配了中转地址后，四个服务商统一走 OpenAI 兼容接口转发——绝大多数"中转站"不管实际代理的
     是哪家模型，对外都是暴露一个统一的 OpenAI 兼容接口，所以这么处理兼容性最好；没配中转
     地址时，Claude/Gemini 仍然各自走官方原生接口(格式跟 OpenAI 完全不同，没法直接对调)。
-    relay_model：不同中转站给同一个服务商用的模型名可能跟官方不一样(比如把 DeepSeek 的
-    deepseek-chat 换成自己的 deepseek-v4-pro 之类)，配了就用这个名字覆盖默认值，没配就还是
-    用 PROVIDER_CONFIG 里的官方模型名。"""
+    relay_model：不同中转站给同一个服务商用的模型名可能跟官方不一样，配了就用这个名字
+    覆盖默认值，没配就还是用 PROVIDER_CONFIG 里的官方模型名。"""
     if not api_key:
         raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
     cfg = PROVIDER_CONFIG.get(provider)
