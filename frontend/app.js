@@ -51,6 +51,9 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     el.placeholder = t(el.dataset.i18nPlaceholder);
   });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    el.title = t(el.dataset.i18nTitle);
+  });
   populateLearningLanguageOptions();
   populateLearningLanguageOptionsFor("settingsLearningLanguageSelect");
 }
@@ -69,7 +72,7 @@ const RELAY_HINT_SHOWN_KEY = "relayHintShown";
 function maybeShowRelayHint(lang) {
   if (lang !== "zh" || localStorage.getItem(RELAY_HINT_SHOWN_KEY)) return;
   localStorage.setItem(RELAY_HINT_SHOWN_KEY, "1");
-  alert("提示：如果访问 AI 接口不稳定，可以去「设置」里填一个「AI 中转站地址」代替官方地址。");
+  alert("提示：如果访问 AI 接口不稳定，可以在「设置」中填写「AI 中转站地址」以替代官方地址。");
 }
 
 // ---------- 首次打开弹出的语言选择弹窗 ----------
@@ -558,7 +561,7 @@ async function loadUsage() {
     const cost = data.cost_usd || 0;
     const costText = cost > 0 && cost < 0.001 ? "<$0.001" : `$${cost.toFixed(3)}`;
     usageBadge.textContent = cost > 0 ? t("usage.cost", { cost: costText }) : t("usage.count", { count: data.count });
-    usageBadge.title = `${data.count} · ${currentUiLanguage === "en" ? "estimated from each provider's public pricing, not a real bill" : "花销是按各服务商公开定价估算的，不是真实账单，仅供参考"}`;
+    usageBadge.title = `${data.count} · ${t("usage.costDetail")}`;
   } catch (err) {
     // 统计接口失败不影响主功能，静默忽略
   }
@@ -666,6 +669,7 @@ async function fetchImmersionPlan() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         content: currentDocContent,
+        source_language: currentDocLearningLanguage,
         learning_language: immersionResolvedLanguage,
         start_ratio: immersionStartRatio,
         end_ratio: immersionEndRatio,
@@ -879,7 +883,7 @@ function showWordPopup(mark) {
     <div class="wordPopup-sentence"></div>
     <div class="wordPopup-actions">
       ${isSaved
-        ? `<button class="wordPopup-delete">从生词表删除</button>`
+        ? `<button class="wordPopup-delete">${t("wordPopup.delete")}</button>`
         : `<button class="wordPopup-save-immersion">${t("immersion.saveWord")}</button>`}
     </div>
   `;
@@ -1085,7 +1089,7 @@ function renderRecommendations(picks, learningLanguage) {
       <div class="recCard-reason"></div>
       <div class="recCard-footer">
         <span class="recCard-source"></span>
-        <button class="btn btn-primary btn-small">读这篇</button>
+        <button class="btn btn-primary btn-small">${t("recommend.readThis")}</button>
       </div>
     `;
     const tagsEl = card.querySelector(".recCard-tags");
@@ -1629,7 +1633,7 @@ function renderSearchResults(matches) {
   matches.slice(0, 50).forEach((record) => {
     const card = buildHistoryCard(record);
     card.classList.add("searchResultCard");
-    card.title = "点击跳转到这篇文章";
+    card.title = t("docManager.jumpHint");
     card.addEventListener("click", () => jumpToArticle(record.source_doc));
     searchResults.appendChild(card);
   });
@@ -1721,7 +1725,7 @@ btnPrint.addEventListener("click", async () => {
   if (!currentDocName) return;
   btnPrint.disabled = true;
   const originalLabel = btnPrint.textContent;
-  btnPrint.textContent = "准备中...";
+  btnPrint.textContent = t("print.preparing");
   try {
     const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
     const vocab = (await vocabRes.json()).filter((v) => v.source_doc === currentDocName);
@@ -1729,7 +1733,7 @@ btnPrint.addEventListener("click", async () => {
     buildPrintArea(vocab, notes);
     window.print();
   } catch (err) {
-    alert("准备打印内容失败: " + err.message);
+    alert(t("print.failed", { message: err.message }));
   } finally {
     btnPrint.disabled = false;
     btnPrint.textContent = originalLabel;
@@ -1778,12 +1782,12 @@ function buildPrintArea(vocab, notes) {
   if (vocabMap.size > 0) {
     const h2 = document.createElement("h2");
     h2.className = "printSectionTitle";
-    h2.textContent = `生词表(共 ${vocabMap.size} 个)`;
+    h2.textContent = t("print.vocabTitle", { count: vocabMap.size });
     container.appendChild(h2);
 
     const table = document.createElement("table");
     table.className = "printVocabTable";
-    table.innerHTML = "<thead><tr><th>#</th><th>单词</th><th>音标</th><th>词性</th><th>释义</th></tr></thead><tbody></tbody>";
+    table.innerHTML = `<thead><tr><th>${t("print.colIndex")}</th><th>${t("print.colWord")}</th><th>${t("print.colIpa")}</th><th>${t("print.colPos")}</th><th>${t("print.colMeaning")}</th></tr></thead><tbody></tbody>`;
     const tbody = table.querySelector("tbody");
     [...vocabMap.values()]
       .sort((a, b) => a.index - b.index)
@@ -1804,7 +1808,7 @@ function buildPrintArea(vocab, notes) {
   if (sentenceList.length > 0) {
     const h2 = document.createElement("h2");
     h2.className = "printSectionTitle";
-    h2.textContent = `不熟悉的句子(共 ${sentenceList.length} 句)`;
+    h2.textContent = t("print.sentenceTitle", { count: sentenceList.length });
     container.appendChild(h2);
 
     const list = document.createElement("ol");
@@ -1863,7 +1867,7 @@ function markParagraphForPrint(text, vocabMap, sentenceList) {
     result += escapeHtml(text.slice(cursor, r.start));
     const segment = escapeHtml(text.slice(r.start, r.end));
     if (r.type === "sentence") {
-      result += `<span class="printMarkSentence">${segment}<sup class="printMarkLabel printMarkLabelSentence">句${r.label}</sup></span>`;
+      result += `<span class="printMarkSentence">${segment}<sup class="printMarkLabel printMarkLabelSentence">${t("print.sentenceMarkPrefix")}${r.label}</sup></span>`;
     } else {
       result += `${segment}<sup class="printMarkLabel printMarkLabelWord">${r.label}</sup>`;
     }
@@ -1952,14 +1956,14 @@ async function loadSettingsIntoPanel() {
 
 btnLinkGoogle.addEventListener("click", async () => {
   btnLinkGoogle.disabled = true;
-  googleLinkStatus.textContent = currentUiLanguage === "en" ? "Redirecting to Google sign-in..." : "跳转到 Google 授权页...";
+  googleLinkStatus.textContent = t("settings.googleRedirecting");
   try {
     const res = await apiFetch("/api/auth/google/link-init", { method: "POST" });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     location.href = "/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce);
   } catch (err) {
-    googleLinkStatus.textContent = (currentUiLanguage === "en" ? "Linking failed: " : "关联失败: ") + err.message;
+    googleLinkStatus.textContent = t("settings.googleLinkFailed", { message: err.message });
     btnLinkGoogle.disabled = false;
   }
 });
@@ -2190,8 +2194,7 @@ btnLoginSubmit.addEventListener("click", async () => {
       cache: "no-store",
     });
     if (!res.ok) {
-      const fallback = currentUiLanguage === "en" ? "Username or password is wrong, double-check it" : "用户名或密码不对，再检查一下";
-      throw new Error((await res.json().catch(() => null))?.detail || fallback);
+      throw new Error((await res.json().catch(() => null))?.detail || t("login.credentialsWrong"));
     }
     const data = await res.json();
     await enterApp(data.token, data);
@@ -2209,7 +2212,7 @@ btnRegisterSubmit.addEventListener("click", async () => {
   const username = loginUsernameInput.value.trim();
   const password = loginPasswordInput.value;
   if (!username || !password) {
-    loginError.textContent = currentUiLanguage === "en" ? "Username and password are both required" : "用户名和密码都要填";
+    loginError.textContent = t("login.fieldsRequired");
     loginError.classList.remove("hidden");
     return;
   }
@@ -2233,7 +2236,7 @@ btnRegisterSubmit.addEventListener("click", async () => {
     await enterApp(data.token, data);
     showWelcomeModal(data);
   } catch (err) {
-    loginError.textContent = (currentUiLanguage === "en" ? "Registration failed: " : "注册失败: ") + err.message;
+    loginError.textContent = t("login.registerFailed", { message: err.message });
     loginError.classList.remove("hidden");
     resetTurnstile();
   } finally {
@@ -2263,7 +2266,7 @@ btnGoogleLogin.addEventListener("click", () => {
     if (me) {
       await enterApp(token, me);
       if (justLinkedGoogle) {
-        alert("Google 账号关联成功，以后用 Google 登录也能看到这个账号下的内容");
+        alert(t("settings.googleLinkSuccess"));
         btnAccountSettings.click();
       }
       return;

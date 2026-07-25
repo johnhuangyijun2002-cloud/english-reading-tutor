@@ -11,3 +11,4 @@ asyncpg
 cryptography
 slowapi
 jieba
+janome

@@ -17,6 +17,7 @@ import feedparser
 from cryptography.fernet import Fernet, InvalidToken
 import httpx
 import jieba.posseg as pseg
+from janome.tokenizer import Tokenizer as JanomeTokenizer
 import pdfplumber
 import trafilatura
 from docx import Document as DocxDocument
@@ -1588,32 +1589,174 @@ async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = 
 
 
 # ---------- 渐进沉浸阅读模式(把母语文章里挑一些实义词换成目标学习语言) ----------
+#
+# 按文章的母语(source_language，即该文档的 learning_language 字段，见 ImmersionPlanRequest)
+# 分发到不同的分词实现，每个实现的输出形状必须一致：给一段文本，返回一份"实义候选词"字符串列表
+# (按出现顺序去重)。这份候选词表有两个用途：(1) 驱动替换比例的斜坡计算；(2) 约束 AI 只能从
+# 候选词里选词替换——AI 返回结果后会逐个校验 original_word 是否在对应段落的候选集合里，不在就丢弃。
+# 所以"不替换虚词/不替换专有名词/不替换数字"这条规则是在这一层本地强制生效的，不依赖 AI 听话。
+#
+# 新增一种母语的支持，只需要写一个同接口的 tokenize_xx() 函数，在 IMMERSION_TOKENIZERS 里加一行，
+# 不用改这段代码之外的任何替换/插入逻辑。未登记的语言默认退化到英语规则分词。
 
 # jieba 词性标注里，这几个前缀算"实义内容词"(名词/动词/形容词/副词及其派生形式如 vn/an/ad)，
 # 才有资格被替换；介词/连词/代词/助词等虚词天然不在这几个前缀里，不用额外排除。
-_IMMERSION_CONTENT_POS_PREFIXES = ("n", "v", "a", "d")
+_ZH_CONTENT_POS_PREFIXES = ("n", "v", "a", "d")
 # 默认排除专有名词(nr人名/ns地名/nt机构名/nz其它专名)和数字类(m数字/q量词)。
-_IMMERSION_EXCLUDED_POS = {"nr", "ns", "nt", "nz", "m", "q"}
+_ZH_EXCLUDED_POS = {"nr", "ns", "nt", "nz", "m", "q"}
 # 这几个是语素/成分标记，不是完整的词，不适合单独替换。
-_IMMERSION_NON_WORD_POS = {"ng", "vg", "ag", "dg"}
-
-IMMERSION_PARAGRAPH_CHUNK_SIZE = 7  # 每次 AI 调用最多带几个段落，避免一篇文章打成几十次调用
+_ZH_NON_WORD_POS = {"ng", "vg", "ag", "dg"}
 
 
-def extract_immersion_candidates(paragraph: str, exclude_proper_nouns: bool) -> list:
-    """给一段母语文本分词，挑出可以被替换的实义词，按出现顺序去重。"""
+def tokenize_zh(paragraph: str, exclude_proper_nouns: bool) -> list:
+    """中文：jieba 分词 + 词性标注筛实义词。"""
     seen = set()
     candidates = []
     for word, flag in pseg.cut(paragraph):
         word = word.strip()
-        if not word or word in seen or flag in _IMMERSION_NON_WORD_POS:
+        if not word or word in seen or flag in _ZH_NON_WORD_POS:
             continue
-        if exclude_proper_nouns and flag in _IMMERSION_EXCLUDED_POS:
+        if exclude_proper_nouns and flag in _ZH_EXCLUDED_POS:
             continue
-        if flag.startswith(_IMMERSION_CONTENT_POS_PREFIXES):
+        if flag.startswith(_ZH_CONTENT_POS_PREFIXES):
             seen.add(word)
             candidates.append(word)
     return candidates
+
+
+# 英语天然靠空格分词，不需要引入 spaCy/NLTK 这类分词库：按单词字符切 token，用一份静态虚词表
+# 排除冠词/介词/连词/代词/助动词等功能词；数字天然不在字母正则里，不用额外处理；
+# "排除专有名词"退化成"首字母大写且不是段首第一个词"的启发式，不完美但足够用于这个辅助功能。
+_EN_WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
+_EN_STOPWORDS = {
+    "a", "an", "the", "and", "or", "but", "if", "then", "than", "so", "because", "as", "of", "in",
+    "on", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during",
+    "before", "after", "above", "below", "to", "from", "up", "down", "out", "off", "over", "under",
+    "again", "further", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both",
+    "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same",
+    "i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself",
+    "yourselves", "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its",
+    "itself", "they", "them", "their", "theirs", "themselves", "what", "which", "who", "whom",
+    "this", "that", "these", "those", "am", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "having", "do", "does", "did", "doing", "will", "would", "shall", "should",
+    "can", "could", "may", "might", "must", "ought", "very", "just", "also", "too",
+}
+
+
+def tokenize_en(paragraph: str, exclude_proper_nouns: bool) -> list:
+    """英语：规则分词，无需第三方分词库。"""
+    seen = set()
+    candidates = []
+    for i, m in enumerate(_EN_WORD_RE.finditer(paragraph)):
+        word = m.group(0)
+        lower = word.lower()
+        if len(word) < 2 or lower in seen or lower in _EN_STOPWORDS:
+            continue
+        if exclude_proper_nouns and word[0].isupper() and i > 0:
+            continue
+        seen.add(lower)
+        candidates.append(word)
+    return candidates
+
+
+# 韩语：soynlp 是无监督统计分词，需要在真实语料上训练才能获得可靠的词边界，不适合对单个、
+# 零散的段落即时分词，所以这里改用和英语同思路的规则实现——按谚文字符切出어절(eojeol)，
+# 剥掉常见的助词/词尾后缀，再用一份停用词表过滤代词/指示词等功能词。韩语没有大小写信号，
+# 无法像英语那样启发式识别专有名词，exclude_proper_nouns 对韩语暂不生效。
+_KO_TOKEN_RE = re.compile(r"[가-힣]+")
+_KO_PARTICLE_SUFFIXES = sorted([
+    "에게서", "으로부터", "이라고", "이라도", "에서", "에게", "한테", "부터", "까지", "이나",
+    "이며", "이랑", "만큼", "밖에", "처럼", "보다", "으로", "라고", "라도", "이", "가", "은",
+    "는", "을", "를", "의", "에", "와", "과", "도", "만", "나", "며", "랑", "로", "조차", "마저",
+], key=len, reverse=True)
+_KO_STOPWORDS = {
+    "그", "이", "저", "것", "수", "때", "등", "및", "또는", "그리고", "그러나", "하지만", "그런데",
+    "즉", "따라서", "그래서", "때문", "대해", "대한", "통해", "위해", "의해", "나", "너", "우리",
+    "저희", "당신", "여기", "거기", "저기", "어디", "언제", "무엇", "누구", "어떻게", "왜", "매우",
+    "정말", "너무", "아주", "좀", "조금", "항상", "자주", "가끔", "모든", "여러", "각", "이런",
+    "그런", "저런", "합니다", "있다", "없다", "하다",
+}
+
+
+def tokenize_ko(paragraph: str, exclude_proper_nouns: bool) -> list:
+    """韩语：规则分词(어절 + 助词剥离)，不依赖 soynlp/KoNLPy。"""
+    seen = set()
+    candidates = []
+    for m in _KO_TOKEN_RE.finditer(paragraph):
+        stem = m.group(0)
+        for suf in _KO_PARTICLE_SUFFIXES:
+            if stem.endswith(suf) and len(stem) > len(suf):
+                stem = stem[: -len(suf)]
+                break
+        if len(stem) < 2 or stem in seen or stem in _KO_STOPWORDS:
+            continue
+        seen.add(stem)
+        candidates.append(stem)
+    return candidates
+
+
+# 日语：janome 是纯 Python 实现、自带小型词典，pip 装完即可用，不依赖 MeCab/Java，
+# 词性标注格式形如 "名詞,固有名詞,人名,一般"，用逗号切开取大类/细类。
+_JA_CONTENT_POS_MAJOR = ("名詞", "動詞", "形容詞", "副詞")
+_JA_NON_WORD_POS_DETAIL = {"非自立", "接尾", "代名詞", "数"}
+# サ変接続名詞(発展/投資等)+する/し 这种复合动词，janome 会把する/し单独切出来，标成"動詞,自立"，
+# 但单个假名的し/い/き这类几乎都是这种被拆开的语法残片，不是有意义的独立词，直接按长度过滤掉。
+_JA_HIRAGANA_RE = re.compile(r"^[ぁ-ん]+$")
+_janome_tokenizer = None
+
+
+def _get_janome_tokenizer() -> JanomeTokenizer:
+    global _janome_tokenizer
+    if _janome_tokenizer is None:
+        _janome_tokenizer = JanomeTokenizer()
+    return _janome_tokenizer
+
+
+def tokenize_ja(paragraph: str, exclude_proper_nouns: bool) -> list:
+    """日语：janome 分词 + 词性标注筛实义词。"""
+    seen = set()
+    candidates = []
+    for token in _get_janome_tokenizer().tokenize(paragraph):
+        word = token.surface.strip()
+        if not word or word in seen:
+            continue
+        if len(word) == 1 and _JA_HIRAGANA_RE.match(word):
+            continue
+        pos_parts = token.part_of_speech.split(",")
+        major = pos_parts[0]
+        detail = pos_parts[1] if len(pos_parts) > 1 else ""
+        if detail in _JA_NON_WORD_POS_DETAIL:
+            continue
+        if exclude_proper_nouns and detail == "固有名詞":
+            continue
+        if major.startswith(_JA_CONTENT_POS_MAJOR):
+            seen.add(word)
+            candidates.append(word)
+    return candidates
+
+
+# 母语语言 -> 分词器分发表，仿照 LANGUAGE_SOURCES 的"按语言 key 查配置"模式。
+IMMERSION_TOKENIZERS = {
+    "zh": {"tokenizer": "jieba"},
+    "en": {"tokenizer": "en_rule"},
+    "ko": {"tokenizer": "ko_rule"},
+    "ja": {"tokenizer": "janome"},
+}
+_IMMERSION_TOKENIZER_FUNCS = {
+    "jieba": tokenize_zh,
+    "en_rule": tokenize_en,
+    "ko_rule": tokenize_ko,
+    "janome": tokenize_ja,
+}
+
+IMMERSION_PARAGRAPH_CHUNK_SIZE = 7  # 每次 AI 调用最多带几个段落，避免一篇文章打成几十次调用
+
+
+def extract_immersion_candidates(paragraph: str, source_language: str, exclude_proper_nouns: bool) -> list:
+    """给一段母语文本分词，挑出可以被替换的实义词，按出现顺序去重。按 source_language 分发到
+    对应的分词实现；未登记的语言默认退化到英语规则分词。"""
+    tokenizer_key = IMMERSION_TOKENIZERS.get(source_language, IMMERSION_TOKENIZERS["en"])["tokenizer"]
+    return _IMMERSION_TOKENIZER_FUNCS[tokenizer_key](paragraph, exclude_proper_nouns)
 
 
 def compute_immersion_replace_counts(candidate_counts: list, start_pct: float, end_pct: float) -> list:
@@ -1662,6 +1805,7 @@ def build_immersion_prompt(paragraph_group: list, learning_language: str, explai
 
 class ImmersionPlanRequest(BaseModel):
     content: str
+    source_language: str = "zh"  # 这篇文章本身是用什么语言写的，决定用哪个分词器
     learning_language: str = "en"
     start_ratio: float = 10  # 百分比，10 表示 10%
     end_ratio: float = 30
@@ -1704,7 +1848,9 @@ async def get_immersion_plan(request: Request, req: ImmersionPlanRequest, user: 
     if not paragraphs:
         return ImmersionPlanResponse(paragraphs=[])
 
-    candidates_per_paragraph = [extract_immersion_candidates(p, req.exclude_proper_nouns) for p in paragraphs]
+    candidates_per_paragraph = [
+        extract_immersion_candidates(p, req.source_language, req.exclude_proper_nouns) for p in paragraphs
+    ]
     replace_counts = compute_immersion_replace_counts(
         [len(c) for c in candidates_per_paragraph], req.start_ratio, req.end_ratio
     )

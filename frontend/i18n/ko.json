@@ -24,7 +24,8 @@
     "docManager": "글 관리",
     "recommend": "AI 추천",
     "settings": "설정",
-    "comingSoon": "준비 중"
+    "comingSoon": "준비 중",
+    "comingSoonHint": "더 많은 기능을 준비 중이에요"
   },
   "docManager": {
     "title": "글 관리",
@@ -32,7 +33,8 @@
     "open": "열기",
     "delete": "삭제",
     "deleteConfirm": "\"{title}\"을(를) 삭제할까요? 이미 저장된 단어/문장 노트는 삭제되지 않아요.",
-    "deleteFailed": "삭제 실패: {message}"
+    "deleteFailed": "삭제 실패: {message}",
+    "jumpHint": "클릭하면 이 글로 이동해요"
   },
   "readerSettings": {
     "fontSize": "글자 크기",
@@ -105,6 +107,9 @@
     "apiKeyPlaceholder": "이 제공업체의 API 키를 입력하세요",
     "apiKeyHintSet": "설정됨 ({masked}) — 다시 입력하면 교체돼요",
     "apiKeyHintUnset": "이 제공업체의 키가 없어요 — 단어/문장 분석, AI 추천을 사용할 수 없어요",
+    "aiRelayLabel": "AI 릴레이 주소 (선택)",
+    "aiRelayPlaceholder": "예: https://your-relay.example.com/v1 — 비워두면 공식 주소를 사용해요",
+    "aiRelayHint": "설정하면 네 개 제공업체 요청이 모두 이 주소를 거쳐요 (OpenAI 호환 API여야 해요). 잘 모르면 비워두세요.",
     "houseTrialLeft": "키가 없어도 체험 횟수로 사용할 수 있어요 — {left}/{total}회 남음",
     "houseTrialUsedUp": "체험 횟수를 모두 사용했어요 ({total}/{total}) — 계속 사용하려면 본인 AI 키를 등록해 주세요",
     "sheetsSync": "Google 시트에 동기화",
@@ -118,6 +123,9 @@
     "googleLinkBtnRelink": "다시 연동 / 계정 변경",
     "googleLinkedStatus": "연동됨: {email}",
     "googleUnlinkedStatus": "연동되지 않음 — 사용자 이름/비밀번호로만 로그인할 수 있어요",
+    "googleRedirecting": "Google 인증 페이지로 이동 중...",
+    "googleLinkFailed": "연동 실패: {message}",
+    "googleLinkSuccess": "Google 계정이 연동됐어요. 앞으로 Google 로그인으로도 이 계정을 사용할 수 있어요.",
     "logout": "로그아웃",
     "registeredUsers": "가입한 사용자",
     "accountData": "계정 데이터",
@@ -128,7 +136,7 @@
     "youTag": " (나)"
   },
   "welcome": {
-    "title": "환영합니다 — 계정이 준비됐어요",
+    "title": "환영해요 — 계정이 준비됐어요",
     "tagline": "실제 글을 읽으며 언어를 배우도록 도와주는 도구예요.",
     "body": "이제 글을 읽으면서 단어나 문장을 선택하면 AI 설명을 볼 수 있어요. 준비되면 설정에서 본인 AI 키를 등록해 보세요.",
     "houseTrialLine": "키가 없어도 괜찮아요 — 무료 체험 {count}회로 바로 시작할 수 있어요.",
@@ -152,6 +160,9 @@
     "password": "비밀번호",
     "registerBtn": "새 계정 만들기",
     "loginBtn": "로그인",
+    "credentialsWrong": "사용자 이름 또는 비밀번호가 올바르지 않아요. 다시 확인해 주세요.",
+    "fieldsRequired": "사용자 이름과 비밀번호를 모두 입력해 주세요.",
+    "registerFailed": "가입 실패: {message}",
     "or": "또는",
     "googleLogin": "Google로 로그인",
     "legalPrefix": "계속 진행하면 ",
@@ -160,7 +171,13 @@
     "privacy": "개인정보 처리방침에 동의하는 것으로 간주돼요"
   },
   "empty": { "noDocument": "글을 붙여넣거나 PDF/DOCX 파일을 업로드해서 정독을 시작해 보세요" },
-  "sidebar": { "history": "기록", "saveAll": "전체 저장", "print": "인쇄" },
+  "sidebar": {
+    "history": "기록",
+    "saveAll": "전체 저장",
+    "saveAllHint": "아직 저장하지 않은 분석 결과를 한 번에 모두 저장해요",
+    "print": "인쇄",
+    "printHint": "글과 표시한 단어/문장을 인쇄해요"
+  },
   "languages": {
     "en": "영어", "zh": "중국어", "ja": "일본어", "ko": "한국어", "fr": "프랑스어",
     "es": "스페인어", "de": "독일어", "it": "이탈리아어", "pt": "포르투갈어",
@@ -173,11 +190,15 @@
   },
   "usage": {
     "cost": "이번 달 약 {cost} 사용",
-    "count": "이번 달 {count}회 호출"
+    "count": "이번 달 {count}회 호출",
+    "costDetail": "각 제공업체의 공개 요금을 기준으로 추정한 값이에요. 실제 청구 금액이 아니며 참고용이에요."
   },
   "toolbar": {
     "saveWord": "단어 저장",
     "analyzeSentence": "AI 문장 분석"
+  },
+  "wordPopup": {
+    "delete": "단어장에서 삭제"
   },
   "annotation": {
     "word": "단어",
@@ -222,5 +243,17 @@
   },
   "upload": {
     "failed": "업로드 실패: {message}"
+  },
+  "print": {
+    "preparing": "준비 중...",
+    "failed": "인쇄 준비 실패: {message}",
+    "vocabTitle": "단어장 (총 {count}개)",
+    "colIndex": "#",
+    "colWord": "단어",
+    "colIpa": "발음기호",
+    "colPos": "품사",
+    "colMeaning": "뜻",
+    "sentenceTitle": "낯선 문장 (총 {count}개)",
+    "sentenceMarkPrefix": "문"
   }
 }

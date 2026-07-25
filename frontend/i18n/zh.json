@@ -24,7 +24,8 @@
     "docManager": "文章管理",
     "recommend": "AI 推荐",
     "settings": "设置",
-    "comingSoon": "敬请期待"
+    "comingSoon": "敬请期待",
+    "comingSoonHint": "更多功能开发中"
   },
   "docManager": {
     "title": "文章管理",
@@ -32,7 +33,8 @@
     "open": "打开",
     "delete": "删除",
     "deleteConfirm": "确定要删除《{title}》吗？已经存过的生词/句子笔记不会被删除。",
-    "deleteFailed": "删除失败: {message}"
+    "deleteFailed": "删除失败: {message}",
+    "jumpHint": "点击跳转到这篇文章"
   },
   "readerSettings": {
     "fontSize": "字号",
@@ -86,7 +88,7 @@
   "search": {
     "placeholder": "搜索单词、释义、例句、来源文章...（留空显示全部）",
     "loading": "加载中...",
-    "empty": "还没有生词或笔记记录，读文章的时候划词/划句开始积累吧",
+    "empty": "还没有生词或笔记记录，阅读文章时划选单词或句子即可开始积累",
     "noMatch": "没找到匹配的记录"
   },
   "settings": {
@@ -105,6 +107,9 @@
     "apiKeyPlaceholder": "填入这个服务商的 API Key",
     "apiKeyHintSet": "已设置({masked})，重新填写可以替换",
     "apiKeyHintUnset": "还没填这个服务商的 key，划词解析、AI 推荐这些功能用不了",
+    "aiRelayLabel": "AI 中转站地址（可选）",
+    "aiRelayPlaceholder": "例如 https://your-relay.example.com/v1，留空用官方地址",
+    "aiRelayHint": "配置后，四个服务商的请求都会经过该地址（需为 OpenAI 兼容接口）；如不确定可留空",
     "houseTrialLeft": "不填 key 也能先用体验额度，还剩 {left}/{total} 次",
     "houseTrialUsedUp": "体验额度已用完（{total}/{total}），要继续用 AI 解析得自己填 key",
     "sheetsSync": "同步到 Google Sheet",
@@ -118,6 +123,9 @@
     "googleLinkBtnRelink": "重新关联/换绑",
     "googleLinkedStatus": "已关联：{email}",
     "googleUnlinkedStatus": "还没关联，只能用用户名密码登录",
+    "googleRedirecting": "跳转到 Google 授权页...",
+    "googleLinkFailed": "关联失败：{message}",
+    "googleLinkSuccess": "Google 账号关联成功，以后用 Google 登录也能看到这个账号下的内容",
     "logout": "退出登录",
     "registeredUsers": "已注册用户",
     "accountData": "账号数据",
@@ -147,11 +155,14 @@
   },
   "login": {
     "title": "登录",
-    "hint": "用户名随便填，密码至少 8 位；第一个注册的账号会自动成为主账号",
+    "hint": "用户名不限格式，密码至少需要 8 位；首个注册的账号将自动成为主账号",
     "username": "用户名",
     "password": "密码",
     "registerBtn": "注册新账号",
     "loginBtn": "登录",
+    "credentialsWrong": "用户名或密码不正确，请检查后重试",
+    "fieldsRequired": "用户名和密码均为必填项",
+    "registerFailed": "注册失败：{message}",
     "or": "或",
     "googleLogin": "用 Google 登录",
     "legalPrefix": "继续即表示你同意",
@@ -160,7 +171,13 @@
     "privacy": "隐私政策"
   },
   "empty": { "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读" },
-  "sidebar": { "history": "历史记录", "saveAll": "一键保存", "print": "打印" },
+  "sidebar": {
+    "history": "历史记录",
+    "saveAll": "一键保存",
+    "saveAllHint": "把当前还没存的解析结果一次性全部存进去",
+    "print": "打印",
+    "printHint": "把文章和划过的生词/句子打印出来"
+  },
   "languages": {
     "en": "英语", "zh": "中文", "ja": "日语", "ko": "韩语", "fr": "法语",
     "es": "西班牙语", "de": "德语", "it": "意大利语", "pt": "葡萄牙语",
@@ -173,11 +190,15 @@
   },
   "usage": {
     "cost": "本月约花费 {cost}",
-    "count": "本月已调用 {count} 次"
+    "count": "本月已调用 {count} 次",
+    "costDetail": "花销是按各服务商公开定价估算的，不是真实账单，仅供参考"
   },
   "toolbar": {
     "saveWord": "记录生词",
     "analyzeSentence": "AI 解析句子"
+  },
+  "wordPopup": {
+    "delete": "从生词表删除"
   },
   "annotation": {
     "word": "生词",
@@ -197,7 +218,7 @@
     "noResult": "(无解析结果)"
   },
   "history": {
-    "emptyDoc": "这篇文章还没有记录，划中单词或句子开始积累吧",
+    "emptyDoc": "这篇文章还没有记录，划选单词或句子即可开始积累",
     "emptyNoDoc": "先添加一篇文章，读完之后可以在这里看到相关的生词和笔记",
     "deleteConfirm": "确定删除这条{label}记录吗？\n(本地会立即删除；如果之前同步过 Google Sheet，那边已经写入的行不会自动删除，需要手动去表格里清理)",
     "deleteFailed": "删除失败: {message}",
@@ -222,5 +243,17 @@
   },
   "upload": {
     "failed": "上传失败: {message}"
+  },
+  "print": {
+    "preparing": "准备中...",
+    "failed": "准备打印内容失败：{message}",
+    "vocabTitle": "生词表（共 {count} 个）",
+    "colIndex": "#",
+    "colWord": "单词",
+    "colIpa": "音标",
+    "colPos": "词性",
+    "colMeaning": "释义",
+    "sentenceTitle": "不熟悉的句子（共 {count} 句）",
+    "sentenceMarkPrefix": "句"
   }
 }

@@ -24,7 +24,8 @@
     "docManager": "Articles",
     "recommend": "AI Picks",
     "settings": "Settings",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "comingSoonHint": "More features coming soon"
   },
   "docManager": {
     "title": "Manage Articles",
@@ -32,7 +33,8 @@
     "open": "Open",
     "delete": "Delete",
     "deleteConfirm": "Delete \"{title}\"? Vocab/notes already saved from it won't be deleted.",
-    "deleteFailed": "Delete failed: {message}"
+    "deleteFailed": "Delete failed: {message}",
+    "jumpHint": "Click to jump to this article"
   },
   "readerSettings": {
     "fontSize": "Font size",
@@ -105,6 +107,9 @@
     "apiKeyPlaceholder": "Enter this provider's API key",
     "apiKeyHintSet": "Set ({masked}) — re-enter to replace",
     "apiKeyHintUnset": "No key set for this provider — word/sentence analysis and AI picks won't work",
+    "aiRelayLabel": "AI Relay Base URL (optional)",
+    "aiRelayPlaceholder": "e.g. https://your-relay.example.com/v1 — leave blank to use the official endpoint",
+    "aiRelayHint": "When set, requests to all four providers are routed through this address (must be an OpenAI-compatible endpoint). Leave blank if unsure.",
     "houseTrialLeft": "You can use the free trial without a key — {left}/{total} calls left",
     "houseTrialUsedUp": "Free trial used up ({total}/{total}) — add your own AI key to keep using AI analysis",
     "sheetsSync": "Sync to Google Sheet",
@@ -118,6 +123,9 @@
     "googleLinkBtnRelink": "Re-link / switch account",
     "googleLinkedStatus": "Linked: {email}",
     "googleUnlinkedStatus": "Not linked — can only sign in with username/password",
+    "googleRedirecting": "Redirecting to Google sign-in...",
+    "googleLinkFailed": "Linking failed: {message}",
+    "googleLinkSuccess": "Google account linked. You can now sign in with Google to access this account.",
     "logout": "Log Out",
     "registeredUsers": "Registered Users",
     "accountData": "Account Data",
@@ -152,6 +160,9 @@
     "password": "Password",
     "registerBtn": "Register",
     "loginBtn": "Sign In",
+    "credentialsWrong": "Username or password is incorrect. Please check and try again.",
+    "fieldsRequired": "Username and password are both required.",
+    "registerFailed": "Registration failed: {message}",
     "or": "or",
     "googleLogin": "Sign in with Google",
     "legalPrefix": "By continuing you agree to the ",
@@ -160,7 +171,13 @@
     "privacy": "Privacy Policy"
   },
   "empty": { "noDocument": "Paste an article, or upload a PDF/DOCX file to start reading closely" },
-  "sidebar": { "history": "History", "saveAll": "Save All", "print": "Print" },
+  "sidebar": {
+    "history": "History",
+    "saveAll": "Save All",
+    "saveAllHint": "Save all pending analysis results at once",
+    "print": "Print",
+    "printHint": "Print the article with your highlighted words and sentences"
+  },
   "languages": {
     "en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "fr": "French",
     "es": "Spanish", "de": "German", "it": "Italian", "pt": "Portuguese",
@@ -173,11 +190,15 @@
   },
   "usage": {
     "cost": "~{cost} spent this month",
-    "count": "{count} calls this month"
+    "count": "{count} calls this month",
+    "costDetail": "Estimated from each provider's public pricing — not a real bill, for reference only."
   },
   "toolbar": {
     "saveWord": "Save word",
     "analyzeSentence": "AI explain sentence"
+  },
+  "wordPopup": {
+    "delete": "Remove from vocab"
   },
   "annotation": {
     "word": "Word",
@@ -222,5 +243,17 @@
   },
   "upload": {
     "failed": "Upload failed: {message}"
+  },
+  "print": {
+    "preparing": "Preparing...",
+    "failed": "Failed to prepare print content: {message}",
+    "vocabTitle": "Vocabulary ({count} words)",
+    "colIndex": "#",
+    "colWord": "Word",
+    "colIpa": "IPA",
+    "colPos": "Part of Speech",
+    "colMeaning": "Meaning",
+    "sentenceTitle": "Unfamiliar Sentences ({count})",
+    "sentenceMarkPrefix": "S"
   }
 }
