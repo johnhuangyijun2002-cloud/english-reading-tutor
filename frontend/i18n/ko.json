@@ -24,8 +24,7 @@
     "docManager": "글 관리",
     "recommend": "AI 추천",
     "settings": "설정",
-    "comingSoon": "준비 중",
-    "comingSoonHint": "더 많은 기능을 준비 중이에요"
+    "review": "복습"
   },
   "docManager": {
     "title": "글 관리",
@@ -59,6 +58,19 @@
     "saveWord": "단어장에 저장",
     "planFailed": "몰입 모드 준비 실패: {message}",
     "saveFailed": "저장 실패: {message}"
+  },
+  "review": {
+    "title": "단어 복습",
+    "language": "복습 언어",
+    "dueCount": "복습할 단어가 {count}개 있어요",
+    "empty": "이 언어는 지금 복습할 단어가 없어요",
+    "start": "복습 시작",
+    "progress": "{current} / {total}",
+    "reveal": "답 보기",
+    "know": "알아요",
+    "dontKnow": "몰라요",
+    "exit": "나가기",
+    "sessionComplete": "복습 완료"
   },
   "recommend": {
     "title": "오늘의 추천",

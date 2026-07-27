@@ -24,8 +24,7 @@
     "docManager": "文章管理",
     "recommend": "AI 推荐",
     "settings": "设置",
-    "comingSoon": "敬请期待",
-    "comingSoonHint": "更多功能开发中"
+    "review": "复习"
   },
   "docManager": {
     "title": "文章管理",
@@ -59,6 +58,19 @@
     "saveWord": "存入生词本",
     "planFailed": "沉浸模式准备失败：{message}",
     "saveFailed": "保存失败：{message}"
+  },
+  "review": {
+    "title": "生词复习",
+    "language": "复习语言",
+    "dueCount": "有 {count} 个词待复习",
+    "empty": "这个语言暂时没有待复习的词",
+    "start": "开始复习",
+    "progress": "{current} / {total}",
+    "reveal": "显示答案",
+    "know": "认识",
+    "dontKnow": "不认识",
+    "exit": "退出",
+    "sessionComplete": "复习完成"
   },
   "recommend": {
     "title": "今日推荐",

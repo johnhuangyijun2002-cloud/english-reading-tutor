@@ -220,10 +220,16 @@ CREATE TABLE IF NOT EXISTS vocab (
     date TEXT,
     learning_language TEXT NOT NULL DEFAULT 'en',
     explain_language TEXT NOT NULL DEFAULT 'zh',
-    added_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    srs_level INTEGER NOT NULL DEFAULT 0,
+    next_review_at TIMESTAMPTZ,
+    last_reviewed_at TIMESTAMPTZ
 );
 ALTER TABLE vocab ADD COLUMN IF NOT EXISTS learning_language TEXT NOT NULL DEFAULT 'en';
 ALTER TABLE vocab ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAULT 'zh';
+ALTER TABLE vocab ADD COLUMN IF NOT EXISTS srs_level INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE vocab ADD COLUMN IF NOT EXISTS next_review_at TIMESTAMPTZ;
+ALTER TABLE vocab ADD COLUMN IF NOT EXISTS last_reviewed_at TIMESTAMPTZ;
 CREATE TABLE IF NOT EXISTS sentence_notes (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -456,6 +462,57 @@ async def db_delete_vocab(item_id: str):
 async def db_delete_vocab_for_user(user_id: str):
     pool = await get_pool()
     await pool.execute("DELETE FROM vocab WHERE user_id=$1", user_id)
+
+
+async def db_update_vocab_fields(item_id: str, **fields):
+    """照抄 db_update_user_fields 的动态 SET 拼装逻辑，改成按 id 更新 vocab 表。"""
+    if not fields:
+        return
+    pool = await get_pool()
+    set_parts = []
+    values = []
+    i = 1
+    for k, v in fields.items():
+        set_parts.append(f"{k}=${i}")
+        values.append(v)
+        i += 1
+    values.append(item_id)
+    await pool.execute(f"UPDATE vocab SET {', '.join(set_parts)} WHERE id=${i}", *values)
+
+
+# ---------- 生词复习(简化版莱特纳盒子，不做完整 SM-2) ----------
+
+LEITNER_INTERVALS_DAYS = [1, 3, 7, 14, 30, 90]  # 下标即等级 0-5，等级越高间隔越长
+
+
+def apply_leitner_result(current_level: int, result: str) -> tuple:
+    """返回 (新等级, 下次复习时间)。"认识"升一级(封顶 5)，"不认识"直接归零——
+    两种情况都用同一个区间表算下次复习时间，等级 0 对应 1 天，归零后自然明天就会再出现。"""
+    new_level = min(current_level + 1, 5) if result == "know" else 0
+    next_review_at = datetime.now(timezone.utc) + timedelta(days=LEITNER_INTERVALS_DAYS[new_level])
+    return new_level, next_review_at
+
+
+async def db_count_due_vocab_by_language(user_id: str) -> dict:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT learning_language, count(*) AS n FROM vocab
+           WHERE user_id=$1 AND (next_review_at IS NULL OR next_review_at <= now())
+           GROUP BY learning_language""",
+        user_id,
+    )
+    return {r["learning_language"]: r["n"] for r in rows}
+
+
+async def db_list_due_vocab(user_id: str, learning_language: str, limit: int) -> list:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT * FROM vocab WHERE user_id=$1 AND learning_language=$2
+           AND (next_review_at IS NULL OR next_review_at <= now())
+           ORDER BY next_review_at NULLS FIRST LIMIT $3""",
+        user_id, learning_language, limit,
+    )
+    return [_serialize_row(r) for r in rows]
 
 
 async def db_create_sentence_note(record: dict):
@@ -2288,6 +2345,41 @@ async def delete_vocab(item_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(404, "没找到这条生词记录")
     await db_delete_vocab(item_id)
     return {"ok": True}
+
+
+REVIEW_BATCH_SIZE = 20
+REVIEW_BATCH_SIZE_MAX = 50
+
+
+@app.get("/api/review/due-counts")
+async def review_due_counts(user: dict = Depends(get_current_user)):
+    return await db_count_due_vocab_by_language(user["id"])
+
+
+@app.get("/api/review/queue")
+async def review_queue(learning_language: str, limit: int = REVIEW_BATCH_SIZE, user: dict = Depends(get_current_user)):
+    limit = max(1, min(limit, REVIEW_BATCH_SIZE_MAX))
+    return await db_list_due_vocab(user["id"], learning_language, limit)
+
+
+class ReviewMarkRequest(BaseModel):
+    item_id: str
+    result: str  # "know" | "dont_know"
+
+
+@app.post("/api/review/mark")
+async def review_mark(req: ReviewMarkRequest, user: dict = Depends(get_current_user)):
+    if req.result not in ("know", "dont_know"):
+        raise HTTPException(400, "不支持的复习结果")
+    target = await db_get_vocab(req.item_id)
+    if not target or target.get("user_id") != user["id"]:
+        raise HTTPException(404, "没找到这条生词记录")
+    new_level, next_review_at = apply_leitner_result(target.get("srs_level", 0), req.result)
+    await db_update_vocab_fields(
+        req.item_id, srs_level=new_level, next_review_at=next_review_at,
+        last_reviewed_at=datetime.now(timezone.utc),
+    )
+    return {"record": await db_get_vocab(req.item_id)}
 
 
 @app.delete("/api/sentence_notes/{item_id}")

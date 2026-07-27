@@ -252,6 +252,28 @@ const docManagerPanelOverlay = document.getElementById("docManagerPanelOverlay")
 const docManagerList = document.getElementById("docManagerList");
 const btnDocManagerClose = document.getElementById("btnDocManagerClose");
 
+const navReview = document.getElementById("navReview");
+const reviewPanelOverlay = document.getElementById("reviewPanelOverlay");
+const reviewLanguageSelect = document.getElementById("reviewLanguageSelect");
+const reviewDueCount = document.getElementById("reviewDueCount");
+const btnReviewClose = document.getElementById("btnReviewClose");
+const btnStartReview = document.getElementById("btnStartReview");
+const reviewSessionOverlay = document.getElementById("reviewSessionOverlay");
+const reviewProgress = document.getElementById("reviewProgress");
+const reviewCardWord = document.querySelector("#reviewCard .reviewCard-word");
+const btnReviewPronounce = document.getElementById("btnReviewPronounce");
+const reviewCardBack = document.querySelector("#reviewCard .reviewCard-back");
+const reviewCardMeta = document.querySelector("#reviewCard .reviewCard-meta");
+const reviewCardMeaning = document.querySelector("#reviewCard .reviewCard-meaning");
+const reviewCardSentence = document.querySelector("#reviewCard .reviewCard-sentence");
+const btnReviewExit = document.getElementById("btnReviewExit");
+const btnReviewReveal = document.getElementById("btnReviewReveal");
+const btnReviewDontKnow = document.getElementById("btnReviewDontKnow");
+const btnReviewKnow = document.getElementById("btnReviewKnow");
+let reviewDueCounts = {};
+let reviewQueue = [];
+let reviewIndex = 0;
+
 const btnAccountSettings = document.getElementById("btnAccountSettings");
 const accountSettingsPanelOverlay = document.getElementById("accountSettingsPanelOverlay");
 const settingsUserLine = document.getElementById("settingsUserLine");
@@ -1594,6 +1616,109 @@ btnDocManagerClose.addEventListener("click", () => {
 docManagerPanelOverlay.addEventListener("click", (e) => {
   if (e.target === docManagerPanelOverlay) docManagerPanelOverlay.classList.add("hidden");
 });
+
+// ---------- 生词复习(简化版莱特纳盒子：等级 0-5，命中固定区间表算下次复习时间) ----------
+
+async function openReviewPanel() {
+  const res = await apiFetch("/api/review/due-counts");
+  reviewDueCounts = res.ok ? await res.json() : {};
+  reviewLanguageSelect.innerHTML = "";
+  LEARNING_LANGUAGE_CODES.forEach((code) => {
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = t(`languages.${code}`);
+    reviewLanguageSelect.appendChild(opt);
+  });
+  const lastLang = getLastLearningLanguage();
+  const dueLangs = Object.keys(reviewDueCounts);
+  reviewLanguageSelect.value = dueLangs.includes(lastLang) ? lastLang : dueLangs[0] || lastLang;
+  updateReviewDueCountText();
+  reviewPanelOverlay.classList.remove("hidden");
+}
+
+function updateReviewDueCountText() {
+  const count = reviewDueCounts[reviewLanguageSelect.value] || 0;
+  reviewDueCount.textContent = count > 0 ? t("review.dueCount", { count }) : t("review.empty");
+  btnStartReview.disabled = count === 0;
+}
+
+navReview.addEventListener("click", openReviewPanel);
+reviewLanguageSelect.addEventListener("change", updateReviewDueCountText);
+
+btnReviewClose.addEventListener("click", () => {
+  reviewPanelOverlay.classList.add("hidden");
+});
+
+reviewPanelOverlay.addEventListener("click", (e) => {
+  if (e.target === reviewPanelOverlay) reviewPanelOverlay.classList.add("hidden");
+});
+
+btnStartReview.addEventListener("click", async () => {
+  const lang = encodeURIComponent(reviewLanguageSelect.value);
+  const res = await apiFetch(`/api/review/queue?learning_language=${lang}&limit=20`);
+  if (!res.ok) return;
+  reviewQueue = await res.json();
+  if (reviewQueue.length === 0) return;
+  reviewIndex = 0;
+  reviewPanelOverlay.classList.add("hidden");
+  reviewSessionOverlay.classList.remove("hidden");
+  renderReviewCard();
+});
+
+function renderReviewCard() {
+  const record = reviewQueue[reviewIndex];
+  reviewProgress.textContent = t("review.progress", { current: reviewIndex + 1, total: reviewQueue.length });
+  reviewCardWord.textContent = record.word || "";
+  btnReviewPronounce.classList.toggle("hidden", !canSpeak());
+  reviewCardBack.classList.add("hidden");
+  reviewCardMeta.textContent = [record.pos, record.ipa].filter(Boolean).join(" · ");
+  reviewCardMeaning.textContent = record.chinese_meaning || "";
+  reviewCardSentence.textContent = record.sentence || "";
+  btnReviewReveal.classList.remove("hidden");
+  btnReviewDontKnow.classList.add("hidden");
+  btnReviewKnow.classList.add("hidden");
+}
+
+btnReviewPronounce.addEventListener("click", () => {
+  const record = reviewQueue[reviewIndex];
+  if (record) speakText(record.word, record.learning_language);
+});
+
+btnReviewReveal.addEventListener("click", () => {
+  reviewCardBack.classList.remove("hidden");
+  btnReviewReveal.classList.add("hidden");
+  btnReviewDontKnow.classList.remove("hidden");
+  btnReviewKnow.classList.remove("hidden");
+});
+
+async function markReviewCard(result) {
+  const record = reviewQueue[reviewIndex];
+  if (!record) return;
+  await apiFetch("/api/review/mark", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item_id: record.id, result }),
+  });
+  reviewIndex++;
+  if (reviewIndex < reviewQueue.length) {
+    renderReviewCard();
+  } else {
+    endReviewSession(true);
+  }
+}
+
+btnReviewKnow.addEventListener("click", () => markReviewCard("know"));
+btnReviewDontKnow.addEventListener("click", () => markReviewCard("dont_know"));
+
+function endReviewSession(completed) {
+  if (canSpeak()) window.speechSynthesis.cancel();
+  reviewSessionOverlay.classList.add("hidden");
+  reviewQueue = [];
+  reviewIndex = 0;
+  if (completed) alert(t("review.sessionComplete"));
+}
+
+btnReviewExit.addEventListener("click", () => endReviewSession(false));
 
 async function loadSearchData() {
   const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);

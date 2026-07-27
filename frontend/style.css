@@ -760,6 +760,120 @@ body {
   color: #fff;
 }
 
+/* ---------- 生词复习弹层 ---------- */
+
+#reviewPanelOverlay,
+#reviewSessionOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.18s var(--ease);
+}
+
+#reviewPanelOverlay.hidden,
+#reviewSessionOverlay.hidden {
+  display: none;
+}
+
+#reviewPanel,
+#reviewSessionPanel {
+  width: min(440px, 90vw);
+  max-height: 78vh;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: popIn 0.28s var(--spring-ease);
+}
+
+#reviewPanel h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+#reviewDueCount {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+#reviewProgress {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+#reviewCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+  min-height: 160px;
+  justify-content: center;
+  text-align: center;
+}
+
+.reviewCard-front {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reviewCard-word {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.reviewCard-back {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.reviewCard-back.hidden {
+  display: none;
+}
+
+.reviewCard-meta {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.reviewCard-meaning {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.reviewCard-sentence {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+#btnReviewPronounce.hidden,
+#btnReviewDontKnow.hidden,
+#btnReviewKnow.hidden {
+  display: none;
+}
+
 /* ---------- 沉浸阅读结束后的"保存本次生词"确认弹层 ---------- */
 
 #immersionSaveOverlay {

@@ -24,8 +24,7 @@
     "docManager": "Articles",
     "recommend": "AI Picks",
     "settings": "Settings",
-    "comingSoon": "Coming soon",
-    "comingSoonHint": "More features coming soon"
+    "review": "Review"
   },
   "docManager": {
     "title": "Manage Articles",
@@ -59,6 +58,19 @@
     "saveWord": "Save to vocab book",
     "planFailed": "Couldn't set up immersion mode: {message}",
     "saveFailed": "Save failed: {message}"
+  },
+  "review": {
+    "title": "Vocab Review",
+    "language": "Review language",
+    "dueCount": "{count} words due for review",
+    "empty": "No words due for review in this language",
+    "start": "Start Review",
+    "progress": "{current} / {total}",
+    "reveal": "Show Answer",
+    "know": "Know it",
+    "dontKnow": "Don't know",
+    "exit": "Exit",
+    "sessionComplete": "Review complete"
   },
   "recommend": {
     "title": "Today's Picks",
