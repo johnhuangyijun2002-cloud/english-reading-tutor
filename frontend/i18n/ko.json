@@ -201,7 +201,13 @@
     "charCount": "약 {count}자",
     "wordCount": "약 {count}단어",
     "readTime": "예상 읽기 시간 {minutes}분",
-    "coverage": "{pct}% 알고 있어요"
+    "coverage": "{pct}% 알고 있어요",
+    "readAloud": "전체 듣기"
+  },
+  "readAloud": {
+    "play": "재생",
+    "pause": "일시정지",
+    "stop": "정지"
   },
   "usage": {
     "cost": "이번 달 약 {cost} 사용",

@@ -201,7 +201,13 @@
     "charCount": "约 {count} 字",
     "wordCount": "约 {count} 词",
     "readTime": "预计阅读 {minutes} 分钟",
-    "coverage": "已认识 {pct}%"
+    "coverage": "已认识 {pct}%",
+    "readAloud": "朗读全文"
+  },
+  "readAloud": {
+    "play": "播放",
+    "pause": "暂停",
+    "stop": "停止"
   },
   "usage": {
     "cost": "本月约花费 {cost}",

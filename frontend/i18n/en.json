@@ -201,7 +201,13 @@
     "charCount": "~{count} characters",
     "wordCount": "~{count} words",
     "readTime": "~{minutes} min read",
-    "coverage": "{pct}% known"
+    "coverage": "{pct}% known",
+    "readAloud": "Read aloud"
+  },
+  "readAloud": {
+    "play": "Play",
+    "pause": "Pause",
+    "stop": "Stop"
   },
   "usage": {
     "cost": "~{cost} spent this month",

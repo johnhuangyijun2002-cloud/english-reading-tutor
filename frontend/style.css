@@ -1323,6 +1323,67 @@ body {
   text-decoration: underline;
 }
 
+.articleReadAloudBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.articleReadAloudBtn:hover {
+  text-decoration: underline;
+}
+
+.tts-sentence-active {
+  background: var(--accent-tint);
+  border-radius: 3px;
+}
+
+#readAloudBar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-lg);
+}
+
+#readAloudBar.hidden {
+  display: none;
+}
+
+#readAloudBar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--ease) 0.15s;
+}
+
+#readAloudBar button:hover {
+  background: var(--accent-tint);
+}
+
 .text-para {
   font-size: var(--reader-font-size);
   line-height: 1.85;

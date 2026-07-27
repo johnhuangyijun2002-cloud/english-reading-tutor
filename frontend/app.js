@@ -15,6 +15,9 @@ const ICON_PATHS = {
   "volume-2": '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" /><path d="M16 9a5 5 0 0 1 0 6" /><path d="M19.364 18.364a9 9 0 0 0 0-12.728" />',
   printer: '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" />',
   highlighter: '<path d="m9 11-6 6v3h9l3-3" /><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />',
+  play: '<polygon points="6 3 20 12 6 21 6 3" />',
+  pause: '<rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" />',
+  square: '<rect x="3" y="3" width="18" height="18" rx="2" />',
 };
 
 function iconHTML(name, extraClass) {
@@ -426,19 +429,27 @@ function loadDocument(doc) {
 }
 
 function renderTextDocument(content, title, sourceUrl) {
+  stopReadAloud(); // 重渲染会整个换掉 DOM，旧的句子元素引用会失效，先把播放状态清掉
   viewerContent.innerHTML = "";
   const container = document.createElement("div");
   container.className = "text-doc";
   container.appendChild(buildArticleHeader(content, title, sourceUrl));
   const paragraphs = content.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  let sentenceIdx = 0;
   paragraphs.forEach((trimmed, index) => {
     const el = document.createElement("p");
     el.className = "text-para";
-    let html = highlightKnownWords(trimmed);
-    if (immersionEnabled && immersionPlan) {
-      html = applyImmersionSubstitutions(html, index, trimmed);
-    }
-    el.innerHTML = html;
+    el.innerHTML = splitIntoSentences(trimmed)
+      .map((sentence) => {
+        let html = highlightKnownWords(sentence);
+        if (immersionEnabled && immersionPlan) {
+          html = applyImmersionSubstitutions(html, index, sentence);
+        }
+        const span = `<span class="tts-sentence" data-sentence-idx="${sentenceIdx}" data-sentence-text="${escapeHtml(sentence)}">${html}</span>`;
+        sentenceIdx++;
+        return span;
+      })
+      .join(" ");
     container.appendChild(el);
   });
   viewerContent.appendChild(container);
@@ -496,6 +507,15 @@ function buildArticleHeader(content, title, sourceUrl) {
   statTime.className = "articleStat";
   statTime.textContent = t("article.readTime", { minutes });
   meta.appendChild(statTime);
+
+  if (canSpeak()) {
+    const readAloudBtn = document.createElement("button");
+    readAloudBtn.type = "button";
+    readAloudBtn.className = "articleStat articleReadAloudBtn";
+    readAloudBtn.innerHTML = iconHTML("volume-2") + t("article.readAloud");
+    readAloudBtn.addEventListener("click", startReadAloud);
+    meta.appendChild(readAloudBtn);
+  }
 
   header.appendChild(meta);
 
@@ -647,7 +667,12 @@ async function loadKnownWords() {
 }
 
 function escapeHtml(str) {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // ---------- 英语词形归并(只做英语，中/日/韩不做——形态学复杂度完全不是一个量级，也不在这次
@@ -958,6 +983,10 @@ function clampPopupPosition(el, anchorRect, { gapBelow = 8, gapAbove = 8, margin
 
 // ---------- 点击已高亮的生词/沉浸模式替换词，弹出释义 ----------
 
+const readAloudBar = document.getElementById("readAloudBar");
+const btnReadAloudPlayPause = document.getElementById("btnReadAloudPlayPause");
+const btnReadAloudStop = document.getElementById("btnReadAloudStop");
+
 const wordPopup = document.getElementById("wordPopup");
 
 viewerContent.addEventListener("click", (e) => {
@@ -1252,6 +1281,73 @@ function speakText(text, learningLanguage) {
   window.speechSynthesis.speak(utterance);
 }
 
+// ---------- 整篇文章朗读(跟单词朗读 speakText 分开一套状态机——speakText 每次调用都会先
+// cancel 掉上一个，没法用来做连续多句播放) ----------
+
+let readAloudState = { playing: false, sentenceEls: [], index: 0 };
+
+function startReadAloud() {
+  if (!canSpeak()) return;
+  readAloudState.sentenceEls = [...viewerContent.querySelectorAll(".tts-sentence")];
+  if (readAloudState.sentenceEls.length === 0) return;
+  window.speechSynthesis.cancel();
+  readAloudState.playing = true;
+  readAloudBar.classList.remove("hidden");
+  updateReadAloudPlayPauseIcon();
+  playSentenceAt(0);
+}
+
+function playSentenceAt(i) {
+  const els = readAloudState.sentenceEls;
+  clearReadAloudHighlight();
+  if (i >= els.length) {
+    stopReadAloud();
+    return;
+  }
+  readAloudState.index = i;
+  const el = els[i];
+  el.classList.add("tts-sentence-active");
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  const utterance = new SpeechSynthesisUtterance(el.dataset.sentenceText);
+  utterance.lang = SPEECH_LANG_MAP[currentDocLearningLanguage] || "en-US";
+  utterance.onend = () => {
+    if (readAloudState.playing) playSentenceAt(i + 1);
+  };
+  window.speechSynthesis.speak(utterance);
+}
+
+function clearReadAloudHighlight() {
+  readAloudState.sentenceEls.forEach((el) => el.classList.remove("tts-sentence-active"));
+}
+
+function updateReadAloudPlayPauseIcon() {
+  btnReadAloudPlayPause.innerHTML = iconHTML(readAloudState.playing ? "pause" : "play");
+  btnReadAloudPlayPause.title = t(readAloudState.playing ? "readAloud.pause" : "readAloud.play");
+}
+
+function stopReadAloud() {
+  if (canSpeak()) window.speechSynthesis.cancel();
+  readAloudState.playing = false;
+  clearReadAloudHighlight();
+  readAloudState.sentenceEls = [];
+  readAloudState.index = 0;
+  readAloudBar.classList.add("hidden");
+}
+
+btnReadAloudPlayPause.addEventListener("click", () => {
+  if (!canSpeak()) return;
+  if (readAloudState.playing) {
+    window.speechSynthesis.pause();
+    readAloudState.playing = false;
+  } else {
+    window.speechSynthesis.resume();
+    readAloudState.playing = true;
+  }
+  updateReadAloudPlayPauseIcon();
+});
+
+btnReadAloudStop.addEventListener("click", stopReadAloud);
+
 // ---------- 划词 / 划句 ----------
 
 function showSelectionToolbarForCurrentSelection() {
@@ -1305,10 +1401,13 @@ const SENTENCE_ABBREVIATIONS = new Set([
   "col", "capt", "lt", "sgt", "co", "inc", "ltd", "corp", "ave", "blvd",
 ]);
 
-// 判断某个 . / ! / ? 是不是真正的句子结尾（排除缩写词、人名首字母、小数点）
+const SENTENCE_END_CHARS = new Set([".", "!", "?", "。", "！", "？"]);
+
+// 判断某个句尾符号是不是真正的句子结尾（排除缩写词、人名首字母、小数点）；
+// 中/日/韩的全角标点(。！？)没有缩写/小数点这些歧义，直接算数。
 function isRealSentenceEnd(text, idx) {
   const ch = text[idx];
-  if (ch === "!" || ch === "?") return true;
+  if (ch === "!" || ch === "?" || ch === "。" || ch === "！" || ch === "？") return true;
 
   const before = text.slice(0, idx);
   const after = text.slice(idx + 1);
@@ -1337,7 +1436,7 @@ function isRealSentenceEnd(text, idx) {
 function findSentenceStart(text, fromIndex) {
   for (let i = fromIndex - 1; i >= 0; i--) {
     const ch = text[i];
-    if ((ch === "." || ch === "!" || ch === "?") && isRealSentenceEnd(text, i)) {
+    if (SENTENCE_END_CHARS.has(ch) && isRealSentenceEnd(text, i)) {
       return i + 1;
     }
   }
@@ -1347,11 +1446,25 @@ function findSentenceStart(text, fromIndex) {
 function findSentenceEnd(text, fromIndex) {
   for (let i = fromIndex; i < text.length; i++) {
     const ch = text[i];
-    if ((ch === "." || ch === "!" || ch === "?") && isRealSentenceEnd(text, i)) {
+    if (SENTENCE_END_CHARS.has(ch) && isRealSentenceEnd(text, i)) {
       return i + 1;
     }
   }
   return text.length;
+}
+
+// 把一段文字切成句子数组，供整篇朗读逐句播放用；复用上面的句尾判定逻辑。
+function splitIntoSentences(text) {
+  const sentences = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const end = findSentenceEnd(text, cursor);
+    const chunk = text.slice(cursor, end).trim();
+    if (chunk) sentences.push(chunk);
+    cursor = end;
+    while (cursor < text.length && /\s/.test(text[cursor])) cursor++;
+  }
+  return sentences.length ? sentences : [text];
 }
 
 function extractSentenceContext(selection, selectedText) {
