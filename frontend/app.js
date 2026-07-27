@@ -498,7 +498,50 @@ function buildArticleHeader(content, title, sourceUrl) {
   meta.appendChild(statTime);
 
   header.appendChild(meta);
+
+  if (isCharCounted) {
+    const docId = currentDocId;
+    apiFetch(`/api/coverage/${docId}`).then(async (res) => {
+      if (!res.ok || docId !== currentDocId) return;
+      const data = await res.json();
+      if (data.total_tokens > 0) appendCoverageStat(meta, data.coverage_pct);
+    }).catch(() => {});
+  } else {
+    const coverage = computeLatinCoverage(content, currentDocLearningLanguage);
+    if (coverage) appendCoverageStat(meta, coverage.pct);
+  }
+
   return header;
+}
+
+function appendCoverageStat(meta, pct) {
+  const statCoverage = document.createElement("span");
+  statCoverage.className = "articleStat";
+  statCoverage.textContent = t("article.coverage", { pct });
+  meta.appendChild(statCoverage);
+}
+
+// 拉丁字母语言的覆盖率：跟 buildArticleHeader 里"约 N 词"用的是同一个单词正则，
+// 口径保持一致；已知词表本身不分语言(knownWordsMap 是全局的)，这里手动按学习语言过滤一遍。
+function computeLatinCoverage(content, learningLanguage) {
+  const scopedKnown = new Set(
+    [...knownWordsMap.values()]
+      .filter((v) => v.learning_language === learningLanguage)
+      .map((v) => (v.word || "").trim().toLowerCase())
+  );
+  const matches = content.match(/[A-Za-z]+(?:['’][A-Za-z]+)?/g) || [];
+  if (matches.length === 0) return null;
+  const isEnglish = learningLanguage === "en";
+  let known = 0;
+  matches.forEach((word) => {
+    const lower = word.toLowerCase();
+    if (scopedKnown.has(lower)) {
+      known++;
+    } else if (isEnglish && lemmatizeCandidates(lower).some((c) => scopedKnown.has(c))) {
+      known++;
+    }
+  });
+  return { total: matches.length, known, pct: Math.round((known / matches.length) * 100) };
 }
 
 function displaySourceName(host) {
@@ -607,9 +650,40 @@ function escapeHtml(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// ---------- 英语词形归并(只做英语，中/日/韩不做——形态学复杂度完全不是一个量级，也不在这次
+// 要求的范围内) ----------
+// 产出一组候选词根，而不是单一"正确"词根：候选里没有一个能在已知词表里命中就直接放弃，
+// 所以规则不需要语言学上绝对精确，覆盖 develop/developing/developed 这类常见变化就够用。
+// 不规则动词(went/go)、比较级最高级(better/best)明确不做。
+function lemmatizeCandidates(lowerWord) {
+  const candidates = [];
+  if (lowerWord.length > 4 && lowerWord.endsWith("ies")) {
+    candidates.push(lowerWord.slice(0, -3) + "y");
+  }
+  if (lowerWord.length > 3 && /(?:s|x|z|ch|sh)es$/.test(lowerWord)) {
+    candidates.push(lowerWord.slice(0, -2));
+  }
+  if (lowerWord.length > 3 && lowerWord.endsWith("s") && !lowerWord.endsWith("ss")) {
+    candidates.push(lowerWord.slice(0, -1));
+  }
+  ["ing", "ed"].forEach((suffix) => {
+    if (lowerWord.length > suffix.length + 2 && lowerWord.endsWith(suffix)) {
+      const stem = lowerWord.slice(0, -suffix.length);
+      candidates.push(stem, stem + "e");
+      const last = stem[stem.length - 1];
+      const prev = stem[stem.length - 2];
+      if (last && last === prev && !/[aeiou]/.test(last)) {
+        candidates.push(stem.slice(0, -1));
+      }
+    }
+  });
+  return candidates;
+}
+
 function highlightKnownWords(text) {
   if (knownWords.size === 0) return escapeHtml(text);
 
+  const isEnglish = currentDocLearningLanguage === "en";
   const wordRegex = /[A-Za-z]+(?:['’][A-Za-z]+)?/g;
   let result = "";
   let lastIndex = 0;
@@ -617,8 +691,13 @@ function highlightKnownWords(text) {
   while ((match = wordRegex.exec(text)) !== null) {
     const word = match[0];
     result += escapeHtml(text.slice(lastIndex, match.index));
-    if (knownWords.has(word.toLowerCase())) {
-      result += `<mark class="known-word" data-word="${escapeHtml(word.toLowerCase())}">${escapeHtml(word)}</mark>`;
+    const lower = word.toLowerCase();
+    let matchedKey = knownWords.has(lower) ? lower : null;
+    if (!matchedKey && isEnglish) {
+      matchedKey = lemmatizeCandidates(lower).find((c) => knownWords.has(c)) || null;
+    }
+    if (matchedKey) {
+      result += `<mark class="known-word" data-word="${escapeHtml(matchedKey)}">${escapeHtml(word)}</mark>`;
     } else {
       result += escapeHtml(word);
     }

@@ -200,7 +200,8 @@
   "article": {
     "charCount": "约 {count} 字",
     "wordCount": "约 {count} 词",
-    "readTime": "预计阅读 {minutes} 分钟"
+    "readTime": "预计阅读 {minutes} 分钟",
+    "coverage": "已认识 {pct}%"
   },
   "usage": {
     "cost": "本月约花费 {cost}",

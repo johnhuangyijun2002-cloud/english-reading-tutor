@@ -16,6 +16,7 @@ import asyncpg
 import feedparser
 from cryptography.fernet import Fernet, InvalidToken
 import httpx
+import jieba
 import jieba.posseg as pseg
 from janome.tokenizer import Tokenizer as JanomeTokenizer
 import pdfplumber
@@ -1393,6 +1394,33 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
+@app.get("/api/coverage/{doc_id}")
+async def get_coverage(doc_id: str, user: dict = Depends(get_current_user)):
+    """中/日/韩文章的生词覆盖率——拉丁字母语言前端自己算，不用调这个接口。"""
+    doc = await db_get_document(doc_id)
+    if not doc or doc.get("user_id") != user["id"]:
+        raise HTTPException(404, "没找到这篇文章")
+    lang = doc.get("learning_language", "en")
+    tokenizer = COVERAGE_TOKENIZERS.get(lang)
+    if not tokenizer:
+        raise HTTPException(400, f"这个语言不支持覆盖率统计: {lang}")
+
+    vocab_rows = await db_list_vocab(user["id"])
+    known_words = {v["word"].strip().lower() for v in vocab_rows if v.get("word") and v.get("learning_language") == lang}
+
+    paragraphs = [p.strip() for p in re.split(r"\n+", doc.get("content") or "") if p.strip()]
+    total_tokens = 0
+    known_tokens = 0
+    for p in paragraphs:
+        for token in tokenizer(p):
+            total_tokens += 1
+            if token.strip().lower() in known_words:
+                known_tokens += 1
+
+    coverage_pct = round(known_tokens / total_tokens * 100) if total_tokens else 0
+    return {"total_tokens": total_tokens, "known_tokens": known_tokens, "coverage_pct": coverage_pct}
+
+
 # ---------- 界面语言 / AI 讲解语言 / 学习语言 ----------
 # ui_language：界面文案用哪种语言，目前只开放中/英两个选项。
 # explain_language：AI 讲解输出用哪种语言，'auto' 表示跟随 ui_language 实时计算，
@@ -1828,6 +1856,44 @@ def extract_immersion_candidates(paragraph: str, source_language: str, exclude_p
     对应的分词实现；未登记的语言默认退化到英语规则分词。"""
     tokenizer_key = IMMERSION_TOKENIZERS.get(source_language, IMMERSION_TOKENIZERS["en"])["tokenizer"]
     return _IMMERSION_TOKENIZER_FUNCS[tokenizer_key](paragraph, exclude_proper_nouns)
+
+
+# ---------- 生词覆盖率(跟沉浸模式共用底层分词器，但统计口径不同：这里要统计"这篇文章一共多少个
+# 词"，所以不筛词性、不去重，跟前端"约 N 词"的字数统计口径保持一致；沉浸模式那套 tokenize_xx()
+# 是特意筛过的实义词候选集，直接拿来当分母会把覆盖率算得偏高，所以中/日/韩单独写这三个"数全部"版本) ----------
+
+def tokenize_coverage_zh(paragraph: str) -> list:
+    return [w for w in jieba.cut(paragraph) if w.strip() and re.search(r"[\w一-鿿]", w)]
+
+
+def tokenize_coverage_ja(paragraph: str) -> list:
+    tokens = []
+    for token in _get_janome_tokenizer().tokenize(paragraph):
+        word = token.surface.strip()
+        if not word or (len(word) == 1 and _JA_HIRAGANA_RE.match(word)):
+            continue
+        tokens.append(word)
+    return tokens
+
+
+def tokenize_coverage_ko(paragraph: str) -> list:
+    tokens = []
+    for m in _KO_TOKEN_RE.finditer(paragraph):
+        stem = m.group(0)
+        for suf in _KO_PARTICLE_SUFFIXES:
+            if stem.endswith(suf) and len(stem) > len(suf):
+                stem = stem[: -len(suf)]
+                break
+        if stem:
+            tokens.append(stem)
+    return tokens
+
+
+COVERAGE_TOKENIZERS = {
+    "zh": tokenize_coverage_zh,
+    "ja": tokenize_coverage_ja,
+    "ko": tokenize_coverage_ko,
+}
 
 
 def compute_immersion_replace_counts(candidate_counts: list, start_pct: float, end_pct: float) -> list:

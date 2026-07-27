@@ -200,7 +200,8 @@
   "article": {
     "charCount": "~{count} characters",
     "wordCount": "~{count} words",
-    "readTime": "~{minutes} min read"
+    "readTime": "~{minutes} min read",
+    "coverage": "{pct}% known"
   },
   "usage": {
     "cost": "~{cost} spent this month",
