@@ -1485,9 +1485,12 @@ async def _call_openai_compatible(url: str, model: str, api_key: str, prompt: st
         resp = await client.post(url, headers={"Authorization": f"Bearer {api_key}"}, json=payload)
     if resp.status_code != 200:
         raise HTTPException(502, f"AI 接口调用失败: {resp.text}")
-    data = resp.json()
-    usage = data.get("usage", {})
-    return data["choices"][0]["message"]["content"], usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
+    try:
+        data = resp.json()
+        usage = data.get("usage", {})
+        return data["choices"][0]["message"]["content"], usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
+    except (json.JSONDecodeError, KeyError, IndexError):
+        raise HTTPException(502, f"AI 返回格式异常: {resp.text}")
 
 
 async def _call_claude(api_key: str, prompt: str, json_mode: bool):
