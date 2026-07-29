@@ -1890,15 +1890,10 @@ COVERAGE_TOKENIZERS = {
 }
 
 
-def compute_immersion_replace_counts(candidate_counts: list, start_pct: float, end_pct: float) -> list:
-    """candidate_counts[i] = 第 i 段候选词数量；按段落顺序在 start_pct~end_pct 之间线性递增，
-    返回每段该替换几个词。"""
-    n = len(candidate_counts)
-    counts = []
-    for i, n_candidates in enumerate(candidate_counts):
-        pct = start_pct + (end_pct - start_pct) * i / max(1, n - 1)
-        counts.append(min(n_candidates, round(pct / 100 * n_candidates)))
-    return counts
+def compute_immersion_replace_counts(candidate_counts: list, ratio: float) -> list:
+    """candidate_counts[i] = 第 i 段候选词数量；固定比例，每段都按同一个百分比换词，
+    不随段落顺序递增。"""
+    return [min(n_candidates, round(ratio / 100 * n_candidates)) for n_candidates in candidate_counts]
 
 
 def build_immersion_prompt(paragraph_group: list, learning_language: str, explain_language: str,
@@ -1938,8 +1933,7 @@ class ImmersionPlanRequest(BaseModel):
     content: str
     source_language: str = ""  # 文章本身的语言；留空(默认)由后端从内容自动检测，不要传文档的 learning_language
     learning_language: str = "en"
-    start_ratio: float = 10  # 百分比，10 表示 10%
-    end_ratio: float = 30
+    ratio: float = 20  # 百分比，固定值，不随段落递增
     exclude_proper_nouns: bool = True
     source_priority: str = "vocab"  # "vocab" | "frequency"
 
@@ -1961,7 +1955,7 @@ class ImmersionPlanResponse(BaseModel):
 
 
 @app.post("/api/immersion/plan", response_model=ImmersionPlanResponse)
-@limiter.limit("10/minute")
+@limiter.limit("20/minute")
 async def get_immersion_plan(request: Request, req: ImmersionPlanRequest, user: dict = Depends(get_current_user)):
     if req.learning_language not in LANGUAGE_LABELS:
         raise HTTPException(400, f"不支持的目标语言: {req.learning_language}")
@@ -1986,7 +1980,7 @@ async def get_immersion_plan(request: Request, req: ImmersionPlanRequest, user: 
         extract_immersion_candidates(p, source_language, req.exclude_proper_nouns) for p in paragraphs
     ]
     replace_counts = compute_immersion_replace_counts(
-        [len(c) for c in candidates_per_paragraph], req.start_ratio, req.end_ratio
+        [len(c) for c in candidates_per_paragraph], req.ratio
     )
 
     known_vocab = []

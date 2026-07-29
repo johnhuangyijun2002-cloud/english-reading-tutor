@@ -49,8 +49,7 @@
     "sans": "Sans",
     "serif": "Serif",
     "immersion": "Immersion mode",
-    "immersionStart": "Start ratio",
-    "immersionEnd": "End ratio"
+    "immersionRatio": "Replacement ratio"
   },
   "immersion": {
     "saveTitle": "Save this session's words?",

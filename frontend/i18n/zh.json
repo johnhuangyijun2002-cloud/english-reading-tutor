@@ -49,8 +49,7 @@
     "sans": "无衬线",
     "serif": "衬线",
     "immersion": "沉浸模式",
-    "immersionStart": "起始替换比例",
-    "immersionEnd": "最终替换比例"
+    "immersionRatio": "替换比例"
   },
   "immersion": {
     "saveTitle": "保存本次沉浸阅读的生词？",

@@ -49,8 +49,7 @@
     "sans": "고딕체",
     "serif": "명조체",
     "immersion": "몰입 모드",
-    "immersionStart": "시작 대체 비율",
-    "immersionEnd": "최종 대체 비율"
+    "immersionRatio": "대체 비율"
   },
   "immersion": {
     "saveTitle": "이번 몰입 읽기에서 배운 단어를 저장할까요?",

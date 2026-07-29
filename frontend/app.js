@@ -187,8 +187,7 @@ let pendingSelectionContext = "";
 
 // ---------- 渐进沉浸阅读模式：会话级状态，每次 loadDocument() 都会重置 ----------
 let immersionEnabled = false;
-let immersionStartRatio = 10;
-let immersionEndRatio = 30;
+let immersionRatio = 20;
 let immersionPlan = null; // 后端 /api/immersion/plan 的返回值，缓存到切换文章为止
 let immersionResolvedLanguage = "en"; // 沉浸模式实际用的目标语言（可能是全局覆盖值，不一定等于 currentDocLearningLanguage）
 let immersionWordsMap = new Map(); // 小写目标词 -> {word, chinese_meaning, ipa, pos, sentence, ...}，形状故意跟 knownWordsMap 一致
@@ -214,11 +213,8 @@ const btnReaderSettings = document.getElementById("btnReaderSettings");
 const readerSettingsPanel = document.getElementById("readerSettingsPanel");
 
 const immersionRatioRow1 = document.getElementById("immersionRatioRow1");
-const immersionRatioRow2 = document.getElementById("immersionRatioRow2");
-const immersionStartSlider = document.getElementById("immersionStartSlider");
-const immersionEndSlider = document.getElementById("immersionEndSlider");
-const immersionStartValue = document.getElementById("immersionStartValue");
-const immersionEndValue = document.getElementById("immersionEndValue");
+const immersionRatioSlider = document.getElementById("immersionRatioSlider");
+const immersionRatioValue = document.getElementById("immersionRatioValue");
 const immersionSaveOverlay = document.getElementById("immersionSaveOverlay");
 const immersionSaveList = document.getElementById("immersionSaveList");
 const btnImmersionSaveSkip = document.getElementById("btnImmersionSaveSkip");
@@ -740,7 +736,6 @@ function resetImmersionSessionState() {
     btn.classList.toggle("active", btn.dataset.value === "off");
   });
   immersionRatioRow1.classList.add("hidden");
-  immersionRatioRow2.classList.add("hidden");
 }
 
 function applyImmersionSubstitutions(html, paragraphIndex, paragraphText) {
@@ -796,8 +791,7 @@ async function fetchImmersionPlan() {
         // 文章母语不在这里传：learning_language 是"这篇文章在学什么"，不是"文章是什么语言写的"，
         // 后端会直接从 content 检测真实语言来选分词器。
         learning_language: immersionResolvedLanguage,
-        start_ratio: immersionStartRatio,
-        end_ratio: immersionEndRatio,
+        ratio: immersionRatio,
         exclude_proper_nouns: settingsData.immersion_exclude_proper_nouns,
         source_priority: settingsData.immersion_source_priority,
       }),
@@ -843,7 +837,6 @@ document.querySelectorAll(".immersionToggle button").forEach((btn) => {
     const turningOn = btn.dataset.value === "on";
     document.querySelectorAll(".immersionToggle button").forEach((b) => b.classList.toggle("active", b === btn));
     immersionRatioRow1.classList.toggle("hidden", !turningOn);
-    immersionRatioRow2.classList.toggle("hidden", !turningOn);
     immersionEnabled = turningOn;
     if (turningOn) {
       if (!currentDocId) return;
@@ -866,37 +859,12 @@ document.querySelectorAll('.settingsOptions[data-setting="immersionSourcePriorit
 });
 
 function updateImmersionSliderDisplay() {
-  let startVal = Number(immersionStartSlider.value);
-  let endVal = Number(immersionEndSlider.value);
-  if (startVal > endVal) {
-    endVal = startVal;
-    immersionEndSlider.value = String(endVal);
-  }
-  immersionStartValue.textContent = startVal + "%";
-  immersionEndValue.textContent = endVal + "%";
-  immersionStartRatio = startVal;
-  immersionEndRatio = endVal;
+  immersionRatio = Number(immersionRatioSlider.value);
+  immersionRatioValue.textContent = immersionRatio + "%";
 }
 
-function updateImmersionSliderDisplayFromEnd() {
-  let endVal = Number(immersionEndSlider.value);
-  let startVal = Number(immersionStartSlider.value);
-  if (endVal < startVal) {
-    startVal = endVal;
-    immersionStartSlider.value = String(startVal);
-  }
-  immersionStartValue.textContent = startVal + "%";
-  immersionEndValue.textContent = endVal + "%";
-  immersionStartRatio = startVal;
-  immersionEndRatio = endVal;
-}
-
-immersionStartSlider.addEventListener("input", updateImmersionSliderDisplay);
-immersionEndSlider.addEventListener("input", updateImmersionSliderDisplayFromEnd);
-immersionStartSlider.addEventListener("change", async () => {
-  if (immersionEnabled) await fetchImmersionPlan();
-});
-immersionEndSlider.addEventListener("change", async () => {
+immersionRatioSlider.addEventListener("input", updateImmersionSliderDisplay);
+immersionRatioSlider.addEventListener("change", async () => {
   if (immersionEnabled) await fetchImmersionPlan();
 });
 
