@@ -939,15 +939,6 @@ async def change_username(req: ChangeUsernameRequest, user: dict = Depends(get_c
     return {"ok": True, "username": new_username, "name": new_username}
 
 
-@app.get("/api/admin/users")
-async def list_registered_users(user: dict = Depends(get_current_user)):
-    if not user.get("is_owner"):
-        raise HTTPException(403, "只有主账号能查看用户列表")
-    pool = await get_pool()
-    rows = await pool.fetch("SELECT name, is_owner FROM users ORDER BY name")
-    return [{"name": r["name"], "is_owner": r["is_owner"]} for r in rows]
-
-
 @app.get("/api/account/export")
 @limiter.limit("5/minute")
 async def export_account_data(request: Request, user: dict = Depends(get_current_user)):

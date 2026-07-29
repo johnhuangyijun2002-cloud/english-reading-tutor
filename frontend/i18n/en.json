@@ -141,13 +141,11 @@
     "googleLinkFailed": "Linking failed: {message}",
     "googleLinkSuccess": "Google account linked. You can now sign in with Google to access this account.",
     "logout": "Log Out",
-    "registeredUsers": "Registered Users",
     "accountData": "Account Data",
     "exportData": "Export My Data",
     "deleteAccount": "Delete Account",
     "userLine": "Signed in as: {name}{ownerTag}",
-    "ownerTag": " (owner)",
-    "youTag": " (you)"
+    "ownerTag": " (owner)"
   },
   "welcome": {
     "title": "Welcome — your account is ready",

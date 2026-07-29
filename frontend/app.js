@@ -310,9 +310,6 @@ const changePasswordStatus = document.getElementById("changePasswordStatus");
 const googleLinkStatus = document.getElementById("googleLinkStatus");
 const btnLinkGoogle = document.getElementById("btnLinkGoogle");
 
-const inviteBlock = document.getElementById("inviteBlock");
-const invitedUsersList = document.getElementById("invitedUsersList");
-
 const btnExportData = document.getElementById("btnExportData");
 const btnDeleteAccount = document.getElementById("btnDeleteAccount");
 const accountDataStatus = document.getElementById("accountDataStatus");
@@ -2269,9 +2266,6 @@ async function loadSettingsIntoPanel() {
     ? t("settings.googleLinkedStatus", { email: data.google_email })
     : t("settings.googleUnlinkedStatus");
   btnLinkGoogle.textContent = data.has_google ? t("settings.googleLinkBtnRelink") : t("settings.googleLinkBtn");
-
-  inviteBlock.classList.toggle("hidden", !data.is_owner);
-  if (data.is_owner) loadInvitedUsers();
 }
 
 btnLinkGoogle.addEventListener("click", async () => {
@@ -2381,13 +2375,6 @@ btnDeleteAccount.addEventListener("click", async () => {
     btnDeleteAccount.disabled = false;
   }
 });
-
-async function loadInvitedUsers() {
-  const res = await apiFetch("/api/admin/users");
-  if (!res.ok) return;
-  const users = await res.json();
-  invitedUsersList.textContent = users.map((u) => u.name + (u.is_owner ? t("settings.youTag") : "")).join(currentUiLanguage === "en" ? ", " : "、");
-}
 
 function updateKeyHint() {
   if (!settingsDataCache) return;

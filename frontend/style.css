@@ -1913,17 +1913,6 @@ body {
   cursor: pointer;
 }
 
-.inviteBlock {
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-.invitedUsersList {
-  font-size: 12px;
-  color: var(--text-secondary);
-  min-height: 16px;
-}
-
 /* ---------- 登录(邀请码) ---------- */
 
 #loginOverlay {

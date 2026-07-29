@@ -141,13 +141,11 @@
     "googleLinkFailed": "关联失败：{message}",
     "googleLinkSuccess": "Google 账号关联成功，以后用 Google 登录也能看到这个账号下的内容",
     "logout": "退出登录",
-    "registeredUsers": "已注册用户",
     "accountData": "账号数据",
     "exportData": "导出我的数据",
     "deleteAccount": "删除账号",
     "userLine": "登录身份：{name}{ownerTag}",
-    "ownerTag": "（主账号）",
-    "youTag": "（你）"
+    "ownerTag": "（主账号）"
   },
   "welcome": {
     "title": "欢迎，账号已经注册好了",

@@ -141,13 +141,11 @@
     "googleLinkFailed": "연동 실패: {message}",
     "googleLinkSuccess": "Google 계정이 연동됐어요. 앞으로 Google 로그인으로도 이 계정을 사용할 수 있어요.",
     "logout": "로그아웃",
-    "registeredUsers": "가입한 사용자",
     "accountData": "계정 데이터",
     "exportData": "내 데이터 내보내기",
     "deleteAccount": "계정 삭제",
     "userLine": "로그인 계정: {name}{ownerTag}",
-    "ownerTag": " (관리자)",
-    "youTag": " (나)"
+    "ownerTag": " (관리자)"
   },
   "welcome": {
     "title": "환영해요 — 계정이 준비됐어요",
