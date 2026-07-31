@@ -57,7 +57,8 @@
     "saveConfirm": "保存选中的词",
     "saveWord": "存入生词本",
     "planFailed": "沉浸模式准备失败：{message}",
-    "saveFailed": "保存失败：{message}"
+    "saveFailed": "保存失败：{message}",
+    "loading": "正在生成沉浸版本..."
   },
   "review": {
     "title": "生词复习",

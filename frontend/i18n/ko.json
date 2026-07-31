@@ -57,7 +57,8 @@
     "saveConfirm": "선택한 단어 저장",
     "saveWord": "단어장에 저장",
     "planFailed": "몰입 모드 준비 실패: {message}",
-    "saveFailed": "저장 실패: {message}"
+    "saveFailed": "저장 실패: {message}",
+    "loading": "몰입 버전 생성 중..."
   },
   "review": {
     "title": "단어 복습",

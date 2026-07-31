@@ -57,7 +57,8 @@
     "saveConfirm": "Save selected words",
     "saveWord": "Save to vocab book",
     "planFailed": "Couldn't set up immersion mode: {message}",
-    "saveFailed": "Save failed: {message}"
+    "saveFailed": "Save failed: {message}",
+    "loading": "Generating immersion version..."
   },
   "review": {
     "title": "Vocab Review",

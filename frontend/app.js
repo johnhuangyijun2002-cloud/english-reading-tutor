@@ -215,6 +215,7 @@ const readerSettingsPanel = document.getElementById("readerSettingsPanel");
 const immersionRatioRow1 = document.getElementById("immersionRatioRow1");
 const immersionRatioSlider = document.getElementById("immersionRatioSlider");
 const immersionRatioValue = document.getElementById("immersionRatioValue");
+const immersionLoadingBar = document.getElementById("immersionLoadingBar");
 const immersionSaveOverlay = document.getElementById("immersionSaveOverlay");
 const immersionSaveList = document.getElementById("immersionSaveList");
 const btnImmersionSaveSkip = document.getElementById("btnImmersionSaveSkip");
@@ -774,6 +775,12 @@ function applyImmersionSubstitutions(html, paragraphIndex, paragraphText) {
   return result;
 }
 
+function setImmersionLoading(loading) {
+  immersionLoadingBar.classList.toggle("hidden", !loading);
+  document.querySelectorAll(".immersionToggle button").forEach((b) => (b.disabled = loading));
+  immersionRatioSlider.disabled = loading;
+}
+
 async function fetchImmersionPlan() {
   if (!currentDocId) return;
   const settingsRes = await apiFetch("/api/settings");
@@ -846,7 +853,12 @@ document.querySelectorAll(".immersionToggle button").forEach((btn) => {
     immersionEnabled = turningOn;
     if (turningOn) {
       if (!currentDocId) return;
-      await fetchImmersionPlan();
+      try {
+        setImmersionLoading(true);
+        await fetchImmersionPlan();
+      } finally {
+        setImmersionLoading(false);
+      }
     } else {
       immersionPlan = null;
       renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
@@ -871,7 +883,13 @@ function updateImmersionSliderDisplay() {
 
 immersionRatioSlider.addEventListener("input", updateImmersionSliderDisplay);
 immersionRatioSlider.addEventListener("change", async () => {
-  if (immersionEnabled) await fetchImmersionPlan();
+  if (!immersionEnabled) return;
+  try {
+    setImmersionLoading(true);
+    await fetchImmersionPlan();
+  } finally {
+    setImmersionLoading(false);
+  }
 });
 
 let immersionSaveSnapshot = null; // {wordsMap, clickedSet}，弹窗当前展示的是哪一批词
