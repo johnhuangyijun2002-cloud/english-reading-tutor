@@ -2077,7 +2077,15 @@ LANGUAGE_SOURCES = {
     "es": [
         {"name": "BBC Mundo", "url": "https://feeds.bbci.co.uk/mundo/rss.xml"},
     ],
+    "zh": [
+        {"name": "BBC 中文", "url": "https://www.bbc.com/zhongwen/simp/index.xml"},
+        {"name": "DW 中文", "url": "https://rss.dw.com/xml/rss-chi-all"},
+        {"name": "RFI 中文", "url": "https://www.rfi.fr/cn/rss"},
+        {"name": "RFA 中文", "url": "https://www.rfa.org/mandarin/rss2.xml"},
+    ],
 }
+# zh 这几个源同样没能实测连通性(理由同上)；zh 目前唯一的用途是"母语新闻"接口
+# (母语=界面语言=zh 的用户)，不参与 AI 推荐(推荐是给"正在学的语言"配的，没人会选择学母语)。
 DEFAULT_RECOMMEND_LANGUAGE = "en"
 
 # 只有 en 是根据这个具体用户的真实水平写的；其它语言用一个通用的中等水平描述。
@@ -2088,6 +2096,8 @@ DEFAULT_RECOMMEND_LEVEL_DESC = "中等水平的语言学习者（约B1-B2水平�
 
 _recommend_cache = {}  # (user_id, learning_language) -> {"data": [...], "ts": datetime}
 RECOMMEND_CACHE_SECONDS = 3 * 60 * 60
+
+_native_news_cache = {}  # (user_id, ui_language) -> {"data": [...], "ts": datetime}
 
 
 def _strip_html(text: str) -> str:
@@ -2195,6 +2205,45 @@ async def get_recommendations(
         })
 
     _recommend_cache[cache_key] = {"data": results, "ts": now}
+    return results
+
+
+# ---------- 母语新闻抓取(沉浸模式素材，母语=界面语言，不做 AI 难度分级) ----------
+
+
+@app.get("/api/immersion/native-news")
+async def get_native_news(
+    refresh: bool = False,
+    user: dict = Depends(get_current_user),
+):
+    native_lang = user.get("ui_language", "en")
+    if native_lang not in LANGUAGE_SOURCES:
+        lang_label = LANGUAGE_LABELS.get(native_lang, native_lang)
+        raise HTTPException(400, f"暂时还没有给「{lang_label}」配置母语新闻源")
+
+    cache_key = (user["id"], native_lang)
+    now = datetime.now(timezone.utc)
+    cache_entry = _native_news_cache.get(cache_key)
+    if not refresh and cache_entry:
+        age = (now - cache_entry["ts"]).total_seconds()
+        if age < RECOMMEND_CACHE_SECONDS:
+            return cache_entry["data"]
+
+    items = await asyncio.to_thread(fetch_headlines, native_lang)
+    if not items:
+        source_names = dict.fromkeys(s["name"] for s in LANGUAGE_SOURCES.get(native_lang, []))
+        raise HTTPException(502, f"{' / '.join(source_names)} 暂时无法访问，请稍后重试")
+
+    results = []
+    seen_urls = set()
+    for item in items:
+        if item["url"] in seen_urls:
+            continue
+        seen_urls.add(item["url"])
+        results.append(item)
+    results = results[:12]
+
+    _native_news_cache[cache_key] = {"data": results, "ts": now}
     return results
 
 

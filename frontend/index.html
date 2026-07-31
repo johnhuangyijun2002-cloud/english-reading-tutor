@@ -73,6 +73,20 @@
     </div>
   </div>
 
+  <div id="nativeNewsPanelOverlay" class="hidden">
+    <div id="nativeNewsPanel">
+      <div class="recommendHeader">
+        <h2 data-i18n="nativeNews.title">母语新闻</h2>
+        <button id="btnNativeNewsRefresh" class="btn btn-ghost btn-small" data-i18n="recommend.refresh">换一批</button>
+      </div>
+      <p id="nativeNewsLangHint"></p>
+      <div id="nativeNewsList"></div>
+      <div class="pasteActions">
+        <button id="btnNativeNewsClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <div id="pastePanelOverlay" class="hidden">
     <div id="pastePanel">
       <div class="pasteTabs">
@@ -400,6 +414,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg>
         </span>
         <span class="navLabel" data-i18n="nav.recommend">AI 推荐</span>
+      </button>
+      <button class="navItem" id="btnNativeNews">
+        <span class="navIcon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 6h3a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1h11z" /><path d="M18 14h-8" /><path d="M15 18h-5" /><path d="M10 6h4v4h-4z" /></svg>
+        </span>
+        <span class="navLabel" data-i18n="nav.nativeNews">母语新闻</span>
       </button>
       <button class="navItem" id="btnAccountSettings">
         <span class="navIcon" aria-hidden="true">

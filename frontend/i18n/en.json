@@ -24,7 +24,8 @@
     "docManager": "Articles",
     "recommend": "AI Picks",
     "settings": "Settings",
-    "review": "Review"
+    "review": "Review",
+    "nativeNews": "Native News"
   },
   "docManager": {
     "title": "Manage Articles",
@@ -70,6 +71,13 @@
     "dontKnow": "Don't know",
     "exit": "Exit",
     "sessionComplete": "Review complete"
+  },
+  "nativeNews": {
+    "title": "Native Language News (immersion material)",
+    "langHint": "Matched to your native language ({language}) — importing one turns on immersion mode automatically",
+    "loading": "Fetching news...",
+    "empty": "No news available right now, try \"Refresh\"",
+    "failed": "Failed to load: {message}"
   },
   "recommend": {
     "title": "Today's Picks",

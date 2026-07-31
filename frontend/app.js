@@ -237,6 +237,12 @@ const recommendList = document.getElementById("recommendList");
 const btnRecommendRefresh = document.getElementById("btnRecommendRefresh");
 const btnRecommendClose = document.getElementById("btnRecommendClose");
 
+const btnNativeNews = document.getElementById("btnNativeNews");
+const nativeNewsPanelOverlay = document.getElementById("nativeNewsPanelOverlay");
+const nativeNewsList = document.getElementById("nativeNewsList");
+const btnNativeNewsRefresh = document.getElementById("btnNativeNewsRefresh");
+const btnNativeNewsClose = document.getElementById("btnNativeNewsClose");
+
 const usageBadge = document.getElementById("usageBadge");
 
 const btnSearchHistory = document.getElementById("btnSearchHistory");
@@ -1223,6 +1229,86 @@ function renderRecommendations(picks, learningLanguage) {
     });
 
     recommendList.appendChild(card);
+  });
+}
+
+// ---------- 母语新闻(沉浸模式素材，母语=界面语言，点进去直接开沉浸阅读) ----------
+
+btnNativeNews.addEventListener("click", () => {
+  nativeNewsPanelOverlay.classList.remove("hidden");
+  loadNativeNews(false);
+});
+
+btnNativeNewsClose.addEventListener("click", () => {
+  nativeNewsPanelOverlay.classList.add("hidden");
+});
+
+nativeNewsPanelOverlay.addEventListener("click", (e) => {
+  if (e.target === nativeNewsPanelOverlay) nativeNewsPanelOverlay.classList.add("hidden");
+});
+
+btnNativeNewsRefresh.addEventListener("click", () => loadNativeNews(true));
+
+async function loadNativeNews(refresh) {
+  nativeNewsList.innerHTML = `<p class="recommend-loading">${t("nativeNews.loading")}</p>`;
+  btnNativeNewsRefresh.disabled = true;
+  try {
+    document.getElementById("nativeNewsLangHint").textContent = t("nativeNews.langHint", {
+      language: t(`languages.${currentUiLanguage}`),
+    });
+    const params = new URLSearchParams();
+    if (refresh) params.set("refresh", "true");
+    const res = await apiFetch(`/api/immersion/native-news?${params.toString()}`);
+    if (!res.ok) throw new Error(await res.text());
+    const items = await res.json();
+    renderNativeNews(items);
+  } catch (err) {
+    nativeNewsList.innerHTML = `<p class="recommend-loading">${t("nativeNews.failed", { message: err.message })}</p>`;
+  } finally {
+    btnNativeNewsRefresh.disabled = false;
+  }
+}
+
+function renderNativeNews(items) {
+  if (!items || items.length === 0) {
+    nativeNewsList.innerHTML = `<p class="recommend-loading">${t("nativeNews.empty")}</p>`;
+    return;
+  }
+  nativeNewsList.innerHTML = "";
+  items.forEach((item) => {
+    const card = document.createElement("div");
+    card.className = "recCard";
+    card.innerHTML = `
+      <div class="recCard-title"></div>
+      <div class="recCard-reason"></div>
+      <div class="recCard-footer">
+        <span class="recCard-source"></span>
+        <button class="btn btn-primary btn-small">${t("recommend.readThis")}</button>
+      </div>
+    `;
+    card.querySelector(".recCard-title").textContent = item.title;
+    card.querySelector(".recCard-reason").textContent = item.summary || "";
+    card.querySelector(".recCard-source").textContent = item.source;
+
+    const readBtn = card.querySelector(".btn-primary");
+    readBtn.textContent = t("recommend.readThis");
+    readBtn.addEventListener("click", async () => {
+      readBtn.disabled = true;
+      readBtn.textContent = t("recommend.fetching");
+      try {
+        const doc = await fetchUrlAsDocument(item.url, getLastLearningLanguage());
+        await refreshDocuments(doc.id);
+        nativeNewsPanelOverlay.classList.add("hidden");
+        const immersionOnBtn = document.querySelector('.immersionToggle button[data-value="on"]');
+        if (immersionOnBtn && !immersionOnBtn.classList.contains("active")) immersionOnBtn.click();
+      } catch (err) {
+        alert(t("paste.fetchFailed", { message: err.message }));
+        readBtn.disabled = false;
+        readBtn.textContent = t("recommend.readThis");
+      }
+    });
+
+    nativeNewsList.appendChild(card);
   });
 }
 

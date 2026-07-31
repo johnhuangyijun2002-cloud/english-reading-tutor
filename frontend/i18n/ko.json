@@ -24,7 +24,8 @@
     "docManager": "글 관리",
     "recommend": "AI 추천",
     "settings": "설정",
-    "review": "복습"
+    "review": "복습",
+    "nativeNews": "모국어 뉴스"
   },
   "docManager": {
     "title": "글 관리",
@@ -70,6 +71,13 @@
     "dontKnow": "몰라요",
     "exit": "나가기",
     "sessionComplete": "복습 완료"
+  },
+  "nativeNews": {
+    "title": "모국어 뉴스 (몰입 모드 소재)",
+    "langHint": "회원님의 모국어({language})에 맞춰 매칭했어요. 가져오면 몰입 모드가 자동으로 켜져요",
+    "loading": "뉴스를 가져오는 중...",
+    "empty": "지금은 가져올 뉴스가 없어요. \"다시 추천받기\"를 눌러보세요",
+    "failed": "가져오기 실패: {message}"
   },
   "recommend": {
     "title": "오늘의 추천",
