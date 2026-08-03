@@ -25,7 +25,8 @@
     "recommend": "AI Picks",
     "settings": "Settings",
     "review": "Review",
-    "nativeNews": "Native News"
+    "nativeNews": "Native News",
+    "stats": "Stats"
   },
   "docManager": {
     "title": "Manage Articles",
@@ -72,6 +73,16 @@
     "dontKnow": "Don't know",
     "exit": "Exit",
     "sessionComplete": "Review complete"
+  },
+  "stats": {
+    "title": "My Learning Stats",
+    "streakBadge": "{count}-day streak",
+    "streakHint": "Consecutive days reading or reviewing",
+    "days": "days",
+    "vocabCount": "Total words saved",
+    "docCount": "Articles imported",
+    "accuracyTrend": "Review accuracy trend (last 14 days)",
+    "noData": "No review activity"
   },
   "nativeNews": {
     "title": "Native Language News (immersion material)",

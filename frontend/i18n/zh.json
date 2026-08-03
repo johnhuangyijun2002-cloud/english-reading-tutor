@@ -25,7 +25,8 @@
     "recommend": "AI 推荐",
     "settings": "设置",
     "review": "复习",
-    "nativeNews": "母语新闻"
+    "nativeNews": "母语新闻",
+    "stats": "学习统计"
   },
   "docManager": {
     "title": "文章管理",
@@ -72,6 +73,16 @@
     "dontKnow": "不认识",
     "exit": "退出",
     "sessionComplete": "复习完成"
+  },
+  "stats": {
+    "title": "我的学习统计",
+    "streakBadge": "连续 {count} 天",
+    "streakHint": "连续阅读/复习天数",
+    "days": "天",
+    "vocabCount": "累计生词数",
+    "docCount": "读过的文章数",
+    "accuracyTrend": "复习正确率趋势（近 14 天）",
+    "noData": "当天无复习记录"
   },
   "nativeNews": {
     "title": "母语新闻（沉浸模式素材）",

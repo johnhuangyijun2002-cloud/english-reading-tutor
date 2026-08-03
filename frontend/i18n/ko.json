@@ -25,7 +25,8 @@
     "recommend": "AI 추천",
     "settings": "설정",
     "review": "복습",
-    "nativeNews": "모국어 뉴스"
+    "nativeNews": "모국어 뉴스",
+    "stats": "학습 통계"
   },
   "docManager": {
     "title": "글 관리",
@@ -72,6 +73,16 @@
     "dontKnow": "몰라요",
     "exit": "나가기",
     "sessionComplete": "복습 완료"
+  },
+  "stats": {
+    "title": "나의 학습 통계",
+    "streakBadge": "연속 {count}일",
+    "streakHint": "연속 읽기/복습 일수",
+    "days": "일",
+    "vocabCount": "누적 단어 수",
+    "docCount": "가져온 글 수",
+    "accuracyTrend": "복습 정답률 추이(최근 14일)",
+    "noData": "그날 복습 기록 없음"
   },
   "nativeNews": {
     "title": "모국어 뉴스 (몰입 모드 소재)",

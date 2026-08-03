@@ -18,6 +18,7 @@ const ICON_PATHS = {
   play: '<polygon points="6 3 20 12 6 21 6 3" />',
   pause: '<rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" />',
   square: '<rect x="3" y="3" width="18" height="18" rx="2" />',
+  flame: '<path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4" />',
 };
 
 function iconHTML(name, extraClass) {
@@ -245,6 +246,17 @@ const btnNativeNewsRefresh = document.getElementById("btnNativeNewsRefresh");
 const btnNativeNewsClose = document.getElementById("btnNativeNewsClose");
 
 const usageBadge = document.getElementById("usageBadge");
+const streakBadge = document.getElementById("streakBadge");
+
+const btnStats = document.getElementById("btnStats");
+const statsPanelOverlay = document.getElementById("statsPanelOverlay");
+const statsStreakNumber = document.getElementById("statsStreakNumber");
+const statsWeekStrip = document.getElementById("statsWeekStrip");
+const statsVocabCount = document.getElementById("statsVocabCount");
+const statsDocCount = document.getElementById("statsDocCount");
+const statsAccuracyChart = document.getElementById("statsAccuracyChart");
+const btnStatsClose = document.getElementById("btnStatsClose");
+let latestStats = null;
 
 const btnSearchHistory = document.getElementById("btnSearchHistory");
 const searchPanelOverlay = document.getElementById("searchPanelOverlay");
@@ -406,6 +418,9 @@ docSelect.addEventListener("change", () => {
 });
 
 function loadDocument(doc) {
+  // 打卡/统计用的"今天读过东西"信号，不等待、不影响阅读——网络失败或超时都无所谓。
+  apiFetch("/api/activity/read-ping", { method: "POST" }).catch(() => {});
+
   // 切换到另一篇文章之前，如果上一篇开着沉浸模式还有没保存的替换词，先留个快照，
   // 等新文章加载完再弹出确认框——不阻塞切换文章本身，用户看到的是"已经在看新文章了，
   // 同时弹出一个要不要保存上一篇生词的提示"，而不是被卡住必须先处理完才能继续。
@@ -652,6 +667,72 @@ async function loadUsage() {
     // 统计接口失败不影响主功能，静默忽略
   }
 }
+
+// ---------- 打卡连续天数 / 学习数据面板 ----------
+
+async function loadStats() {
+  try {
+    const res = await apiFetch("/api/stats");
+    const data = await res.json();
+    latestStats = data;
+    streakBadge.innerHTML = `${iconHTML("flame", "inline-icon")} ${t("stats.streakBadge", { count: data.streak_days })}`;
+  } catch (err) {
+    // 统计接口失败不影响主功能，静默忽略
+  }
+}
+
+function renderStats(data) {
+  if (!data) return;
+  statsStreakNumber.textContent = data.streak_days;
+  statsVocabCount.textContent = data.vocab_count;
+  statsDocCount.textContent = data.document_count;
+
+  statsWeekStrip.innerHTML = "";
+  data.last_7_days.forEach((d) => {
+    const cell = document.createElement("div");
+    cell.className = "statsWeekCell" + (d.active ? " active" : "");
+    cell.title = d.date;
+    statsWeekStrip.appendChild(cell);
+  });
+
+  statsAccuracyChart.innerHTML = "";
+  data.accuracy_trend.forEach((d) => {
+    const bar = document.createElement("div");
+    bar.className = "accBar";
+    const fill = document.createElement("div");
+    if (d.pct === null) {
+      fill.className = "accBar-fill empty";
+      fill.style.height = "6%";
+      fill.title = `${d.date}: ${t("stats.noData")}`;
+    } else {
+      fill.className = "accBar-fill " + (d.pct >= 50 ? "know" : "dontknow-only");
+      fill.style.height = `${Math.max(d.pct, 6)}%`;
+      fill.title = `${d.date}: ${d.pct}%`;
+    }
+    bar.appendChild(fill);
+    statsAccuracyChart.appendChild(bar);
+  });
+}
+
+async function openStatsPanel() {
+  statsPanelOverlay.classList.remove("hidden");
+  renderStats(latestStats);
+  try {
+    const res = await apiFetch("/api/stats");
+    if (res.ok) {
+      latestStats = await res.json();
+      renderStats(latestStats);
+    }
+  } catch (err) {
+    // 面板已经用缓存数据渲染过了，这里失败不额外提示
+  }
+}
+
+btnStats.addEventListener("click", openStatsPanel);
+btnStatsClose.addEventListener("click", () => statsPanelOverlay.classList.add("hidden"));
+statsPanelOverlay.addEventListener("click", (e) => {
+  if (e.target === statsPanelOverlay) statsPanelOverlay.classList.add("hidden");
+});
 
 // ---------- 已学生词高亮 ----------
 
@@ -2533,6 +2614,7 @@ async function initApp() {
   await loadKnownWords();
   refreshDocuments();
   loadUsage();
+  loadStats();
 }
 
 async function enterApp(token, me) {

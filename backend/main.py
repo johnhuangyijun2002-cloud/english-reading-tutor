@@ -251,6 +251,14 @@ CREATE TABLE IF NOT EXISTS api_usage (
     cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, month)
 );
+CREATE TABLE IF NOT EXISTS activity_log (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    activity_type TEXT NOT NULL,
+    result TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_log_user_created ON activity_log (user_id, created_at);
 """
 
 
@@ -313,6 +321,16 @@ async def db_get_user_by_google_id(google_id: str) -> Optional[dict]:
 async def db_count_users() -> int:
     pool = await get_pool()
     return await pool.fetchval("SELECT count(*) FROM users")
+
+
+async def db_count_vocab(user_id: str) -> int:
+    pool = await get_pool()
+    return await pool.fetchval("SELECT count(*) FROM vocab WHERE user_id=$1", user_id)
+
+
+async def db_count_documents(user_id: str) -> int:
+    pool = await get_pool()
+    return await pool.fetchval("SELECT count(*) FROM documents WHERE user_id=$1", user_id)
 
 
 async def db_create_user(
@@ -514,6 +532,60 @@ async def db_list_due_vocab(user_id: str, learning_language: str, limit: int) ->
         user_id, learning_language, limit,
     )
     return [_serialize_row(r) for r in rows]
+
+
+# ---------- 活动记录(打卡/统计) ----------
+
+
+async def db_log_activity(user_id: str, activity_type: str, result: Optional[str] = None):
+    pool = await get_pool()
+    await pool.execute(
+        "INSERT INTO activity_log (id, user_id, activity_type, result) VALUES ($1,$2,$3,$4)",
+        uuid.uuid4().hex[:12], user_id, activity_type, result,
+    )
+
+
+async def db_get_activity_dates(user_id: str) -> list:
+    """返回该用户有活动记录(不分类型)的所有 UTC 日期。显式转 UTC 而不依赖连接默认时区。"""
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT DISTINCT (created_at AT TIME ZONE 'UTC')::date AS d
+           FROM activity_log WHERE user_id=$1""",
+        user_id,
+    )
+    return [r["d"] for r in rows]
+
+
+def compute_streak_days(activity_dates: set, today) -> int:
+    """今天还没有任何活动时不能直接判定"断了"——只要昨天有记录，连续天数依然按
+    昨天算，用户今天一有动作数字自然会涨上去。时区统一按 UTC，个人使用场景下
+    不需要按用户本地时区精细化。"""
+    if today in activity_dates:
+        cursor = today
+    elif (today - timedelta(days=1)) in activity_dates:
+        cursor = today - timedelta(days=1)
+    else:
+        return 0
+    streak = 0
+    while cursor in activity_dates:
+        streak += 1
+        cursor -= timedelta(days=1)
+    return streak
+
+
+async def db_get_review_mark_daily_counts(user_id: str, days: int = 14) -> dict:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT (created_at AT TIME ZONE 'UTC')::date AS d,
+                  count(*) FILTER (WHERE result='know') AS know_count,
+                  count(*) FILTER (WHERE result='dont_know') AS dont_know_count
+           FROM activity_log
+           WHERE user_id=$1 AND activity_type='review_mark'
+             AND created_at >= now() - ($2 * interval '1 day')
+           GROUP BY d""",
+        user_id, days,
+    )
+    return {r["d"]: {"know_count": r["know_count"], "dont_know_count": r["dont_know_count"]} for r in rows}
 
 
 async def db_create_sentence_note(record: dict):
@@ -1474,6 +1546,38 @@ async def get_usage(user: dict = Depends(get_current_user)):
         "month": month_key,
         "count": month_usage.get("calls", 0),
         "cost_usd": round(month_usage.get("cost_usd", 0.0), 4),
+    }
+
+
+@app.get("/api/stats")
+async def get_stats(user: dict = Depends(get_current_user)):
+    today = datetime.now(timezone.utc).date()
+    activity_dates = set(await db_get_activity_dates(user["id"]))
+    streak_days = compute_streak_days(activity_dates, today)
+    week_active_days = len([d for d in activity_dates if d > today - timedelta(days=7)])
+    last_7_days = [
+        {"date": (today - timedelta(days=i)).isoformat(), "active": (today - timedelta(days=i)) in activity_dates}
+        for i in range(6, -1, -1)
+    ]
+    by_date = await db_get_review_mark_daily_counts(user["id"], days=14)
+    accuracy_trend = []
+    for i in range(13, -1, -1):
+        d = today - timedelta(days=i)
+        counts = by_date.get(d, {"know_count": 0, "dont_know_count": 0})
+        total = counts["know_count"] + counts["dont_know_count"]
+        accuracy_trend.append({
+            "date": d.isoformat(),
+            "know_count": counts["know_count"],
+            "dont_know_count": counts["dont_know_count"],
+            "pct": round(counts["know_count"] / total * 100) if total > 0 else None,
+        })
+    return {
+        "vocab_count": await db_count_vocab(user["id"]),
+        "document_count": await db_count_documents(user["id"]),
+        "streak_days": streak_days,
+        "week_active_days": week_active_days,
+        "last_7_days": last_7_days,
+        "accuracy_trend": accuracy_trend,
     }
 
 
@@ -2482,7 +2586,14 @@ async def review_mark(req: ReviewMarkRequest, user: dict = Depends(get_current_u
         req.item_id, srs_level=new_level, next_review_at=next_review_at,
         last_reviewed_at=datetime.now(timezone.utc),
     )
+    await db_log_activity(user["id"], "review_mark", result=req.result)
     return {"record": await db_get_vocab(req.item_id)}
+
+
+@app.post("/api/activity/read-ping")
+async def activity_read_ping(user: dict = Depends(get_current_user)):
+    await db_log_activity(user["id"], "read_document")
+    return {"ok": True}
 
 
 @app.delete("/api/sentence_notes/{item_id}")

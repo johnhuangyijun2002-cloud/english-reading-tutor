@@ -9,7 +9,7 @@
 </head>
 <body>
   <div id="topbar">
-    <div class="topbar-brand">Contexta<span id="usageBadge" class="usageBadge"></span></div>
+    <div class="topbar-brand">Contexta<span id="usageBadge" class="usageBadge"></span><span id="streakBadge" class="usageBadge"></span></div>
     <div class="topbar-actions">
       <button id="btnAddArticle" class="btn btn-ghost" data-i18n="topbar.addArticle">添加文章</button>
       <label for="fileInput" class="btn btn-ghost" data-i18n="topbar.upload">上传文件</label>
@@ -171,6 +171,39 @@
         <button id="btnReviewReveal" class="btn btn-primary" data-i18n="review.reveal">显示答案</button>
         <button id="btnReviewDontKnow" class="btn btn-ghost hidden" data-i18n="review.dontKnow">不认识</button>
         <button id="btnReviewKnow" class="btn btn-primary hidden" data-i18n="review.know">认识</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="statsPanelOverlay" class="hidden">
+    <div id="statsPanel">
+      <h2 data-i18n="stats.title">我的学习统计</h2>
+
+      <div class="statsStreakRow">
+        <div class="statsStreakBig"><span id="statsStreakNumber"></span><span data-i18n="stats.days">天</span></div>
+        <p data-i18n="stats.streakHint">连续阅读/复习天数</p>
+      </div>
+
+      <div id="statsWeekStrip"></div>
+
+      <div class="statsTiles">
+        <div class="statTile">
+          <div class="statTile-value" id="statsVocabCount"></div>
+          <div class="statTile-label" data-i18n="stats.vocabCount">累计生词数</div>
+        </div>
+        <div class="statTile">
+          <div class="statTile-value" id="statsDocCount"></div>
+          <div class="statTile-label" data-i18n="stats.docCount">读过的文章数</div>
+        </div>
+      </div>
+
+      <div class="statsAccuracySection">
+        <p class="statsBlockLabel" data-i18n="stats.accuracyTrend">复习正确率趋势（近 14 天）</p>
+        <div id="statsAccuracyChart"></div>
+      </div>
+
+      <div class="pasteActions">
+        <button id="btnStatsClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
       </div>
     </div>
   </div>
@@ -433,6 +466,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
         </span>
         <span class="navLabel" data-i18n="nav.review">复习</span>
+      </button>
+      <button class="navItem" id="btnStats">
+        <span class="navIcon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg>
+        </span>
+        <span class="navLabel" data-i18n="nav.stats">学习统计</span>
       </button>
     </nav>
     <div id="viewer">
