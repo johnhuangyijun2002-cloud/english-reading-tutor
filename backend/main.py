@@ -259,6 +259,13 @@ CREATE TABLE IF NOT EXISTS activity_log (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_activity_log_user_created ON activity_log (user_id, created_at);
+CREATE TABLE IF NOT EXISTS user_language_level (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    learning_language TEXT NOT NULL,
+    level TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, learning_language)
+);
 """
 
 
@@ -331,6 +338,24 @@ async def db_count_vocab(user_id: str) -> int:
 async def db_count_documents(user_id: str) -> int:
     pool = await get_pool()
     return await pool.fetchval("SELECT count(*) FROM documents WHERE user_id=$1", user_id)
+
+
+async def db_get_user_level(user_id: str, learning_language: str) -> Optional[str]:
+    pool = await get_pool()
+    return await pool.fetchval(
+        "SELECT level FROM user_language_level WHERE user_id=$1 AND learning_language=$2",
+        user_id, learning_language,
+    )
+
+
+async def db_set_user_level(user_id: str, learning_language: str, level: str):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO user_language_level (user_id, learning_language, level)
+           VALUES ($1,$2,$3)
+           ON CONFLICT (user_id, learning_language) DO UPDATE SET level=$3, updated_at=now()""",
+        user_id, learning_language, level,
+    )
 
 
 async def db_create_user(
@@ -2192,11 +2217,18 @@ LANGUAGE_SOURCES = {
 # (母语=界面语言=zh 的用户)，不参与 AI 推荐(推荐是给"正在学的语言"配的，没人会选择学母语)。
 DEFAULT_RECOMMEND_LANGUAGE = "en"
 
-# 只有 en 是根据这个具体用户的真实水平写的；其它语言用一个通用的中等水平描述。
-RECOMMEND_LEVEL_DESC = {
-    "en": "大学英语四级已通过，六级考了480分，属于中等偏下的中高级学习者（约B1-B2水平）",
+# 用户自己的水平设置(CEFR)，按"用户+学习语言"存在 user_language_level 表里，
+# 不再按学习语言写死一个固定描述——这几句描述是喂给 AI 内部 prompt 用的，不是用户可见文案。
+CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
+CEFR_LEVEL_DESC = {
+    "A1": "入门，只认识最基础的日常词汇和短句",
+    "A2": "初级，能看懂简单、熟悉话题的句子",
+    "B1": "中级，能读懂中等复杂度、熟悉话题的文章大意",
+    "B2": "中高级，能读懂较复杂文章的主旨",
+    "C1": "高级，能读懂大部分有难度的长文章",
+    "C2": "精通，几乎能轻松读懂任何内容",
 }
-DEFAULT_RECOMMEND_LEVEL_DESC = "中等水平的语言学习者（约B1-B2水平），能读懂大意但生词量还有限"
+DEFAULT_LEVEL = "B1"
 
 _recommend_cache = {}  # (user_id, learning_language) -> {"data": [...], "ts": datetime}
 RECOMMEND_CACHE_SECONDS = 3 * 60 * 60
@@ -2236,13 +2268,13 @@ def fetch_headlines(learning_language: str) -> list:
     return items
 
 
-def build_recommend_prompt(items: list, learning_language: str, explain_language: str) -> str:
+def build_recommend_prompt(items: list, learning_language: str, explain_language: str, level: str) -> str:
     lang_label = LANGUAGE_LABELS.get(learning_language, learning_language)
     explain_label = LANGUAGE_LABELS.get(explain_language, explain_language)
-    level_desc = RECOMMEND_LEVEL_DESC.get(learning_language, DEFAULT_RECOMMEND_LEVEL_DESC)
+    level_desc = CEFR_LEVEL_DESC.get(level, CEFR_LEVEL_DESC[DEFAULT_LEVEL])
     listing = "\n".join(f"{i}. [{it['source']}] {it['title']} — {it['summary']}" for i, it in enumerate(items))
     return (
-        f"你是一个{lang_label}学习内容推荐助手。用户正在学习{lang_label}，水平：{level_desc}。\n"
+        f"你是一个{lang_label}学习内容推荐助手。用户正在学习{lang_label}，水平：{level}（{level_desc}）。\n"
         f"下面是一批当天的{lang_label}新闻标题和摘要，请帮用户从中挑出 6-8 篇适合精读积累的文章。\n"
         "挑选标准：\n"
         "1) 难度要适中——不要挑长难句堆砌、专业术语密集的深度调查或学术性文章，也不要挑过短的快讯简报\n"
@@ -2272,7 +2304,8 @@ async def get_recommendations(
 
     lang = learning_language
     explain_language = resolve_explain_language(user)
-    cache_key = (user["id"], lang, explain_language)
+    level = await db_get_user_level(user["id"], lang) or DEFAULT_LEVEL
+    cache_key = (user["id"], lang, explain_language, level)
     now = datetime.now(timezone.utc)
     cache_entry = _recommend_cache.get(cache_key)
     if not refresh and cache_entry:
@@ -2285,7 +2318,7 @@ async def get_recommendations(
         source_names = dict.fromkeys(s["name"] for s in LANGUAGE_SOURCES.get(lang, []))
         raise HTTPException(502, f"{' / '.join(source_names)} 暂时无法访问，请稍后重试")
 
-    raw = await call_ai_for_user(build_recommend_prompt(items, lang, explain_language), user, json_mode=True)
+    raw = await call_ai_for_user(build_recommend_prompt(items, lang, explain_language, level), user, json_mode=True)
     try:
         picks = json.loads(raw).get("picks", [])
     except json.JSONDecodeError:
@@ -2310,6 +2343,25 @@ async def get_recommendations(
 
     _recommend_cache[cache_key] = {"data": results, "ts": now}
     return results
+
+
+class ProficiencyRequest(BaseModel):
+    learning_language: str
+    level: str
+
+
+@app.post("/api/proficiency")
+async def set_proficiency(req: ProficiencyRequest, user: dict = Depends(get_current_user)):
+    if req.level not in CEFR_LEVELS:
+        raise HTTPException(400, "不支持的水平")
+    await db_set_user_level(user["id"], req.learning_language, req.level)
+    return {"level": req.level}
+
+
+@app.get("/api/proficiency")
+async def get_proficiency(learning_language: str, user: dict = Depends(get_current_user)):
+    level = await db_get_user_level(user["id"], learning_language)
+    return {"level": level or DEFAULT_LEVEL}
 
 
 # ---------- 母语新闻抓取(沉浸模式素材，母语=界面语言，不做 AI 难度分级) ----------

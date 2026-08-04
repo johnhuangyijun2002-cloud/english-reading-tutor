@@ -100,7 +100,16 @@
     "failed": "推荐失败：{message}",
     "difficulty": "难度 · {level}",
     "readThis": "读这篇",
-    "fetching": "抓取中..."
+    "fetching": "抓取中...",
+    "levelLabel": "你的水平"
+  },
+  "levels": {
+    "A1": "A1 · 入门",
+    "A2": "A2 · 初级",
+    "B1": "B1 · 中级",
+    "B2": "B2 · 中高级",
+    "C1": "C1 · 高级",
+    "C2": "C2 · 精通"
   },
   "paste": {
     "tabPaste": "粘贴文本",

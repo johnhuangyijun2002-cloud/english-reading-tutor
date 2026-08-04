@@ -100,7 +100,16 @@
     "failed": "추천 실패: {message}",
     "difficulty": "난이도 · {level}",
     "readThis": "이 글 읽기",
-    "fetching": "가져오는 중..."
+    "fetching": "가져오는 중...",
+    "levelLabel": "회원님의 수준"
+  },
+  "levels": {
+    "A1": "A1 · 입문",
+    "A2": "A2 · 초급",
+    "B1": "B1 · 중급",
+    "B2": "B2 · 중상급",
+    "C1": "C1 · 고급",
+    "C2": "C2 · 능숙"
   },
   "paste": {
     "tabPaste": "텍스트 붙여넣기",

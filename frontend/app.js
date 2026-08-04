@@ -60,6 +60,7 @@ function applyI18n() {
   });
   populateLearningLanguageOptions();
   populateLearningLanguageOptionsFor("settingsLearningLanguageSelect");
+  populateRecommendLevelOptions();
 }
 
 async function loadI18n(lang) {
@@ -238,6 +239,9 @@ const recommendPanelOverlay = document.getElementById("recommendPanelOverlay");
 const recommendList = document.getElementById("recommendList");
 const btnRecommendRefresh = document.getElementById("btnRecommendRefresh");
 const btnRecommendClose = document.getElementById("btnRecommendClose");
+const recommendLevelSelect = document.getElementById("recommendLevelSelect");
+const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const DEFAULT_LEVEL = "B1";
 
 const btnNativeNews = document.getElementById("btnNativeNews");
 const nativeNewsPanelOverlay = document.getElementById("nativeNewsPanelOverlay");
@@ -1254,6 +1258,32 @@ recommendPanelOverlay.addEventListener("click", (e) => {
 
 btnRecommendRefresh.addEventListener("click", () => loadRecommendations(true));
 
+function populateRecommendLevelOptions() {
+  const prevValue = recommendLevelSelect.value || DEFAULT_LEVEL;
+  recommendLevelSelect.innerHTML = "";
+  CEFR_LEVELS.forEach((code) => {
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = t(`levels.${code}`);
+    recommendLevelSelect.appendChild(opt);
+  });
+  recommendLevelSelect.value = CEFR_LEVELS.includes(prevValue) ? prevValue : DEFAULT_LEVEL;
+}
+
+recommendLevelSelect.addEventListener("change", async () => {
+  const learningLanguage = getLastLearningLanguage();
+  try {
+    await apiFetch("/api/proficiency", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ learning_language: learningLanguage, level: recommendLevelSelect.value }),
+    });
+  } catch (err) {
+    // 保存水平失败也不阻塞，下面照样按新选的水平重新拉一次推荐
+  }
+  loadRecommendations(true);
+});
+
 async function loadRecommendations(refresh) {
   recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.loading")}</p>`;
   btnRecommendRefresh.disabled = true;
@@ -1262,6 +1292,11 @@ async function loadRecommendations(refresh) {
     document.getElementById("recommendLangHint").textContent = t("recommend.forLanguage", {
       language: t(`languages.${learningLanguage}`),
     });
+    const levelRes = await apiFetch(`/api/proficiency?learning_language=${learningLanguage}`);
+    if (levelRes.ok) {
+      const levelData = await levelRes.json();
+      recommendLevelSelect.value = levelData.level;
+    }
     const params = new URLSearchParams({ learning_language: learningLanguage });
     if (refresh) params.set("refresh", "true");
     const res = await apiFetch(`/api/recommendations?${params.toString()}`);

@@ -100,7 +100,16 @@
     "failed": "Failed to load picks: {message}",
     "difficulty": "Difficulty · {level}",
     "readThis": "Read this",
-    "fetching": "Fetching..."
+    "fetching": "Fetching...",
+    "levelLabel": "Your level"
+  },
+  "levels": {
+    "A1": "A1 · Beginner",
+    "A2": "A2 · Elementary",
+    "B1": "B1 · Intermediate",
+    "B2": "B2 · Upper-Intermediate",
+    "C1": "C1 · Advanced",
+    "C2": "C2 · Proficient"
   },
   "paste": {
     "tabPaste": "Paste Text",

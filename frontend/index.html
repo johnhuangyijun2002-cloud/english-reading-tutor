@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -66,6 +66,10 @@
         <button id="btnRecommendRefresh" class="btn btn-ghost btn-small" data-i18n="recommend.refresh">换一批</button>
       </div>
       <p id="recommendLangHint"></p>
+      <div class="settingsRow">
+        <span class="settingsLabel" data-i18n="recommend.levelLabel">你的水平</span>
+        <select id="recommendLevelSelect" class="doc-select"></select>
+      </div>
       <div id="recommendList"></div>
       <div class="pasteActions">
         <button id="btnRecommendClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
