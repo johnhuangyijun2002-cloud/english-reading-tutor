@@ -126,7 +126,7 @@ async def no_store_api_responses(request, call_next):
     response = await call_next(request)
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
-    elif request.url.path in ("/", "/style.css", "/app.js") or request.url.path.startswith("/i18n/"):
+    elif request.url.path in ("/", "/app.html", "/style.css", "/app.js") or request.url.path.startswith("/i18n/"):
         # 前端是纯静态文件、没走构建工具，index.html/style.css/app.js 之前完全没设缓存策略，
         # 浏览器会按启发式规则长期缓存——出现过好几次"部署了新版本，但用户浏览器还在跑
         # 旧的 app.js/style.css，导致新功能点了没反应、页面样式没更新"的问题。
@@ -1219,7 +1219,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         await db_update_user_fields(link_user_id, google_id=google_id, google_email=email)
         _audit("google_link", user_id=link_user_id, google_email=email)
         token = await db_create_session(link_user_id)
-        return RedirectResponse(f"/#token={token}&google_linked=1")
+        return RedirectResponse(f"/app.html#token={token}&google_linked=1")
 
     user = await db_get_user_by_google_id(google_id)
     if not user:
@@ -1234,7 +1234,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         _audit("google_register", user_id=user["id"], google_email=email)
 
     token = await db_create_session(user["id"])
-    return RedirectResponse(f"/#token={token}")
+    return RedirectResponse(f"/app.html#token={token}")
 
 
 # ---------- 文档管理(粘贴文本 / 网址导入 / PDF·DOCX 上传，最终都存成统一的文字文档) ----------
