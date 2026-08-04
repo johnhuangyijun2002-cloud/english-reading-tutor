@@ -613,6 +613,33 @@ async def db_get_review_mark_daily_counts(user_id: str, days: int = 14) -> dict:
     return {r["d"]: {"know_count": r["know_count"], "dont_know_count": r["dont_know_count"]} for r in rows}
 
 
+async def db_get_signups_by_day(days: int = 14) -> dict:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT (created_at AT TIME ZONE 'UTC')::date AS d, count(*) AS n
+           FROM users WHERE created_at >= now() - ($1 * interval '1 day')
+           GROUP BY d""",
+        days,
+    )
+    return {r["d"]: r["n"] for r in rows}
+
+
+async def db_get_active_users_by_day(days: int = 14) -> dict:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT (created_at AT TIME ZONE 'UTC')::date AS d, count(DISTINCT user_id) AS n
+           FROM activity_log WHERE created_at >= now() - ($1 * interval '1 day')
+           GROUP BY d""",
+        days,
+    )
+    return {r["d"]: r["n"] for r in rows}
+
+
+async def pool_count_all(table: str) -> int:
+    pool = await get_pool()
+    return await pool.fetchval(f"SELECT count(*) FROM {table}")
+
+
 async def db_create_sentence_note(record: dict):
     pool = await get_pool()
     await pool.execute(
@@ -1603,6 +1630,30 @@ async def get_stats(user: dict = Depends(get_current_user)):
         "week_active_days": week_active_days,
         "last_7_days": last_7_days,
         "accuracy_trend": accuracy_trend,
+    }
+
+
+@app.get("/api/admin/stats")
+async def get_admin_stats(user: dict = Depends(get_current_user)):
+    if not user.get("is_owner"):
+        raise HTTPException(403, "Owner access only")
+    today = datetime.now(timezone.utc).date()
+    signups = await db_get_signups_by_day(days=14)
+    actives = await db_get_active_users_by_day(days=14)
+    signups_by_day = [
+        {"date": (today - timedelta(days=i)).isoformat(), "count": signups.get(today - timedelta(days=i), 0)}
+        for i in range(13, -1, -1)
+    ]
+    active_users_by_day = [
+        {"date": (today - timedelta(days=i)).isoformat(), "count": actives.get(today - timedelta(days=i), 0)}
+        for i in range(13, -1, -1)
+    ]
+    return {
+        "total_users": await db_count_users(),
+        "total_documents": await pool_count_all("documents"),
+        "total_vocab": await pool_count_all("vocab"),
+        "signups_by_day": signups_by_day,
+        "active_users_by_day": active_users_by_day,
     }
 
 

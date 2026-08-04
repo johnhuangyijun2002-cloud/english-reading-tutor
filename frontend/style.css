@@ -1072,6 +1072,60 @@ body {
   background: var(--border);
 }
 
+/* ---------- 站长专属统计页面 ---------- */
+
+#adminStatsPanelOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.18s var(--ease);
+}
+
+#adminStatsPanelOverlay.hidden {
+  display: none;
+}
+
+#adminStatsPanel {
+  width: min(480px, 90vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: popIn 0.28s var(--spring-ease);
+}
+
+#adminStatsPanel h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.adminStatsTiles {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.adminStatsChart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 80px;
+}
+
 /* ---------- 沉浸阅读结束后的"保存本次生词"确认弹层 ---------- */
 
 #immersionSaveOverlay {
@@ -1205,6 +1259,10 @@ body {
 .navItem-disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.navItem.hidden {
+  display: none;
 }
 
 .navIcon {

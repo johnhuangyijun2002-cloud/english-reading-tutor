@@ -275,6 +275,15 @@ const statsAccuracyChart = document.getElementById("statsAccuracyChart");
 const btnStatsClose = document.getElementById("btnStatsClose");
 let latestStats = null;
 
+const btnAdminStats = document.getElementById("btnAdminStats");
+const adminStatsPanelOverlay = document.getElementById("adminStatsPanelOverlay");
+const adminStatsTotalUsers = document.getElementById("adminStatsTotalUsers");
+const adminStatsTotalDocuments = document.getElementById("adminStatsTotalDocuments");
+const adminStatsTotalVocab = document.getElementById("adminStatsTotalVocab");
+const adminStatsSignupsChart = document.getElementById("adminStatsSignupsChart");
+const adminStatsActiveChart = document.getElementById("adminStatsActiveChart");
+const btnAdminStatsClose = document.getElementById("btnAdminStatsClose");
+
 const btnSearchHistory = document.getElementById("btnSearchHistory");
 const searchPanelOverlay = document.getElementById("searchPanelOverlay");
 const searchInput = document.getElementById("searchInput");
@@ -749,6 +758,48 @@ btnStats.addEventListener("click", openStatsPanel);
 btnStatsClose.addEventListener("click", () => statsPanelOverlay.classList.add("hidden"));
 statsPanelOverlay.addEventListener("click", (e) => {
   if (e.target === statsPanelOverlay) statsPanelOverlay.classList.add("hidden");
+});
+
+// ---------- 站长专属统计页面 ----------
+
+function renderAdminBarChart(container, entries) {
+  container.innerHTML = "";
+  const max = Math.max(1, ...entries.map((d) => d.count));
+  entries.forEach((d) => {
+    const bar = document.createElement("div");
+    bar.className = "accBar";
+    const fill = document.createElement("div");
+    fill.className = "accBar-fill know";
+    fill.style.height = `${Math.max((d.count / max) * 100, d.count > 0 ? 6 : 2)}%`;
+    fill.title = `${d.date}: ${d.count}`;
+    bar.appendChild(fill);
+    container.appendChild(bar);
+  });
+}
+
+function renderAdminStats(data) {
+  if (!data) return;
+  adminStatsTotalUsers.textContent = data.total_users;
+  adminStatsTotalDocuments.textContent = data.total_documents;
+  adminStatsTotalVocab.textContent = data.total_vocab;
+  renderAdminBarChart(adminStatsSignupsChart, data.signups_by_day);
+  renderAdminBarChart(adminStatsActiveChart, data.active_users_by_day);
+}
+
+async function openAdminStatsPanel() {
+  adminStatsPanelOverlay.classList.remove("hidden");
+  try {
+    const res = await apiFetch("/api/admin/stats");
+    if (res.ok) renderAdminStats(await res.json());
+  } catch (err) {
+    // 打开面板失败不额外提示，留空白即可
+  }
+}
+
+btnAdminStats.addEventListener("click", openAdminStatsPanel);
+btnAdminStatsClose.addEventListener("click", () => adminStatsPanelOverlay.classList.add("hidden"));
+adminStatsPanelOverlay.addEventListener("click", (e) => {
+  if (e.target === adminStatsPanelOverlay) adminStatsPanelOverlay.classList.add("hidden");
 });
 
 // ---------- 已学生词高亮 ----------
@@ -2669,6 +2720,7 @@ async function enterApp(token, me) {
   authToken = token;
   localStorage.setItem("authToken", token);
   currentUser = me;
+  btnAdminStats.classList.toggle("hidden", !me.is_owner);
   if (me.ui_language && me.ui_language !== currentUiLanguage) await loadI18n(me.ui_language);
   loginOverlay.classList.add("hidden");
   initApp();
@@ -2784,6 +2836,7 @@ btnGoogleLogin.addEventListener("click", () => {
     const me = await checkToken(authToken);
     if (me) {
       currentUser = me;
+      btnAdminStats.classList.toggle("hidden", !me.is_owner);
       if (me.ui_language && me.ui_language !== currentUiLanguage) await loadI18n(me.ui_language);
       initApp();
       return;

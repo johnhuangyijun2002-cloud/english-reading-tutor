@@ -1,5 +1,7 @@
 {
-  "app": { "title": "Contexta" },
+  "app": {
+    "title": "Contexta"
+  },
   "common": {
     "close": "Close",
     "cancel": "Cancel",
@@ -26,7 +28,8 @@
     "settings": "Settings",
     "review": "Review",
     "nativeNews": "Native News",
-    "stats": "Stats"
+    "stats": "Stats",
+    "adminStats": "Site Stats"
   },
   "docManager": {
     "title": "Manage Articles",
@@ -210,7 +213,9 @@
     "and": " and ",
     "privacy": "Privacy Policy"
   },
-  "empty": { "noDocument": "Paste an article, or upload a PDF/DOCX file to start reading closely" },
+  "empty": {
+    "noDocument": "Paste an article, or upload a PDF/DOCX file to start reading closely"
+  },
   "sidebar": {
     "history": "History",
     "saveAll": "Save All",
@@ -219,9 +224,18 @@
     "printHint": "Print the article with your highlighted words and sentences"
   },
   "languages": {
-    "en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "fr": "French",
-    "es": "Spanish", "de": "German", "it": "Italian", "pt": "Portuguese",
-    "ru": "Russian", "ar": "Arabic", "th": "Thai"
+    "en": "English",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "fr": "French",
+    "es": "Spanish",
+    "de": "German",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "ar": "Arabic",
+    "th": "Thai"
   },
   "article": {
     "charCount": "~{count} characters",
@@ -302,5 +316,13 @@
     "colMeaning": "Meaning",
     "sentenceTitle": "Unfamiliar Sentences ({count})",
     "sentenceMarkPrefix": "S"
+  },
+  "adminStats": {
+    "title": "Site Stats",
+    "totalUsers": "Total users",
+    "totalDocuments": "Total articles",
+    "totalVocab": "Total vocab",
+    "signupsChart": "New signups (last 14 days)",
+    "activeUsersChart": "Active users (last 14 days)"
   }
 }

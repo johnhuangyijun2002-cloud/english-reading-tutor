@@ -1,5 +1,7 @@
 {
-  "app": { "title": "Contexta" },
+  "app": {
+    "title": "Contexta"
+  },
   "common": {
     "close": "关闭",
     "cancel": "取消",
@@ -26,7 +28,8 @@
     "settings": "设置",
     "review": "复习",
     "nativeNews": "母语新闻",
-    "stats": "学习统计"
+    "stats": "学习统计",
+    "adminStats": "站长统计"
   },
   "docManager": {
     "title": "文章管理",
@@ -210,7 +213,9 @@
     "and": "和",
     "privacy": "隐私政策"
   },
-  "empty": { "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读" },
+  "empty": {
+    "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读"
+  },
   "sidebar": {
     "history": "历史记录",
     "saveAll": "一键保存",
@@ -219,9 +224,18 @@
     "printHint": "把文章和划过的生词/句子打印出来"
   },
   "languages": {
-    "en": "英语", "zh": "中文", "ja": "日语", "ko": "韩语", "fr": "法语",
-    "es": "西班牙语", "de": "德语", "it": "意大利语", "pt": "葡萄牙语",
-    "ru": "俄语", "ar": "阿拉伯语", "th": "泰语"
+    "en": "英语",
+    "zh": "中文",
+    "ja": "日语",
+    "ko": "韩语",
+    "fr": "法语",
+    "es": "西班牙语",
+    "de": "德语",
+    "it": "意大利语",
+    "pt": "葡萄牙语",
+    "ru": "俄语",
+    "ar": "阿拉伯语",
+    "th": "泰语"
   },
   "article": {
     "charCount": "约 {count} 字",
@@ -302,5 +316,13 @@
     "colMeaning": "释义",
     "sentenceTitle": "不熟悉的句子（共 {count} 句）",
     "sentenceMarkPrefix": "句"
+  },
+  "adminStats": {
+    "title": "站长统计",
+    "totalUsers": "总用户数",
+    "totalDocuments": "总文章数",
+    "totalVocab": "总生词数",
+    "signupsChart": "每日新增注册（近 14 天）",
+    "activeUsersChart": "每日活跃用户（近 14 天）"
   }
 }

@@ -212,6 +212,41 @@
     </div>
   </div>
 
+  <div id="adminStatsPanelOverlay" class="hidden">
+    <div id="adminStatsPanel">
+      <h2 data-i18n="adminStats.title">Site Stats</h2>
+
+      <div class="statsTiles adminStatsTiles">
+        <div class="statTile">
+          <div class="statTile-value" id="adminStatsTotalUsers"></div>
+          <div class="statTile-label" data-i18n="adminStats.totalUsers">Total users</div>
+        </div>
+        <div class="statTile">
+          <div class="statTile-value" id="adminStatsTotalDocuments"></div>
+          <div class="statTile-label" data-i18n="adminStats.totalDocuments">Total articles</div>
+        </div>
+        <div class="statTile">
+          <div class="statTile-value" id="adminStatsTotalVocab"></div>
+          <div class="statTile-label" data-i18n="adminStats.totalVocab">Total vocab</div>
+        </div>
+      </div>
+
+      <div class="statsAccuracySection">
+        <p class="statsBlockLabel" data-i18n="adminStats.signupsChart">New signups (last 14 days)</p>
+        <div id="adminStatsSignupsChart" class="adminStatsChart"></div>
+      </div>
+
+      <div class="statsAccuracySection">
+        <p class="statsBlockLabel" data-i18n="adminStats.activeUsersChart">Active users (last 14 days)</p>
+        <div id="adminStatsActiveChart" class="adminStatsChart"></div>
+      </div>
+
+      <div class="pasteActions">
+        <button id="btnAdminStatsClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div id="immersionSaveOverlay" class="hidden">
     <div id="immersionSavePanel">
       <h2 data-i18n="immersion.saveTitle">Save this session's words?</h2>
@@ -476,6 +511,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg>
         </span>
         <span class="navLabel" data-i18n="nav.stats">Stats</span>
+      </button>
+      <button class="navItem hidden" id="btnAdminStats">
+        <span class="navIcon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4" /><path d="M3.34 19a10 10 0 1 1 17.32 0" /></svg>
+        </span>
+        <span class="navLabel" data-i18n="nav.adminStats">Site Stats</span>
       </button>
     </nav>
     <div id="viewer">

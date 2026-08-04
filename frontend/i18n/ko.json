@@ -1,5 +1,7 @@
 {
-  "app": { "title": "Contexta" },
+  "app": {
+    "title": "Contexta"
+  },
   "common": {
     "close": "닫기",
     "cancel": "취소",
@@ -26,7 +28,8 @@
     "settings": "설정",
     "review": "복습",
     "nativeNews": "모국어 뉴스",
-    "stats": "학습 통계"
+    "stats": "학습 통계",
+    "adminStats": "사이트 통계"
   },
   "docManager": {
     "title": "글 관리",
@@ -210,7 +213,9 @@
     "and": " 및 ",
     "privacy": "개인정보 처리방침에 동의하는 것으로 간주돼요"
   },
-  "empty": { "noDocument": "글을 붙여넣거나 PDF/DOCX 파일을 업로드해서 정독을 시작해 보세요" },
+  "empty": {
+    "noDocument": "글을 붙여넣거나 PDF/DOCX 파일을 업로드해서 정독을 시작해 보세요"
+  },
   "sidebar": {
     "history": "기록",
     "saveAll": "전체 저장",
@@ -219,9 +224,18 @@
     "printHint": "글과 표시한 단어/문장을 인쇄해요"
   },
   "languages": {
-    "en": "영어", "zh": "중국어", "ja": "일본어", "ko": "한국어", "fr": "프랑스어",
-    "es": "스페인어", "de": "독일어", "it": "이탈리아어", "pt": "포르투갈어",
-    "ru": "러시아어", "ar": "아랍어", "th": "태국어"
+    "en": "영어",
+    "zh": "중국어",
+    "ja": "일본어",
+    "ko": "한국어",
+    "fr": "프랑스어",
+    "es": "스페인어",
+    "de": "독일어",
+    "it": "이탈리아어",
+    "pt": "포르투갈어",
+    "ru": "러시아어",
+    "ar": "아랍어",
+    "th": "태국어"
   },
   "article": {
     "charCount": "약 {count}자",
@@ -302,5 +316,13 @@
     "colMeaning": "뜻",
     "sentenceTitle": "낯선 문장 (총 {count}개)",
     "sentenceMarkPrefix": "문"
+  },
+  "adminStats": {
+    "title": "사이트 통계",
+    "totalUsers": "총 사용자 수",
+    "totalDocuments": "총 문서 수",
+    "totalVocab": "총 단어 수",
+    "signupsChart": "신규 가입(최근 14일)",
+    "activeUsersChart": "활성 사용자(최근 14일)"
   }
 }
