@@ -11,46 +11,46 @@
   <div id="topbar">
     <div class="topbar-brand">Contexta<span id="usageBadge" class="usageBadge"></span><span id="streakBadge" class="usageBadge"></span></div>
     <div class="topbar-actions">
-      <button id="btnAddArticle" class="btn btn-ghost" data-i18n="topbar.addArticle">添加文章</button>
-      <label for="fileInput" class="btn btn-ghost" data-i18n="topbar.upload">上传文件</label>
+      <button id="btnAddArticle" class="btn btn-ghost" data-i18n="topbar.addArticle">Add Article</button>
+      <label for="fileInput" class="btn btn-ghost" data-i18n="topbar.upload">Upload File</label>
       <input type="file" id="fileInput" accept=".pdf,.docx" class="visually-hidden" />
       <select id="docSelect" class="doc-select"></select>
       <div class="readerSettingsWrap">
         <button id="btnReaderSettings" class="btn btn-ghost readerSettingsBtn hidden">Aa</button>
         <div id="readerSettingsPanel" class="hidden">
           <div class="settingsRow">
-            <span class="settingsLabel" data-i18n="readerSettings.fontSize">字号</span>
+            <span class="settingsLabel" data-i18n="readerSettings.fontSize">Font size</span>
             <div class="settingsOptions" data-setting="fontSize">
-              <button data-value="15" data-i18n="readerSettings.small">小</button>
-              <button data-value="17" data-i18n="readerSettings.medium">中</button>
-              <button data-value="19" data-i18n="readerSettings.large">大</button>
-              <button data-value="22" data-i18n="readerSettings.xlarge">特大</button>
+              <button data-value="15" data-i18n="readerSettings.small">S</button>
+              <button data-value="17" data-i18n="readerSettings.medium">M</button>
+              <button data-value="19" data-i18n="readerSettings.large">L</button>
+              <button data-value="22" data-i18n="readerSettings.xlarge">XL</button>
             </div>
           </div>
           <div class="settingsRow">
-            <span class="settingsLabel" data-i18n="readerSettings.width">宽度</span>
+            <span class="settingsLabel" data-i18n="readerSettings.width">Width</span>
             <div class="settingsOptions" data-setting="maxWidth">
-              <button data-value="560" data-i18n="readerSettings.narrow">窄</button>
-              <button data-value="700" data-i18n="readerSettings.mediumWidth">中</button>
-              <button data-value="860" data-i18n="readerSettings.wide">宽</button>
+              <button data-value="560" data-i18n="readerSettings.narrow">Narrow</button>
+              <button data-value="700" data-i18n="readerSettings.mediumWidth">Medium</button>
+              <button data-value="860" data-i18n="readerSettings.wide">Wide</button>
             </div>
           </div>
           <div class="settingsRow">
-            <span class="settingsLabel" data-i18n="readerSettings.font">字体</span>
+            <span class="settingsLabel" data-i18n="readerSettings.font">Font</span>
             <div class="settingsOptions" data-setting="fontFamily">
-              <button data-value="sans" data-i18n="readerSettings.sans">无衬线</button>
-              <button data-value="serif" data-i18n="readerSettings.serif">衬线</button>
+              <button data-value="sans" data-i18n="readerSettings.sans">Sans</button>
+              <button data-value="serif" data-i18n="readerSettings.serif">Serif</button>
             </div>
           </div>
           <div class="settingsRow">
-            <span class="settingsLabel" data-i18n="readerSettings.immersion">沉浸模式</span>
+            <span class="settingsLabel" data-i18n="readerSettings.immersion">Immersion mode</span>
             <div class="settingsOptions immersionToggle" data-setting="immersionEnabled">
-              <button data-value="off" data-i18n="common.off">关</button>
-              <button data-value="on" data-i18n="common.on">开</button>
+              <button data-value="off" data-i18n="common.off">Off</button>
+              <button data-value="on" data-i18n="common.on">On</button>
             </div>
           </div>
           <div class="settingsRow settingsRow-slider hidden" id="immersionRatioRow1">
-            <span class="settingsLabel" data-i18n="readerSettings.immersionRatio">替换比例</span>
+            <span class="settingsLabel" data-i18n="readerSettings.immersionRatio">Replacement ratio</span>
             <input type="range" id="immersionRatioSlider" min="10" max="60" step="5" value="20" />
             <span id="immersionRatioValue" class="settingsSliderValue">20%</span>
           </div>
@@ -62,17 +62,17 @@
   <div id="recommendPanelOverlay" class="hidden">
     <div id="recommendPanel">
       <div class="recommendHeader">
-        <h2 data-i18n="recommend.title">今日推荐</h2>
-        <button id="btnRecommendRefresh" class="btn btn-ghost btn-small" data-i18n="recommend.refresh">换一批</button>
+        <h2 data-i18n="recommend.title">Today's Picks</h2>
+        <button id="btnRecommendRefresh" class="btn btn-ghost btn-small" data-i18n="recommend.refresh">Refresh</button>
       </div>
       <p id="recommendLangHint"></p>
       <div class="settingsRow">
-        <span class="settingsLabel" data-i18n="recommend.levelLabel">你的水平</span>
+        <span class="settingsLabel" data-i18n="recommend.levelLabel">Your level</span>
         <select id="recommendLevelSelect" class="doc-select"></select>
       </div>
       <div id="recommendList"></div>
       <div class="pasteActions">
-        <button id="btnRecommendClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
+        <button id="btnRecommendClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
       </div>
     </div>
   </div>
@@ -80,13 +80,13 @@
   <div id="nativeNewsPanelOverlay" class="hidden">
     <div id="nativeNewsPanel">
       <div class="recommendHeader">
-        <h2 data-i18n="nativeNews.title">母语新闻</h2>
-        <button id="btnNativeNewsRefresh" class="btn btn-ghost btn-small" data-i18n="recommend.refresh">换一批</button>
+        <h2 data-i18n="nativeNews.title">Native Language News (immersion material)</h2>
+        <button id="btnNativeNewsRefresh" class="btn btn-ghost btn-small" data-i18n="recommend.refresh">Refresh</button>
       </div>
       <p id="nativeNewsLangHint"></p>
       <div id="nativeNewsList"></div>
       <div class="pasteActions">
-        <button id="btnNativeNewsClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
+        <button id="btnNativeNewsClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
       </div>
     </div>
   </div>
@@ -94,64 +94,64 @@
   <div id="pastePanelOverlay" class="hidden">
     <div id="pastePanel">
       <div class="pasteTabs">
-        <button class="pasteTab active" data-tab="paste" data-i18n="paste.tabPaste">粘贴文本</button>
-        <button class="pasteTab" data-tab="url" data-i18n="paste.tabUrl">网址导入</button>
+        <button class="pasteTab active" data-tab="paste" data-i18n="paste.tabPaste">Paste Text</button>
+        <button class="pasteTab" data-tab="url" data-i18n="paste.tabUrl">Import URL</button>
       </div>
 
       <div class="pasteTabContent" data-tab-content="paste">
-        <input type="text" id="pasteTitle" data-i18n-placeholder="paste.titlePlaceholder" placeholder="文章标题 / 来源（例如：纽约时报-2026年7月）" />
-        <textarea id="pasteContent" data-i18n-placeholder="paste.contentPlaceholder" placeholder="把文章粘贴到这里..."></textarea>
+        <input type="text" id="pasteTitle" data-i18n-placeholder="paste.titlePlaceholder" placeholder="Title / source (e.g. NYT - July 2026)" />
+        <textarea id="pasteContent" data-i18n-placeholder="paste.contentPlaceholder" placeholder="Paste the article here..."></textarea>
       </div>
 
       <div class="pasteTabContent hidden" data-tab-content="url">
-        <input type="text" id="urlInput" data-i18n-placeholder="paste.urlPlaceholder" placeholder="https://www.bbc.com/news/... 或 theguardian.com 的文章链接" />
-        <p class="urlHint" data-i18n="paste.urlHint">支持 BBC、The Guardian 等新闻网站，会自动提取正文，跳过导航栏和广告</p>
+        <input type="text" id="urlInput" data-i18n-placeholder="paste.urlPlaceholder" placeholder="https://www.bbc.com/news/... or a Guardian article link" />
+        <p class="urlHint" data-i18n="paste.urlHint">Supports BBC, The Guardian and similar news sites — extracts the article body automatically, skipping nav/ads</p>
       </div>
 
       <div class="settingsRow pasteLanguageRow">
-        <span class="settingsLabel" data-i18n="paste.learningLanguage">正在学习的语言</span>
+        <span class="settingsLabel" data-i18n="paste.learningLanguage">Language you're learning</span>
         <select id="learningLanguageSelect" class="doc-select"></select>
       </div>
 
       <div class="pasteActions">
-        <button id="btnPasteCancel" class="btn btn-ghost" data-i18n="common.cancel">取消</button>
-        <button id="btnPasteSubmit" class="btn btn-primary" data-i18n="paste.submit">开始阅读</button>
+        <button id="btnPasteCancel" class="btn btn-ghost" data-i18n="common.cancel">Cancel</button>
+        <button id="btnPasteSubmit" class="btn btn-primary" data-i18n="paste.submit">Start Reading</button>
       </div>
     </div>
   </div>
 
   <div id="searchPanelOverlay" class="hidden">
     <div id="searchPanel">
-      <h2 data-i18n="topbar.vocab">生词本</h2>
-      <input type="text" id="searchInput" data-i18n-placeholder="search.placeholder" placeholder="搜索单词、释义、例句、来源文章...（留空显示全部）" />
+      <h2 data-i18n="topbar.vocab">Vocabulary</h2>
+      <input type="text" id="searchInput" data-i18n-placeholder="search.placeholder" placeholder="Search words, meanings, sentences, source articles... (leave blank to show all)" />
       <div id="searchResults"></div>
       <div class="pasteActions">
-        <button id="btnSearchClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
+        <button id="btnSearchClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
       </div>
     </div>
   </div>
 
   <div id="docManagerPanelOverlay" class="hidden">
     <div id="docManagerPanel">
-      <h2 data-i18n="docManager.title">文章管理</h2>
+      <h2 data-i18n="docManager.title">Manage Articles</h2>
       <div id="docManagerList"></div>
       <div class="pasteActions">
-        <button id="btnDocManagerClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
+        <button id="btnDocManagerClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
       </div>
     </div>
   </div>
 
   <div id="reviewPanelOverlay" class="hidden">
     <div id="reviewPanel">
-      <h2 data-i18n="review.title">生词复习</h2>
+      <h2 data-i18n="review.title">Vocab Review</h2>
       <div class="settingsRow">
-        <span class="settingsLabel" data-i18n="review.language">复习语言</span>
+        <span class="settingsLabel" data-i18n="review.language">Review language</span>
         <select id="reviewLanguageSelect" class="doc-select"></select>
       </div>
       <p id="reviewDueCount"></p>
       <div class="pasteActions">
-        <button id="btnReviewClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
-        <button id="btnStartReview" class="btn btn-primary" data-i18n="review.start">开始复习</button>
+        <button id="btnReviewClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
+        <button id="btnStartReview" class="btn btn-primary" data-i18n="review.start">Start Review</button>
       </div>
     </div>
   </div>
@@ -171,21 +171,21 @@
         </div>
       </div>
       <div class="pasteActions">
-        <button id="btnReviewExit" class="btn btn-ghost" data-i18n="review.exit">退出</button>
-        <button id="btnReviewReveal" class="btn btn-primary" data-i18n="review.reveal">显示答案</button>
-        <button id="btnReviewDontKnow" class="btn btn-ghost hidden" data-i18n="review.dontKnow">不认识</button>
-        <button id="btnReviewKnow" class="btn btn-primary hidden" data-i18n="review.know">认识</button>
+        <button id="btnReviewExit" class="btn btn-ghost" data-i18n="review.exit">Exit</button>
+        <button id="btnReviewReveal" class="btn btn-primary" data-i18n="review.reveal">Show Answer</button>
+        <button id="btnReviewDontKnow" class="btn btn-ghost hidden" data-i18n="review.dontKnow">Don't know</button>
+        <button id="btnReviewKnow" class="btn btn-primary hidden" data-i18n="review.know">Know it</button>
       </div>
     </div>
   </div>
 
   <div id="statsPanelOverlay" class="hidden">
     <div id="statsPanel">
-      <h2 data-i18n="stats.title">我的学习统计</h2>
+      <h2 data-i18n="stats.title">My Learning Stats</h2>
 
       <div class="statsStreakRow">
-        <div class="statsStreakBig"><span id="statsStreakNumber"></span><span data-i18n="stats.days">天</span></div>
-        <p data-i18n="stats.streakHint">连续阅读/复习天数</p>
+        <div class="statsStreakBig"><span id="statsStreakNumber"></span><span data-i18n="stats.days">days</span></div>
+        <p data-i18n="stats.streakHint">Consecutive days reading or reviewing</p>
       </div>
 
       <div id="statsWeekStrip"></div>
@@ -193,43 +193,43 @@
       <div class="statsTiles">
         <div class="statTile">
           <div class="statTile-value" id="statsVocabCount"></div>
-          <div class="statTile-label" data-i18n="stats.vocabCount">累计生词数</div>
+          <div class="statTile-label" data-i18n="stats.vocabCount">Total words saved</div>
         </div>
         <div class="statTile">
           <div class="statTile-value" id="statsDocCount"></div>
-          <div class="statTile-label" data-i18n="stats.docCount">读过的文章数</div>
+          <div class="statTile-label" data-i18n="stats.docCount">Articles imported</div>
         </div>
       </div>
 
       <div class="statsAccuracySection">
-        <p class="statsBlockLabel" data-i18n="stats.accuracyTrend">复习正确率趋势（近 14 天）</p>
+        <p class="statsBlockLabel" data-i18n="stats.accuracyTrend">Review accuracy trend (last 14 days)</p>
         <div id="statsAccuracyChart"></div>
       </div>
 
       <div class="pasteActions">
-        <button id="btnStatsClose" class="btn btn-ghost" data-i18n="common.close">关闭</button>
+        <button id="btnStatsClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
       </div>
     </div>
   </div>
 
   <div id="immersionSaveOverlay" class="hidden">
     <div id="immersionSavePanel">
-      <h2 data-i18n="immersion.saveTitle">保存本次沉浸阅读的生词？</h2>
+      <h2 data-i18n="immersion.saveTitle">Save this session's words?</h2>
       <div id="immersionSaveList"></div>
       <div class="pasteActions">
-        <button id="btnImmersionSaveSkip" class="btn btn-ghost" data-i18n="common.skip">不保存</button>
-        <button id="btnImmersionSaveConfirm" class="btn btn-primary" data-i18n="immersion.saveConfirm">保存选中的词</button>
+        <button id="btnImmersionSaveSkip" class="btn btn-ghost" data-i18n="common.skip">Skip</button>
+        <button id="btnImmersionSaveConfirm" class="btn btn-primary" data-i18n="immersion.saveConfirm">Save selected words</button>
       </div>
     </div>
   </div>
 
   <div id="accountSettingsPanelOverlay" class="hidden">
     <div id="accountSettingsPanel">
-      <h2 data-i18n="nav.settings">设置</h2>
+      <h2 data-i18n="nav.settings">Settings</h2>
       <p id="settingsUserLine" class="settingsUserLine"></p>
 
       <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.uiLanguage">界面语言</span>
+        <span class="settingsBlockLabel" data-i18n="settings.uiLanguage">Interface Language</span>
         <select id="uiLanguageSelect" class="settingsSelect">
           <option value="zh">中文</option>
           <option value="en">English</option>
@@ -238,101 +238,101 @@
       </div>
 
       <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.learningLanguage">学习语言</span>
+        <span class="settingsBlockLabel" data-i18n="settings.learningLanguage">Learning Language</span>
         <select id="settingsLearningLanguageSelect" class="settingsSelect"></select>
       </div>
 
       <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.immersionTargetLanguage">沉浸模式目标语言</span>
+        <span class="settingsBlockLabel" data-i18n="settings.immersionTargetLanguage">Immersion Mode Target Language</span>
         <select id="immersionTargetLanguageSelect" class="settingsSelect">
-          <option value="follow" data-i18n="settings.immersionFollowLearning">跟随学习语言</option>
+          <option value="follow" data-i18n="settings.immersionFollowLearning">Follow learning language</option>
         </select>
       </div>
 
       <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.immersionSourcePriority">选词优先策略</span>
+        <span class="settingsBlockLabel" data-i18n="settings.immersionSourcePriority">Word Selection Priority</span>
         <div class="settingsOptions" data-setting="immersionSourcePriority">
-          <button data-value="vocab" data-i18n="settings.immersionVocabFirst">生词本优先</button>
-          <button data-value="frequency" data-i18n="settings.immersionFrequencyFirst">高频词优先</button>
+          <button data-value="vocab" data-i18n="settings.immersionVocabFirst">Vocab book first</button>
+          <button data-value="frequency" data-i18n="settings.immersionFrequencyFirst">High-frequency words first</button>
         </div>
       </div>
 
       <div class="settingsBlock settingsBlockRow">
-        <span class="settingsBlockLabel" data-i18n="settings.immersionExcludeProperNouns">排除专有名词/数字</span>
+        <span class="settingsBlockLabel" data-i18n="settings.immersionExcludeProperNouns">Exclude proper nouns/numbers</span>
         <input type="checkbox" id="immersionExcludeProperNounsToggle" checked />
       </div>
 
       <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.explainLanguage">AI 讲解语言</span>
+        <span class="settingsBlockLabel" data-i18n="settings.explainLanguage">AI Explanation Language</span>
         <select id="explainLanguageSelect" class="settingsSelect">
-          <option value="auto" data-i18n="settings.explainFollowUI">跟随界面语言</option>
+          <option value="auto" data-i18n="settings.explainFollowUI">Follow interface language</option>
           <option value="zh">中文</option>
           <option value="en">English</option>
         </select>
       </div>
 
       <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.aiProvider">AI 服务商</span>
+        <span class="settingsBlockLabel" data-i18n="settings.aiProvider">AI Provider</span>
         <select id="aiProviderSelect" class="settingsSelect"></select>
       </div>
 
       <div class="settingsBlock">
         <span class="settingsBlockLabel" data-i18n="settings.apiKey">API Key</span>
-        <input type="password" id="aiApiKeyInput" data-i18n-placeholder="settings.apiKeyPlaceholder" placeholder="填入这个服务商的 API Key" />
+        <input type="password" id="aiApiKeyInput" data-i18n-placeholder="settings.apiKeyPlaceholder" placeholder="Enter this provider's API key" />
         <p id="aiKeyHint" class="urlHint"></p>
         <p id="houseTrialHint" class="urlHint hidden"></p>
       </div>
 
       <div id="aiRelayBlock" class="settingsBlock hidden">
-        <span class="settingsBlockLabel" data-i18n="settings.aiRelayLabel">AI 中转站地址（可选）</span>
-        <input type="text" id="aiRelayUrlInput" data-i18n-placeholder="settings.aiRelayPlaceholder" placeholder="例如 https://your-relay.example.com/v1，留空用官方地址" />
-        <p class="urlHint" data-i18n="settings.aiRelayHint">配置后，四个服务商的请求都会经过该地址（需为 OpenAI 兼容接口）；如不确定可留空</p>
-        <input type="text" id="aiRelayModelInput" data-i18n-placeholder="settings.aiRelayModelPlaceholder" placeholder="留空则用各服务商的默认模型名" />
-        <p class="urlHint" data-i18n="settings.aiRelayModelHint">如果中转站提示"不支持的模型名"，在这里填中转站要求的模型名</p>
+        <span class="settingsBlockLabel" data-i18n="settings.aiRelayLabel">AI Relay Base URL (optional)</span>
+        <input type="text" id="aiRelayUrlInput" data-i18n-placeholder="settings.aiRelayPlaceholder" placeholder="e.g. https://your-relay.example.com/v1 — leave blank to use the official endpoint" />
+        <p class="urlHint" data-i18n="settings.aiRelayHint">When set, requests to all four providers are routed through this address (must be an OpenAI-compatible endpoint). Leave blank if unsure.</p>
+        <input type="text" id="aiRelayModelInput" data-i18n-placeholder="settings.aiRelayModelPlaceholder" placeholder="Leave blank to use each provider's default model name" />
+        <p class="urlHint" data-i18n="settings.aiRelayModelHint">If the relay says the model name isn't supported, enter the model name the relay expects here</p>
       </div>
 
       <div id="sheetsSyncBlock" class="settingsBlock settingsBlockRow hidden">
-        <span class="settingsBlockLabel" data-i18n="settings.sheetsSync">同步到 Google Sheet</span>
+        <span class="settingsBlockLabel" data-i18n="settings.sheetsSync">Sync to Google Sheet</span>
         <input type="checkbox" id="sheetsSyncToggle" />
       </div>
 
       <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.changeUsername">修改用户名</span>
-        <input type="text" id="newUsernameInput" data-i18n-placeholder="settings.newUsernamePlaceholder" placeholder="填新用户名" />
+        <span class="settingsBlockLabel" data-i18n="settings.changeUsername">Change Username</span>
+        <input type="text" id="newUsernameInput" data-i18n-placeholder="settings.newUsernamePlaceholder" placeholder="New username" />
         <div class="pasteActions">
-          <button id="btnChangeUsername" class="btn btn-ghost btn-small" data-i18n="common.confirm">确认修改</button>
+          <button id="btnChangeUsername" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
         </div>
         <p id="changeUsernameStatus" class="urlHint"></p>
       </div>
 
       <div class="settingsBlock">
-        <span id="changePasswordLabel" class="settingsBlockLabel" data-i18n="settings.changePassword">修改密码</span>
-        <input type="password" id="newPasswordInput" data-i18n-placeholder="settings.newPasswordPlaceholder" placeholder="填新密码，至少 8 位" />
+        <span id="changePasswordLabel" class="settingsBlockLabel" data-i18n="settings.changePassword">Change Password</span>
+        <input type="password" id="newPasswordInput" data-i18n-placeholder="settings.newPasswordPlaceholder" placeholder="New password, at least 8 characters" />
         <div class="pasteActions">
-          <button id="btnChangePassword" class="btn btn-ghost btn-small" data-i18n="common.confirm">确认修改</button>
+          <button id="btnChangePassword" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
         </div>
         <p id="changePasswordStatus" class="urlHint"></p>
       </div>
 
       <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.googleLink">Google 账号关联</span>
+        <span class="settingsBlockLabel" data-i18n="settings.googleLink">Google Account Link</span>
         <p id="googleLinkStatus" class="urlHint"></p>
         <div class="pasteActions">
-          <button id="btnLinkGoogle" class="btn btn-ghost btn-small" data-i18n="settings.googleLinkBtn">关联 Google 账号</button>
+          <button id="btnLinkGoogle" class="btn btn-ghost btn-small" data-i18n="settings.googleLinkBtn">Link Google Account</button>
         </div>
       </div>
 
       <div class="pasteActions">
-        <button id="btnLogout" class="btn btn-ghost" data-i18n="settings.logout">退出登录</button>
-        <button id="btnSettingsSave" class="btn btn-primary" data-i18n="common.save">保存</button>
+        <button id="btnLogout" class="btn btn-ghost" data-i18n="settings.logout">Log Out</button>
+        <button id="btnSettingsSave" class="btn btn-primary" data-i18n="common.save">Save</button>
       </div>
       <p id="settingsSaveStatus" class="urlHint"></p>
 
       <div class="settingsBlock settingsDangerZone">
-        <span class="settingsBlockLabel" data-i18n="settings.accountData">账号数据</span>
+        <span class="settingsBlockLabel" data-i18n="settings.accountData">Account Data</span>
         <div class="pasteActions">
-          <button id="btnExportData" class="btn btn-ghost btn-small" data-i18n="settings.exportData">导出我的数据</button>
-          <button id="btnDeleteAccount" class="btn btn-danger btn-small" data-i18n="settings.deleteAccount">删除账号</button>
+          <button id="btnExportData" class="btn btn-ghost btn-small" data-i18n="settings.exportData">Export My Data</button>
+          <button id="btnDeleteAccount" class="btn btn-danger btn-small" data-i18n="settings.deleteAccount">Delete Account</button>
         </div>
         <p id="accountDataStatus" class="urlHint"></p>
       </div>
@@ -341,10 +341,10 @@
 
   <div id="languagePickerOverlay" class="hidden">
     <div id="languagePickerPanel">
-      <h2 id="languagePickerHeading">Choose your language<br />选择语言<br />언어를 선택하세요</h2>
+      <h2 id="languagePickerHeading">Choose your language</h2>
 
       <div class="languagePickerSection">
-        <p class="settingsBlockLabel">Interface Language · 界面语言 · 인터페이스 언어</p>
+        <p class="settingsBlockLabel">Interface Language</p>
         <div id="languagePickerOptions">
           <button type="button" class="langPickerOption is-selected" data-lang="en">English</button>
           <button type="button" class="langPickerOption" data-lang="zh">简体中文</button>
@@ -353,13 +353,13 @@
       </div>
 
       <div class="languagePickerSection">
-        <p class="settingsBlockLabel">Learning Language · 学习语言 · 학습 언어</p>
+        <p class="settingsBlockLabel">Learning Language</p>
         <select id="onboardingLearningLanguageSelect" class="doc-select"></select>
       </div>
 
-      <p id="languagePickerHint">You can change this anytime in Settings · 以后可以在设置里修改 · 설정에서 나중에 변경할 수 있어요</p>
+      <p id="languagePickerHint">You can change this anytime in Settings</p>
 
-      <button type="button" id="btnLanguagePickerConfirm" class="btn btn-primary">Continue · 继续 · 계속</button>
+      <button type="button" id="btnLanguagePickerConfirm" class="btn btn-primary">Continue</button>
     </div>
   </div>
 
@@ -367,7 +367,7 @@
     <div id="welcomePanel">
       <h2>
         <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.8 11.3 2 22l10.7-3.79" /><path d="M4 3h.01" /><path d="M22 8h.01" /><path d="M15 2h.01" /><path d="M22 20h.01" /><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10" /><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11c-.11.7-.72 1.22-1.43 1.22H17" /><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98C9.52 4.9 9 5.52 9 6.23V7" /><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z" /></svg>
-        <span data-i18n="welcome.title">欢迎，账号已经注册好了</span>
+        <span data-i18n="welcome.title">Welcome — your account is ready</span>
       </h2>
       <p id="welcomeTagline" class="urlHint" data-i18n="welcome.tagline"></p>
       <div id="welcomeFeatureGrid">
@@ -395,27 +395,27 @@
       <p id="welcomeBody" class="urlHint"></p>
       <p id="welcomeHouseTrialLine" class="urlHint hidden"></p>
       <div class="pasteActions">
-        <button id="btnWelcomeClose" class="btn btn-primary" data-i18n="welcome.gotIt">知道了</button>
+        <button id="btnWelcomeClose" class="btn btn-primary" data-i18n="welcome.gotIt">Get Started</button>
       </div>
     </div>
   </div>
 
   <div id="loginOverlay" class="hidden">
     <div id="loginPanel">
-      <h2 id="loginPanelTitle" data-i18n="login.title">登录</h2>
-      <p class="urlHint" data-i18n="login.hint">用户名随便填，密码至少 8 位；第一个注册的账号会自动成为主账号</p>
-      <input type="text" id="loginUsernameInput" data-i18n-placeholder="login.username" placeholder="用户名" autocomplete="username" />
-      <input type="password" id="loginPasswordInput" data-i18n-placeholder="login.password" placeholder="密码" autocomplete="current-password" />
+      <h2 id="loginPanelTitle" data-i18n="login.title">Sign In</h2>
+      <p class="urlHint" data-i18n="login.hint">Any username works; password needs at least 8 characters. The first account to register automatically becomes the owner.</p>
+      <input type="text" id="loginUsernameInput" data-i18n-placeholder="login.username" placeholder="Username" autocomplete="username" />
+      <input type="password" id="loginPasswordInput" data-i18n-placeholder="login.password" placeholder="Password" autocomplete="current-password" />
       <p id="loginError" class="loginError hidden"></p>
       <div id="turnstileWidget" class="cf-turnstile" data-sitekey=""></div>
       <div class="pasteActions">
-        <button id="btnRegisterSubmit" class="btn btn-ghost" data-i18n="login.registerBtn">注册新账号</button>
-        <button id="btnLoginSubmit" class="btn btn-primary" data-i18n="login.loginBtn">登录</button>
+        <button id="btnRegisterSubmit" class="btn btn-ghost" data-i18n="login.registerBtn">Register</button>
+        <button id="btnLoginSubmit" class="btn btn-primary" data-i18n="login.loginBtn">Sign In</button>
       </div>
-      <div class="loginDivider"><span data-i18n="login.or">或</span></div>
-      <button id="btnGoogleLogin" class="btn btn-ghost loginGoogleBtn" data-i18n="login.googleLogin">用 Google 登录</button>
+      <div class="loginDivider"><span data-i18n="login.or">or</span></div>
+      <button id="btnGoogleLogin" class="btn btn-ghost loginGoogleBtn" data-i18n="login.googleLogin">Sign in with Google</button>
       <p class="loginLegalLinks">
-        <span data-i18n="login.legalPrefix">继续即表示你同意</span><a href="/terms.html" target="_blank" data-i18n="login.terms">服务条款</a><span data-i18n="login.and">和</span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">隐私政策</a>
+        <span data-i18n="login.legalPrefix">By continuing you agree to the </span><a href="/terms.html" target="_blank" data-i18n="login.terms">Terms of Service</a><span data-i18n="login.and"> and </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a>
       </p>
     </div>
   </div>
@@ -426,73 +426,73 @@
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" /></svg>
         </span>
-        <span class="navLabel" data-i18n="nav.reader">阅读</span>
+        <span class="navLabel" data-i18n="nav.reader">Reader</span>
       </button>
       <button class="navItem" id="btnToggleSidebar">
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></svg>
         </span>
-        <span class="navLabel" data-i18n="sidebar.history">历史记录</span>
+        <span class="navLabel" data-i18n="sidebar.history">History</span>
       </button>
       <button class="navItem" id="btnSearchHistory">
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 6 4 14" /><path d="M12 6v14" /><path d="M8 8v12" /><path d="M4 4v16" /></svg>
         </span>
-        <span class="navLabel" data-i18n="nav.vocab">生词本</span>
+        <span class="navLabel" data-i18n="nav.vocab">Vocabulary</span>
       </button>
       <button class="navItem" id="btnDocManager">
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" /></svg>
         </span>
-        <span class="navLabel" data-i18n="nav.docManager">文章管理</span>
+        <span class="navLabel" data-i18n="nav.docManager">Articles</span>
       </button>
       <button class="navItem" id="btnRecommend">
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg>
         </span>
-        <span class="navLabel" data-i18n="nav.recommend">AI 推荐</span>
+        <span class="navLabel" data-i18n="nav.recommend">AI Picks</span>
       </button>
       <button class="navItem" id="btnNativeNews">
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 6h3a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1h11z" /><path d="M18 14h-8" /><path d="M15 18h-5" /><path d="M10 6h4v4h-4z" /></svg>
         </span>
-        <span class="navLabel" data-i18n="nav.nativeNews">母语新闻</span>
+        <span class="navLabel" data-i18n="nav.nativeNews">Native News</span>
       </button>
       <button class="navItem" id="btnAccountSettings">
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg>
         </span>
-        <span class="navLabel" data-i18n="nav.settings">设置</span>
+        <span class="navLabel" data-i18n="nav.settings">Settings</span>
       </button>
       <div class="navDivider"></div>
       <button class="navItem" id="navReview">
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
         </span>
-        <span class="navLabel" data-i18n="nav.review">复习</span>
+        <span class="navLabel" data-i18n="nav.review">Review</span>
       </button>
       <button class="navItem" id="btnStats">
         <span class="navIcon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg>
         </span>
-        <span class="navLabel" data-i18n="nav.stats">学习统计</span>
+        <span class="navLabel" data-i18n="nav.stats">Stats</span>
       </button>
     </nav>
     <div id="viewer">
       <div id="readingProgress"><div id="readingProgressFill"></div></div>
       <div id="viewerContent">
         <div id="emptyState">
-          <p data-i18n="empty.noDocument">粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读</p>
+          <p data-i18n="empty.noDocument">Paste an article, or upload a PDF/DOCX file to start reading closely</p>
         </div>
       </div>
     </div>
     <div id="sidebar">
       <div class="sidebarHeader">
-        <h2 data-i18n="sidebar.history">历史记录</h2>
+        <h2 data-i18n="sidebar.history">History</h2>
         <div class="sidebarHeaderActions">
-          <button id="btnSaveAll" class="btn btn-ghost btn-small" data-i18n="sidebar.saveAll" data-i18n-title="sidebar.saveAllHint" title="把当前还没存的解析结果一次性全部存进去">一键保存</button>
-          <button id="btnPrint" class="btn btn-ghost btn-small hidden" data-i18n-title="sidebar.printHint" title="把文章和划过的生词/句子打印出来"><svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg><span data-i18n="sidebar.print">打印</span></button>
-          <button id="btnCloseSidebar" class="btn btn-ghost btn-small" data-i18n="common.close">关闭</button>
+          <button id="btnSaveAll" class="btn btn-ghost btn-small" data-i18n="sidebar.saveAll" data-i18n-title="sidebar.saveAllHint" title="Save all pending analysis results at once">Save All</button>
+          <button id="btnPrint" class="btn btn-ghost btn-small hidden" data-i18n-title="sidebar.printHint" title="Print the article with your highlighted words and sentences"><svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg><span data-i18n="sidebar.print">Print</span></button>
+          <button id="btnCloseSidebar" class="btn btn-ghost btn-small" data-i18n="common.close">Close</button>
         </div>
       </div>
       <div id="annotationList"></div>
@@ -507,13 +507,13 @@
   <div id="wordPopup" class="hidden"></div>
 
   <div id="readAloudBar" class="hidden">
-    <button type="button" id="btnReadAloudPlayPause" data-i18n-title="readAloud.pause" title="暂停"></button>
-    <button type="button" id="btnReadAloudStop" data-i18n-title="readAloud.stop" title="停止"></button>
+    <button type="button" id="btnReadAloudPlayPause" data-i18n-title="readAloud.pause" title="Pause"></button>
+    <button type="button" id="btnReadAloudStop" data-i18n-title="readAloud.stop" title="Stop"></button>
   </div>
 
   <div id="immersionLoadingBar" class="hidden">
     <span class="spinner" aria-hidden="true"></span>
-    <span data-i18n="immersion.loading">正在生成沉浸版本...</span>
+    <span data-i18n="immersion.loading">Generating immersion version...</span>
   </div>
 
   <div id="printArea"></div>
