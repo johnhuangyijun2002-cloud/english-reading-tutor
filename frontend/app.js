@@ -175,6 +175,19 @@ function apiFetch(url, opts = {}) {
   });
 }
 
+// 后端报错是 FastAPI 的 HTTPException，响应体是 {"detail": "..."} 这样的 JSON——
+// 不能直接把 res.text() 整段塞给用户看，那样弹窗里会出现原始的 {"detail":...} 文本。
+// 这里统一解析出 detail 字段；不是 JSON（比如网关层的纯文本报错）就原样返回。
+async function apiErrorText(res) {
+  try {
+    const data = await res.json();
+    if (data && typeof data.detail === "string") return data.detail;
+    return JSON.stringify(data);
+  } catch (err) {
+    return await res.text();
+  }
+}
+
 let allDocs = [];
 let currentDocId = null;
 let currentDocName = "";
@@ -408,7 +421,7 @@ fileInput.addEventListener("change", async () => {
   formData.append("learning_language", learningLanguageSelect.value);
   const res = await apiFetch("/api/upload", { method: "POST", body: formData });
   if (!res.ok) {
-    alert(t("upload.failed", { message: await res.text() }));
+    alert(t("upload.failed", { message: await apiErrorText(res) }));
     return;
   }
   const doc = await res.json();
@@ -894,7 +907,7 @@ async function fetchImmersionPlan() {
         source_priority: settingsData.immersion_source_priority,
       }),
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     immersionPlan = await res.json();
   } catch (err) {
     alert(t("immersion.planFailed", { message: err.message }));
@@ -922,7 +935,7 @@ async function saveVocabEntry(record) {
         learning_language: record.learning_language || currentDocLearningLanguage,
       }),
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     return true;
   } catch (err) {
     alert(t("immersion.saveFailed", { message: err.message }));
@@ -1196,7 +1209,7 @@ async function submitPasteText() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, content, learning_language: learningLanguageSelect.value }),
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     const doc = await res.json();
     await refreshDocuments(doc.id);
     pastePanelOverlay.classList.add("hidden");
@@ -1215,7 +1228,7 @@ async function fetchUrlAsDocument(url, learningLanguage) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, learning_language: learningLanguage || learningLanguageSelect.value }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await apiErrorText(res));
   return res.json();
 }
 
@@ -1300,7 +1313,7 @@ async function loadRecommendations(refresh) {
     const params = new URLSearchParams({ learning_language: learningLanguage });
     if (refresh) params.set("refresh", "true");
     const res = await apiFetch(`/api/recommendations?${params.toString()}`);
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     const picks = await res.json();
     renderRecommendations(picks, learningLanguage);
     loadUsage();
@@ -1393,7 +1406,7 @@ async function loadNativeNews(refresh) {
     const params = new URLSearchParams();
     if (refresh) params.set("refresh", "true");
     const res = await apiFetch(`/api/immersion/native-news?${params.toString()}`);
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     const items = await res.json();
     renderNativeNews(items);
   } catch (err) {
@@ -1702,7 +1715,7 @@ async function runAnalyze(entryEl, text, mode, context) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, context, mode, learning_language: currentDocLearningLanguage }),
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     const data = await res.json();
     updateAnnotationEntry(entryEl, data);
     actionsEl.classList.remove("hidden");
@@ -1873,7 +1886,7 @@ async function deleteRecord(record) {
   const endpoint = record.mode === "word" ? `/api/vocab/${record.id}` : `/api/sentence_notes/${record.id}`;
   try {
     const res = await apiFetch(endpoint, { method: "DELETE" });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
   } catch (err) {
     alert(t("history.deleteFailed", { message: err.message }));
     return false;
@@ -1968,7 +1981,7 @@ function renderDocManagerList() {
       if (!confirmed) return;
       try {
         const res = await apiFetch(`/api/documents/${doc.id}`, { method: "DELETE" });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(await apiErrorText(res));
       } catch (err) {
         alert(t("docManager.deleteFailed", { message: err.message }));
         return;
@@ -2175,7 +2188,7 @@ async function saveAnnotation(el, text) {
         learning_language: currentDocLearningLanguage,
       }),
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     const data = await res.json();
 
     if (data.duplicate) {
@@ -2461,7 +2474,7 @@ btnLinkGoogle.addEventListener("click", async () => {
   googleLinkStatus.textContent = t("settings.googleRedirecting");
   try {
     const res = await apiFetch("/api/auth/google/link-init", { method: "POST" });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     const data = await res.json();
     location.href = "/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce);
   } catch (err) {
@@ -2481,7 +2494,7 @@ btnChangeUsername.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ new_username: newUsername }),
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     const data = await res.json();
     newUsernameInput.value = "";
     changeUsernameStatus.textContent = t("common.saved");
@@ -2508,7 +2521,7 @@ btnChangePassword.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ new_password: newPassword }),
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     newPasswordInput.value = "";
     changePasswordStatus.textContent = t("common.saved");
     changePasswordLabel.textContent = t("settings.changePassword");
@@ -2524,7 +2537,7 @@ btnExportData.addEventListener("click", async () => {
   accountDataStatus.textContent = t("account.exporting");
   try {
     const res = await apiFetch("/api/account/export");
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     const data = await res.json();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -2554,7 +2567,7 @@ btnDeleteAccount.addEventListener("click", async () => {
   accountDataStatus.textContent = t("account.deleting");
   try {
     const res = await apiFetch("/api/account", { method: "DELETE" });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     localStorage.removeItem("authToken");
     alert(t("account.deleted"));
     location.reload();
@@ -2601,7 +2614,7 @@ btnSettingsSave.addEventListener("click", async () => {
         immersion_exclude_proper_nouns: immersionExcludeProperNounsToggle.checked,
       }),
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(await apiErrorText(res));
     if (newUiLanguage !== currentUiLanguage) {
       // 界面语言变了：已经渲染到页面上的动态内容(历史记录空状态、文档列表标签等)
       // 不会跟着 applyI18n() 自动重译，最简单可靠的办法是刷新页面，让整个初始化流程
@@ -2691,7 +2704,7 @@ btnLoginSubmit.addEventListener("click", async () => {
       cache: "no-store",
     });
     if (!res.ok) {
-      throw new Error((await res.json().catch(() => null))?.detail || t("login.credentialsWrong"));
+      throw new Error((await apiErrorText(res)) || t("login.credentialsWrong"));
     }
     const data = await res.json();
     await enterApp(data.token, data);
@@ -2724,10 +2737,7 @@ btnRegisterSubmit.addEventListener("click", async () => {
       cache: "no-store",
     });
     if (!res.ok) {
-      const bodyText = await res.text();
-      let detail = bodyText;
-      try { detail = JSON.parse(bodyText).detail || bodyText; } catch (e) { /* 不是 JSON 就原样显示 */ }
-      throw new Error(detail);
+      throw new Error(await apiErrorText(res));
     }
     const data = await res.json();
     await enterApp(data.token, data);

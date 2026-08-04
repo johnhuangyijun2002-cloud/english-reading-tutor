@@ -860,7 +860,7 @@ MIN_PASSWORD_LENGTH = 8
 
 def _validate_password_strength(password: str):
     if len(password) < MIN_PASSWORD_LENGTH:
-        raise HTTPException(400, f"密码至少要 {MIN_PASSWORD_LENGTH} 位")
+        raise HTTPException(400, f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
 
 
 def _migrate_legacy_invite_users():
@@ -920,13 +920,13 @@ async def register(request: Request, req: RegisterRequest):
     username = req.username.strip()
     password = req.password
     if not username or not password:
-        raise HTTPException(400, "用户名和密码不能为空")
+        raise HTTPException(400, "Username and password are required")
     if not await _verify_turnstile(req.turnstile_token, get_remote_address(request)):
-        raise HTTPException(400, "人机验证没通过，刷新页面重试一下")
+        raise HTTPException(400, "Verification failed, please refresh and try again")
     _validate_password_strength(password)
 
     if await db_get_user_by_username(username):
-        raise HTTPException(400, "这个用户名已经被注册了，换一个")
+        raise HTTPException(400, "This username is already taken, try another one")
 
     salt = secrets.token_hex(16)
     user_count = await db_count_users()
@@ -962,13 +962,13 @@ class LoginRequest(BaseModel):
 @limiter.limit("10/minute")
 async def login(request: Request, req: LoginRequest):
     if not await _verify_turnstile(req.turnstile_token, get_remote_address(request)):
-        raise HTTPException(400, "人机验证没通过，刷新页面重试一下")
+        raise HTTPException(400, "Verification failed, please refresh and try again")
     user = await db_get_user_by_username(req.username.strip())
     if not user or not user.get("password_hash"):
-        raise HTTPException(401, "用户名或密码不对")
+        raise HTTPException(401, "Incorrect username or password")
     expected = _hash_password(req.password, user.get("password_salt") or "")
     if not hmac.compare_digest(expected, user["password_hash"]):
-        raise HTTPException(401, "用户名或密码不对")
+        raise HTTPException(401, "Incorrect username or password")
     token = await db_create_session(user["id"])
     return {
         "token": token,
@@ -988,10 +988,10 @@ async def logout(credentials: Optional[HTTPAuthorizationCredentials] = Depends(b
 
 async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     if not credentials:
-        raise HTTPException(401, "未登录")
+        raise HTTPException(401, "Not signed in")
     user = await db_get_session_user(credentials.credentials)
     if not user:
-        raise HTTPException(401, "登录状态已失效，重新登录一下")
+        raise HTTPException(401, "Your session has expired, please sign in again")
     return user
 
 
@@ -1027,10 +1027,10 @@ class ChangeUsernameRequest(BaseModel):
 async def change_username(req: ChangeUsernameRequest, user: dict = Depends(get_current_user)):
     new_username = req.new_username.strip()
     if not new_username:
-        raise HTTPException(400, "新用户名不能为空")
+        raise HTTPException(400, "New username can't be empty")
     existing = await db_get_user_by_username(new_username)
     if existing and existing["id"] != user["id"]:
-        raise HTTPException(400, "这个用户名已经被占用了，换一个")
+        raise HTTPException(400, "This username is already taken, try another one")
     await db_update_user_fields(user["id"], username=new_username, name=new_username)
     _audit("change_username", user_id=user["id"], old_username=user.get("username"), new_username=new_username)
     return {"ok": True, "username": new_username, "name": new_username}
@@ -1116,13 +1116,13 @@ async def google_link_init(request: Request, user: dict = Depends(get_current_us
 @app.get("/api/auth/google/login")
 async def google_login(request: Request, link_nonce: str = ""):
     if not GOOGLE_CLIENT_ID:
-        raise HTTPException(500, "这个部署还没配置 Google 登录(缺 GOOGLE_CLIENT_ID)")
+        raise HTTPException(500, "This deployment hasn't configured Google sign-in (missing GOOGLE_CLIENT_ID)")
 
     link_user_id = None
     if link_nonce:
         entry = _pending_link_nonces.pop(link_nonce, None)
         if not entry:
-            raise HTTPException(400, "关联请求已过期，回设置里重新点一次")
+            raise HTTPException(400, "This link request has expired, go back to Settings and try again")
         link_user_id = entry["user_id"]
 
     state = _new_oauth_state(link_user_id=link_user_id)
@@ -1141,9 +1141,9 @@ async def google_login(request: Request, link_nonce: str = ""):
 @app.get("/api/auth/google/callback")
 async def google_callback(request: Request, code: str = "", state: str = "", error: str = ""):
     if error:
-        raise HTTPException(400, f"Google 登录失败: {error}")
+        raise HTTPException(400, f"Google sign-in failed: {error}")
     if not state or state not in _pending_oauth_states:
-        raise HTTPException(400, "登录状态已过期，重新点一次「用 Google 登录」")
+        raise HTTPException(400, "Sign-in session expired, click \"Sign in with Google\" again")
     state_entry = _pending_oauth_states.pop(state)
     link_user_id = state_entry.get("link_user_id")
 
@@ -1160,7 +1160,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
             },
         )
     if token_resp.status_code != 200:
-        raise HTTPException(400, f"Google 登录换取 token 失败: {token_resp.text}")
+        raise HTTPException(400, f"Failed to exchange Google login token: {token_resp.text}")
     google_access_token = token_resp.json().get("access_token", "")
 
     async with httpx.AsyncClient(timeout=15) as client:
@@ -1169,13 +1169,13 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
             headers={"Authorization": f"Bearer {google_access_token}"},
         )
     if profile_resp.status_code != 200:
-        raise HTTPException(400, "拿不到 Google 账号信息")
+        raise HTTPException(400, "Couldn't fetch Google account info")
     profile = profile_resp.json()
     google_id = profile.get("sub", "")
     email = profile.get("email", "")
-    name = profile.get("name") or email or "Google 用户"
+    name = profile.get("name") or email or "Google user"
     if not google_id:
-        raise HTTPException(400, "Google 账号信息里没有用户 ID")
+        raise HTTPException(400, "Google account info is missing a user ID")
 
     if link_user_id:
         # 关联流程：把这个 google_id 绑到当前登录的账号上，而不是新建/登录到别的账号。
@@ -1184,7 +1184,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         # 已经证明了操作者对这个 Google 账号有控制权，重新指向不算越权。
         target = await db_get_user_by_id(link_user_id)
         if not target:
-            raise HTTPException(400, "要关联的账号不存在了，重新登录后再试一次")
+            raise HTTPException(400, "The account you're linking no longer exists, sign in again and retry")
         existing_owner = await db_get_user_by_google_id(google_id)
         if existing_owner and existing_owner["id"] != link_user_id:
             await db_update_user_fields(existing_owner["id"], google_id=None, google_email=None)
@@ -1364,7 +1364,7 @@ async def upload_document(
 ):
     ext = Path(file.filename).suffix.lower()
     if ext not in (".pdf", ".docx"):
-        raise HTTPException(400, "只支持 PDF 或 DOCX 文件")
+        raise HTTPException(400, "Only PDF or DOCX files are supported")
 
     file_bytes = await file.read()
     try:
@@ -1373,10 +1373,10 @@ async def upload_document(
         else:
             content = await asyncio.to_thread(extract_docx_text, file_bytes)
     except Exception as e:
-        raise HTTPException(400, f"解析文件失败：{e}")
+        raise HTTPException(400, f"Failed to parse the file: {e}")
 
     if not content.strip():
-        raise HTTPException(400, "没能从这个文件里提取出文字，可能是扫描版 PDF(图片形式，没有文字层)")
+        raise HTTPException(400, "Couldn't extract any text from this file — it might be a scanned PDF (image-only, no text layer)")
 
     doc_id = uuid.uuid4().hex[:12]
     record = {
@@ -1401,13 +1401,13 @@ class PasteRequest(BaseModel):
 @app.post("/api/paste")
 async def paste_document(req: PasteRequest, user: dict = Depends(get_current_user)):
     if not req.content.strip():
-        raise HTTPException(400, "文章内容不能为空")
+        raise HTTPException(400, "Article content can't be empty")
 
     doc_id = uuid.uuid4().hex[:12]
     record = {
         "id": doc_id,
         "user_id": user["id"],
-        "filename": req.title.strip() or f"粘贴文章-{doc_id}",
+        "filename": req.title.strip() or f"Pasted article-{doc_id}",
         "type": "text",
         "content": req.content,
         "learning_language": req.learning_language.strip() or detect_learning_language(req.content),
@@ -1426,11 +1426,11 @@ class UrlFetchRequest(BaseModel):
 async def fetch_url_document(req: UrlFetchRequest, user: dict = Depends(get_current_user)):
     url = req.url.strip()
     if not url.startswith("http://") and not url.startswith("https://"):
-        raise HTTPException(400, "网址格式不对，需要以 http:// 或 https:// 开头")
+        raise HTTPException(400, "Invalid URL format — it needs to start with http:// or https://")
 
     downloaded = await asyncio.to_thread(trafilatura.fetch_url, url)
     if not downloaded:
-        raise HTTPException(400, "打不开这个网址，检查一下网址是否正确，或者这个网站限制了访问")
+        raise HTTPException(400, "Couldn't open this URL — check that it's correct, or the site may be blocking access")
 
     extracted = await asyncio.to_thread(
         trafilatura.extract,
@@ -1442,13 +1442,13 @@ async def fetch_url_document(req: UrlFetchRequest, user: dict = Depends(get_curr
         output_format="json",
     )
     if not extracted:
-        raise HTTPException(400, "抓到了页面，但没能提取出正文，可能这个页面不是文章页")
+        raise HTTPException(400, "Fetched the page but couldn't extract the article body — this may not be an article page")
 
     data = json.loads(extracted)
     title = (data.get("title") or "").strip() or url
     content = (data.get("text") or "").strip()
     if not content:
-        raise HTTPException(400, "没有提取到正文内容")
+        raise HTTPException(400, "No article content was extracted")
 
     doc_id = uuid.uuid4().hex[:12]
     record = {
@@ -1474,7 +1474,7 @@ async def list_documents(user: dict = Depends(get_current_user)):
 async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
     target = await db_get_document(doc_id)
     if not target or target.get("user_id") != user["id"]:
-        raise HTTPException(404, "没找到这篇文章")
+        raise HTTPException(404, "Article not found")
     await db_delete_document(doc_id)
     # 生词/句子笔记是按文章标题(source_doc)关联的，不是按这篇文章的 id，
     # 删文章不会跟着删掉已经存的生词——跟本地删生词不会删 Sheet 里对应行是同一个道理，
@@ -1487,11 +1487,11 @@ async def get_coverage(doc_id: str, user: dict = Depends(get_current_user)):
     """中/日/韩文章的生词覆盖率——拉丁字母语言前端自己算，不用调这个接口。"""
     doc = await db_get_document(doc_id)
     if not doc or doc.get("user_id") != user["id"]:
-        raise HTTPException(404, "没找到这篇文章")
+        raise HTTPException(404, "Article not found")
     lang = doc.get("learning_language", "en")
     tokenizer = COVERAGE_TOKENIZERS.get(lang)
     if not tokenizer:
-        raise HTTPException(400, f"这个语言不支持覆盖率统计: {lang}")
+        raise HTTPException(400, f"Coverage stats aren't supported for this language: {lang}")
 
     vocab_rows = await db_list_vocab(user["id"])
     known_words = {v["word"].strip().lower() for v in vocab_rows if v.get("word") and v.get("learning_language") == lang}
@@ -1613,13 +1613,13 @@ async def _call_openai_compatible(url: str, model: str, api_key: str, prompt: st
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(url, headers={"Authorization": f"Bearer {api_key}"}, json=payload)
     if resp.status_code != 200:
-        raise HTTPException(502, f"AI 接口调用失败: {resp.text}")
+        raise HTTPException(502, f"AI request failed: {resp.text}")
     try:
         data = resp.json()
         usage = data.get("usage", {})
         return data["choices"][0]["message"]["content"], usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
     except (json.JSONDecodeError, KeyError, IndexError):
-        raise HTTPException(502, f"AI 返回格式异常: {resp.text}")
+        raise HTTPException(502, f"Unexpected AI response format: {resp.text}")
 
 
 async def _call_claude(api_key: str, prompt: str, json_mode: bool):
@@ -1638,13 +1638,13 @@ async def _call_claude(api_key: str, prompt: str, json_mode: bool):
             },
         )
     if resp.status_code != 200:
-        raise HTTPException(502, f"AI 接口调用失败(Claude): {resp.text}")
+        raise HTTPException(502, f"AI request failed (Claude): {resp.text}")
     data = resp.json()
     usage = data.get("usage", {})
     try:
         return data["content"][0]["text"], usage.get("input_tokens", 0), usage.get("output_tokens", 0)
     except (KeyError, IndexError):
-        raise HTTPException(502, f"Claude 返回格式异常: {data}")
+        raise HTTPException(502, f"Unexpected Claude response format: {data}")
 
 
 async def _call_gemini(api_key: str, prompt: str, json_mode: bool):
@@ -1653,14 +1653,14 @@ async def _call_gemini(api_key: str, prompt: str, json_mode: bool):
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
     if resp.status_code != 200:
-        raise HTTPException(502, f"AI 接口调用失败(Gemini): {resp.text}")
+        raise HTTPException(502, f"AI request failed (Gemini): {resp.text}")
     data = resp.json()
     usage = data.get("usageMetadata", {})
     try:
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         return text, usage.get("promptTokenCount", 0), usage.get("candidatesTokenCount", 0)
     except (KeyError, IndexError):
-        raise HTTPException(502, f"Gemini 返回格式异常: {data}")
+        raise HTTPException(502, f"Unexpected Gemini response format: {data}")
 
 
 async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_mode: bool = False,
@@ -1673,10 +1673,10 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
     relay_model：不同中转站给同一个服务商用的模型名可能跟官方不一样，配了就用这个名字
     覆盖默认值，没配就还是用 PROVIDER_CONFIG 里的官方模型名。"""
     if not api_key:
-        raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
+        raise HTTPException(400, "No AI API key configured yet — add one in Settings")
     cfg = PROVIDER_CONFIG.get(provider)
     if not cfg:
-        raise HTTPException(400, f"不支持的 AI 服务商: {provider}")
+        raise HTTPException(400, f"Unsupported AI provider: {provider}")
 
     if relay_base_url:
         url = f"{relay_base_url.rstrip('/')}/chat/completions"
@@ -1689,7 +1689,7 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
     elif cfg["kind"] == "gemini":
         text, in_tok, out_tok = await _call_gemini(api_key, prompt, json_mode)
     else:
-        raise HTTPException(500, "AI 服务商配置错误")
+        raise HTTPException(500, "AI provider misconfigured")
 
     cost = await record_api_call(user_id, provider, in_tok, out_tok)
     return text, cost
@@ -1723,11 +1723,11 @@ async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> 
     if not api_key:
         if blocked_reason == "user_limit":
             raise HTTPException(
-                400, f"体验用的公共额度({HOUSE_FREE_CALLS_PER_USER} 次)已经用完了，去设置里填一个你自己的 AI Key 才能继续用"
+                400, f"You've used up your free trial ({HOUSE_FREE_CALLS_PER_USER} calls) — add your own AI key in Settings to keep going"
             )
         if blocked_reason == "global_budget":
-            raise HTTPException(400, "公共体验额度这个月已经用满了，去设置里填一个你自己的 AI Key 才能继续用")
-        raise HTTPException(400, "还没有配置 AI API Key，先去设置里填一下")
+            raise HTTPException(400, "The shared free trial budget is used up for this month — add your own AI key in Settings to keep going")
+        raise HTTPException(400, "No AI API key configured yet — add one in Settings")
 
     relay_base_url = "" if using_house else (user.get("ai_relay_base_url") or "")
     relay_model = "" if using_house else (user.get("ai_relay_model") or "")
@@ -2087,14 +2087,14 @@ class ImmersionPlanResponse(BaseModel):
 @limiter.limit("20/minute")
 async def get_immersion_plan(request: Request, req: ImmersionPlanRequest, user: dict = Depends(get_current_user)):
     if req.learning_language not in LANGUAGE_LABELS:
-        raise HTTPException(400, f"不支持的目标语言: {req.learning_language}")
+        raise HTTPException(400, f"Unsupported target language: {req.learning_language}")
     if req.source_priority not in IMMERSION_SOURCE_PRIORITY_CHOICES:
-        raise HTTPException(400, "不支持的选词策略")
+        raise HTTPException(400, "Unsupported word selection strategy")
 
     # 沉浸模式一篇文章要拆好几次 AI 调用，公共体验额度经不起这么用，只对配了自己 key 的用户开放。
     own_key = user.get("ai_api_keys", {}).get(user.get("ai_provider", "deepseek"), "")
     if not own_key:
-        raise HTTPException(400, "沉浸阅读模式一次要消耗好几次 AI 调用，暂时只对配置了自己 AI Key 的用户开放，去设置里填一个吧")
+        raise HTTPException(400, "Immersion mode takes several AI calls per article, so it's only available to users with their own AI key configured — add one in Settings")
 
     # 跟前端 renderTextDocument() 的 content.split(/\n+/) + 去空段 保持段落索引完全对齐，
     # 这里是等价写法：按换行切开，过滤掉空段。
@@ -2299,8 +2299,8 @@ async def get_recommendations(
 ):
     if learning_language not in LANGUAGE_SOURCES:
         lang_label = LANGUAGE_LABELS.get(learning_language, learning_language)
-        supported = "、".join(LANGUAGE_LABELS.get(code, code) for code in LANGUAGE_SOURCES)
-        raise HTTPException(400, f"暂时还没有给「{lang_label}」配置推荐新闻源，目前支持：{supported}")
+        supported = ", ".join(LANGUAGE_LABELS.get(code, code) for code in LANGUAGE_SOURCES)
+        raise HTTPException(400, f"No news sources configured for \"{lang_label}\" yet — currently supported: {supported}")
 
     lang = learning_language
     explain_language = resolve_explain_language(user)
@@ -2316,7 +2316,7 @@ async def get_recommendations(
     items = await asyncio.to_thread(fetch_headlines, lang)
     if not items:
         source_names = dict.fromkeys(s["name"] for s in LANGUAGE_SOURCES.get(lang, []))
-        raise HTTPException(502, f"{' / '.join(source_names)} 暂时无法访问，请稍后重试")
+        raise HTTPException(502, f"{' / '.join(source_names)} is temporarily unreachable, please try again later")
 
     raw = await call_ai_for_user(build_recommend_prompt(items, lang, explain_language, level), user, json_mode=True)
     try:
@@ -2353,7 +2353,7 @@ class ProficiencyRequest(BaseModel):
 @app.post("/api/proficiency")
 async def set_proficiency(req: ProficiencyRequest, user: dict = Depends(get_current_user)):
     if req.level not in CEFR_LEVELS:
-        raise HTTPException(400, "不支持的水平")
+        raise HTTPException(400, "Unsupported proficiency level")
     await db_set_user_level(user["id"], req.learning_language, req.level)
     return {"level": req.level}
 
@@ -2375,7 +2375,7 @@ async def get_native_news(
     native_lang = user.get("ui_language", "en")
     if native_lang not in LANGUAGE_SOURCES:
         lang_label = LANGUAGE_LABELS.get(native_lang, native_lang)
-        raise HTTPException(400, f"暂时还没有给「{lang_label}」配置母语新闻源")
+        raise HTTPException(400, f"No native-language news sources configured for \"{lang_label}\" yet")
 
     cache_key = (user["id"], native_lang)
     now = datetime.now(timezone.utc)
@@ -2388,7 +2388,7 @@ async def get_native_news(
     items = await asyncio.to_thread(fetch_headlines, native_lang)
     if not items:
         source_names = dict.fromkeys(s["name"] for s in LANGUAGE_SOURCES.get(native_lang, []))
-        raise HTTPException(502, f"{' / '.join(source_names)} 暂时无法访问，请稍后重试")
+        raise HTTPException(502, f"{' / '.join(source_names)} is temporarily unreachable, please try again later")
 
     results = []
     seen_urls = set()
@@ -2463,19 +2463,19 @@ class SettingsRequest(BaseModel):
 @app.post("/api/settings")
 async def update_settings(req: SettingsRequest, user: dict = Depends(get_current_user)):
     if req.ai_provider not in PROVIDER_CONFIG:
-        raise HTTPException(400, "不支持的 AI 服务商")
+        raise HTTPException(400, "Unsupported AI provider")
     if req.ui_language not in UI_LANGUAGES:
-        raise HTTPException(400, "不支持的界面语言")
+        raise HTTPException(400, "Unsupported interface language")
     if req.explain_language not in EXPLAIN_LANGUAGE_CHOICES:
-        raise HTTPException(400, "不支持的 AI 讲解语言")
+        raise HTTPException(400, "Unsupported AI explanation language")
     if req.immersion_target_language not in ({"follow"} | set(LANGUAGE_SOURCES.keys())):
-        raise HTTPException(400, "不支持的沉浸模式目标语言")
+        raise HTTPException(400, "Unsupported immersion mode target language")
     if req.immersion_source_priority not in IMMERSION_SOURCE_PRIORITY_CHOICES:
-        raise HTTPException(400, "不支持的沉浸模式选词策略")
+        raise HTTPException(400, "Unsupported immersion mode word selection strategy")
 
     relay_base_url = req.ai_relay_base_url.strip()
     if relay_base_url and not (relay_base_url.startswith("http://") or relay_base_url.startswith("https://")):
-        raise HTTPException(400, "中转站地址得是 http:// 或 https:// 开头的完整地址")
+        raise HTTPException(400, "The relay address must be a full URL starting with http:// or https://")
 
     keys = dict(user.get("ai_api_keys", {}))
     if req.ai_api_key:
@@ -2601,7 +2601,7 @@ async def list_sentence_notes(user: dict = Depends(get_current_user)):
 async def delete_vocab(item_id: str, user: dict = Depends(get_current_user)):
     target = await db_get_vocab(item_id)
     if not target or target.get("user_id") != user["id"]:
-        raise HTTPException(404, "没找到这条生词记录")
+        raise HTTPException(404, "Vocab entry not found")
     await db_delete_vocab(item_id)
     return {"ok": True}
 
@@ -2629,10 +2629,10 @@ class ReviewMarkRequest(BaseModel):
 @app.post("/api/review/mark")
 async def review_mark(req: ReviewMarkRequest, user: dict = Depends(get_current_user)):
     if req.result not in ("know", "dont_know"):
-        raise HTTPException(400, "不支持的复习结果")
+        raise HTTPException(400, "Unsupported review result")
     target = await db_get_vocab(req.item_id)
     if not target or target.get("user_id") != user["id"]:
-        raise HTTPException(404, "没找到这条生词记录")
+        raise HTTPException(404, "Vocab entry not found")
     new_level, next_review_at = apply_leitner_result(target.get("srs_level", 0), req.result)
     await db_update_vocab_fields(
         req.item_id, srs_level=new_level, next_review_at=next_review_at,
@@ -2652,7 +2652,7 @@ async def activity_read_ping(user: dict = Depends(get_current_user)):
 async def delete_sentence_note(item_id: str, user: dict = Depends(get_current_user)):
     target = await db_get_sentence_note(item_id)
     if not target or target.get("user_id") != user["id"]:
-        raise HTTPException(404, "没找到这条句子笔记")
+        raise HTTPException(404, "Sentence note not found")
     await db_delete_sentence_note(item_id)
     return {"ok": True}
 
