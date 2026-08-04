@@ -9,9 +9,13 @@
 <meta property="og:description" content="Turn real articles and news into your personal language classroom: instant word lookups, spaced-repetition review, and immersion reading at your own pace." />
 <meta property="og:type" content="website" />
 <link rel="stylesheet" href="style.css" />
+<script>document.documentElement.classList.add("js");</script>
 <style>
   body.landingPage {
     display: block;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
   .landingWrap {
@@ -27,6 +31,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    position: relative;
+    z-index: 2;
   }
 
   .landingBrand {
@@ -35,33 +41,93 @@
     letter-spacing: -0.02em;
   }
 
+  /* ---------- Hero: animated liquid-glass orbs ---------- */
+
   .landingHero {
     position: relative;
     text-align: center;
-    padding: 96px 0 64px;
-    overflow: hidden;
+    padding: 88px 0 40px;
   }
 
-  .landingHero::before {
-    content: "";
+  .heroOrbs {
     position: absolute;
-    inset: -20% -10% auto -10%;
-    height: 520px;
-    background: radial-gradient(60% 60% at 30% 20%, var(--accent-tint), transparent 70%),
-      radial-gradient(50% 50% at 75% 15%, rgba(120, 100, 255, 0.14), transparent 70%);
-    filter: blur(10px);
-    z-index: -1;
+    inset: -14% -10% auto -10%;
+    height: 620px;
+    z-index: 0;
+    overflow: hidden;
+    filter: blur(50px);
+    opacity: 0.8;
+    pointer-events: none;
+  }
+
+  .heroOrb {
+    position: absolute;
+    border-radius: 50%;
+  }
+
+  .heroOrb--1 {
+    width: 420px;
+    height: 420px;
+    top: -60px;
+    left: 4%;
+    background: radial-gradient(circle at 30% 30%, #ff6ec7, #7b5cff 60%, transparent 75%);
+    animation: orbDrift1 22s ease-in-out infinite;
+  }
+
+  .heroOrb--2 {
+    width: 380px;
+    height: 380px;
+    top: 60px;
+    right: 6%;
+    background: radial-gradient(circle at 40% 40%, #34d1ff, #4e6bff 60%, transparent 75%);
+    animation: orbDrift2 26s ease-in-out infinite;
+  }
+
+  .heroOrb--3 {
+    width: 300px;
+    height: 300px;
+    top: 220px;
+    left: 36%;
+    background: radial-gradient(circle at 50% 50%, #ffd76e, #ff8a5c 60%, transparent 75%);
+    animation: orbDrift3 30s ease-in-out infinite;
+  }
+
+  @keyframes orbDrift1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(50px, 30px) scale(1.08); }
+  }
+
+  @keyframes orbDrift2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-40px, 24px) scale(0.94); }
+  }
+
+  @keyframes orbDrift3 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(24px, -30px) scale(1.06); }
+  }
+
+  .heroGlassPanel {
+    position: relative;
+    z-index: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 56px 48px;
+    border-radius: 32px;
+    background: linear-gradient(180deg, var(--glass-bg-strong), var(--glass-bg));
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   }
 
   .landingEyebrow {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     padding: 6px 14px;
     border-radius: var(--radius-pill);
     background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow-sm);
     font-size: 12px;
@@ -70,20 +136,32 @@
     margin-bottom: 22px;
   }
 
+  .pulseDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulseDot 1.8s ease-in-out infinite;
+  }
+
+  @keyframes pulseDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.5); }
+  }
+
   .landingHero h1 {
     font-size: 46px;
     line-height: 1.15;
     letter-spacing: -0.02em;
     margin: 0 auto 20px;
-    max-width: 760px;
   }
 
   .landingHero p {
-    font-size: 18px;
+    font-size: 17px;
     line-height: 1.6;
     color: var(--text-secondary);
-    max-width: 560px;
-    margin: 0 auto 34px;
+    max-width: 540px;
+    margin: 0 auto 30px;
   }
 
   .landingCtaRow {
@@ -92,12 +170,19 @@
     justify-content: center;
     gap: 18px;
     flex-wrap: wrap;
+    margin-bottom: 14px;
   }
 
   .btn-lg {
     padding: 13px 30px;
     font-size: 15px;
     font-weight: 600;
+  }
+
+  .landingHero .btn-lg:hover,
+  .landingClosing .btn-lg:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(0, 113, 227, 0.32);
   }
 
   .landingSignInLink {
@@ -110,76 +195,151 @@
     color: var(--accent);
   }
 
+  .landingLangNote {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin: 18px 0 0;
+  }
+
+  /* ---------- Scroll reveal ---------- */
+
+  html.js .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.7s var(--ease), transform 0.7s var(--spring-ease);
+  }
+
+  html.js .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ---------- Feature rows (editorial, alternating) ---------- */
+
   .landingFeatures {
+    margin-top: 40px;
+  }
+
+  .featureRow {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 18px;
-    margin-top: 24px;
-  }
-
-  .landingCard {
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-    padding: 26px 24px;
-  }
-
-  .landingCard-icon {
-    width: 40px;
-    height: 40px;
-    display: flex;
+    grid-template-columns: 1fr 1fr;
+    gap: 52px;
     align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    background: var(--accent-tint);
+    padding: 56px 0;
+  }
+
+  .featureRow:nth-child(even) .featureRow-media {
+    order: 2;
+  }
+
+  .featureRow-num {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 700;
     color: var(--accent);
-    margin-bottom: 16px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
   }
 
-  .landingCard-icon svg {
-    width: 20px;
-    height: 20px;
-  }
-
-  .landingCard h3 {
-    font-size: 16px;
-    margin: 0 0 8px;
+  .featureRow-text h2 {
+    font-size: 27px;
+    margin: 0 0 12px;
     letter-spacing: -0.01em;
   }
 
-  .landingCard p {
-    font-size: 13.5px;
-    line-height: 1.6;
+  .featureRow-text p {
+    font-size: 15px;
+    line-height: 1.7;
     color: var(--text-secondary);
-    margin: 0;
+    margin: 0 0 22px;
   }
 
-  .landingClosing {
-    text-align: center;
-    margin-top: 88px;
-    padding: 56px 32px;
+  .featureRow-media {
+    position: relative;
     border-radius: var(--radius-lg);
-    background: var(--glass-bg-strong);
+    background: linear-gradient(165deg, var(--glass-bg-strong), var(--glass-bg));
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow-lg);
+    padding: 28px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.3s var(--spring-ease), box-shadow 0.3s var(--ease);
+  }
+
+  .featureRow-media:hover {
+    transform: translateY(-6px) scale(1.012);
+    box-shadow: 0 26px 60px rgba(0, 0, 0, 0.2);
+  }
+
+  .featureRow-playBadge {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+  }
+
+  .featureRow-playBadge svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  @media (max-width: 760px) {
+    .featureRow {
+      grid-template-columns: 1fr;
+      gap: 22px;
+      padding: 36px 0;
+    }
+    .featureRow:nth-child(even) .featureRow-media {
+      order: 0;
+    }
+  }
+
+  /* ---------- Closing CTA ---------- */
+
+  .landingClosing {
+    position: relative;
+    text-align: center;
+    margin-top: 60px;
+    padding: 56px 32px;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(165deg, var(--glass-bg-strong), var(--glass-bg));
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
   }
 
   .landingClosing h2 {
+    position: relative;
     font-size: 26px;
     margin: 0 0 12px;
     letter-spacing: -0.01em;
   }
 
   .landingClosing p {
+    position: relative;
     font-size: 14.5px;
     color: var(--text-secondary);
     margin: 0 0 26px;
   }
+
+  .landingClosing .btn-lg {
+    position: relative;
+  }
+
+  /* ---------- Footer ---------- */
 
   .landingFooter {
     max-width: 1080px;
@@ -207,11 +367,8 @@
     .landingHero h1 {
       font-size: 32px;
     }
-    .landingHero p {
-      font-size: 16px;
-    }
-    .landingFeatures {
-      grid-template-columns: 1fr;
+    .heroGlassPanel {
+      padding: 40px 26px;
     }
     .landingFooter {
       flex-direction: column;
@@ -221,6 +378,355 @@
     .landingFooter a {
       margin: 0 9px;
     }
+  }
+
+  /* ---------- Feature demo modal ---------- */
+
+  #demoOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s var(--ease);
+  }
+
+  #demoOverlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #demoModal {
+    width: min(560px, 100%);
+    max-height: 86vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, var(--glass-bg-strong), var(--glass-bg));
+    backdrop-filter: blur(44px) saturate(180%);
+    -webkit-backdrop-filter: blur(44px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: 28px;
+    box-shadow: var(--shadow-lg);
+    padding: 30px;
+    transform: scale(0.92) translateY(14px);
+    transition: transform 0.3s var(--spring-ease);
+  }
+
+  #demoOverlay.is-open #demoModal {
+    transform: scale(1) translateY(0);
+  }
+
+  .demoModal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 4px;
+  }
+
+  .demoModal-close {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .demoModal-close svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .demoModal-close:hover {
+    color: var(--accent);
+  }
+
+  .demoPane {
+    display: none;
+  }
+
+  .demoPane.is-active {
+    display: block;
+  }
+
+  .demoPane h3 {
+    font-size: 19px;
+    margin: 0 0 6px;
+  }
+
+  .demoPane-sub {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    margin: 0 0 20px;
+  }
+
+  .demoReplay {
+    margin-top: 18px;
+  }
+
+  .demoReplay svg {
+    width: 14px;
+    height: 14px;
+    margin-right: 4px;
+  }
+
+  /* ---------- Demo 1: word/sentence lookup ---------- */
+
+  .lookupDemo-text {
+    font-size: 15px;
+    line-height: 1.9;
+    padding: 20px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+
+  .lookupDemo-word,
+  .lookupDemo-sentence {
+    border-radius: 3px;
+    transition: background 0.3s var(--ease), box-shadow 0.3s var(--ease);
+  }
+
+  .lookupDemo-word.is-active,
+  .lookupDemo-sentence.is-active {
+    background: var(--accent-tint);
+    box-shadow: inset 0 -2px 0 var(--accent);
+  }
+
+  .lookupDemo-tooltip {
+    margin-top: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-sm);
+    font-size: 13.5px;
+    line-height: 1.6;
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    transition: opacity 0.25s var(--ease), max-height 0.3s var(--ease);
+  }
+
+  .lookupDemo-tooltip.is-visible {
+    opacity: 1;
+    max-height: 140px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+
+  .lookupDemo-tooltip p {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+  }
+
+  .lookupDemo-pos {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  /* ---------- Demo 2: immersion slider ---------- */
+
+  .immersionDemo-text {
+    font-size: 16px;
+    line-height: 1.9;
+    padding: 22px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    min-height: 70px;
+  }
+
+  .immersionDemo-swap {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .immersionDemo-slider {
+    width: 100%;
+    margin: 20px 0 6px;
+    accent-color: var(--accent);
+  }
+
+  .immersionDemo-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  /* ---------- Demo 3: review flashcard ---------- */
+
+  .reviewDemo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .reviewDemo-card {
+    width: 100%;
+    max-width: 340px;
+    height: 150px;
+    position: relative;
+    perspective: 1000px;
+    cursor: pointer;
+  }
+
+  .reviewDemo-cardInner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.5s var(--spring-ease);
+    transform-style: preserve-3d;
+  }
+
+  .reviewDemo-card.is-flipped .reviewDemo-cardInner {
+    transform: rotateY(180deg);
+  }
+
+  .reviewDemo-face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    backface-visibility: hidden;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .reviewDemo-back {
+    transform: rotateY(180deg);
+  }
+
+  .reviewDemo-word {
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  .reviewDemo-tapHint {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .reviewDemo-def {
+    font-size: 14.5px;
+    margin: 0;
+  }
+
+  .reviewDemo-example {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin: 0;
+    font-style: italic;
+  }
+
+  .reviewDemo-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .reviewDemo-actions svg {
+    width: 14px;
+    height: 14px;
+    margin-right: 4px;
+  }
+
+  .reviewDemo-progress {
+    display: flex;
+    gap: 7px;
+    margin-top: 20px;
+  }
+
+  .reviewDemo-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.25s var(--ease);
+  }
+
+  .reviewDemo-dot.is-filled {
+    background: var(--accent);
+  }
+
+  /* ---------- Demo 4: level-matched recommendations ---------- */
+
+  .recDemo-levels {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .recDemo-level {
+    padding: 6px 16px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .recDemo-level.is-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .recDemo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: opacity 0.2s var(--ease);
+  }
+
+  .recDemo-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+
+  .recDemo-badge {
+    flex: none;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-tint);
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+  }
+
+  .recDemo-row p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.4;
   }
 </style>
 </head>
@@ -232,49 +738,105 @@
 
   <div class="landingWrap">
     <section class="landingHero">
-      <span class="landingEyebrow">Language learning, your way</span>
-      <h1>Learn any language by reading what you actually want to read</h1>
-      <p>Contexta turns real articles and news into your personal language classroom — look up words instantly, review them with spaced repetition, and ease into full immersion reading at your own pace.</p>
-      <div class="landingCtaRow">
-        <a class="btn btn-primary btn-lg" href="/app.html">Get Started</a>
-        <a class="landingSignInLink" href="/app.html">Already have an account? Sign in</a>
+      <div class="heroOrbs" aria-hidden="true">
+        <div class="heroOrb heroOrb--1"></div>
+        <div class="heroOrb heroOrb--2"></div>
+        <div class="heroOrb heroOrb--3"></div>
+      </div>
+      <div class="heroGlassPanel">
+        <span class="landingEyebrow"><span class="pulseDot"></span>Language learning, your way</span>
+        <h1>Learn any language by reading what you actually want to read</h1>
+        <p>Contexta turns real articles and news into your personal language classroom — look up words instantly, review them with spaced repetition, and ease into full immersion reading at your own pace.</p>
+        <div class="landingCtaRow">
+          <a class="btn btn-primary btn-lg" href="/app.html">Get Started</a>
+          <a class="landingSignInLink" href="/app.html">Already have an account? Sign in</a>
+        </div>
+        <p class="landingLangNote">Available in English, 中文, and 한국어 — learn any language, not just English.</p>
       </div>
     </section>
 
     <section class="landingFeatures">
-      <div class="landingCard">
-        <div class="landingCard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18h-5" /><path d="M18 14h-8" /><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2" /><rect width="8" height="4" x="10" y="6" rx="1" /></svg></div>
-        <h3>Read what interests you</h3>
-        <p>Auto-fetch news and articles in your target language, or in your native language for immersion mode — no more hunting for "beginner-friendly" content.</p>
+      <div class="featureRow reveal" data-demo="demo-lookup">
+        <div class="featureRow-media" data-open-demo="demo-lookup">
+          <div class="lookupDemo-text" style="pointer-events:none;">
+            The committee's decision was <span class="lookupDemo-word is-active">unprecedented</span>, catching even senior analysts off guard.
+          </div>
+          <div class="lookupDemo-tooltip is-visible" style="pointer-events:none;">
+            <strong>unprecedented</strong> <span class="lookupDemo-pos">adj.</span>
+            <p>never done or known before</p>
+          </div>
+          <div class="featureRow-playBadge"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></svg></div>
+        </div>
+        <div class="featureRow-text">
+          <span class="featureRow-num">01 — Instant lookup</span>
+          <h2>Look up as you read</h2>
+          <p>Underline unfamiliar words and sentences — AI explains them in context and saves them to your personal vocabulary, with optional Google Sheets sync.</p>
+          <button class="btn btn-ghost" data-open-demo="demo-lookup">See it in action</button>
+        </div>
       </div>
-      <div class="landingCard">
-        <div class="landingCard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 11-6 6v3h9l3-3" /><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" /></svg></div>
-        <h3>Look up as you read</h3>
-        <p>Underline unfamiliar words and sentences — AI explains them in context and saves them to your personal vocabulary, with optional Google Sheets sync.</p>
+
+      <div class="featureRow reveal" data-demo="demo-immersion">
+        <div class="featureRow-media" data-open-demo="demo-immersion">
+          <div class="immersionDemo-text" style="pointer-events:none;">
+            The <span class="immersionDemo-swap">temps</span> this morning was absolutely <span class="immersionDemo-swap">magnifique</span>, with clear skies and a gentle breeze.
+          </div>
+          <div class="featureRow-playBadge"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></svg></div>
+        </div>
+        <div class="featureRow-text">
+          <span class="featureRow-num">02 — Immersion mode</span>
+          <h2>Immersion mode</h2>
+          <p>Blend your native-language reading with words and phrases from your target language, so you pick up new vocabulary without leaving a story you're already following.</p>
+          <button class="btn btn-ghost" data-open-demo="demo-immersion">See it in action</button>
+        </div>
       </div>
-      <div class="landingCard">
-        <div class="landingCard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" /><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" /></svg></div>
-        <h3>Immersion mode</h3>
-        <p>Blend your native-language reading with words and phrases from your target language, so you pick up new vocabulary without leaving a story you're already following.</p>
+
+      <div class="featureRow reveal" data-demo="demo-review">
+        <div class="featureRow-media" data-open-demo="demo-review">
+          <div class="reviewDemo" style="pointer-events:none;">
+            <div class="reviewDemo-card">
+              <div class="reviewDemo-cardInner">
+                <div class="reviewDemo-face reviewDemo-front">
+                  <span class="reviewDemo-word">ephemeral</span>
+                  <span class="reviewDemo-tapHint">Tap to reveal</span>
+                </div>
+              </div>
+            </div>
+            <div class="reviewDemo-progress">
+              <span class="reviewDemo-dot is-filled"></span>
+              <span class="reviewDemo-dot is-filled"></span>
+              <span class="reviewDemo-dot"></span>
+              <span class="reviewDemo-dot"></span>
+              <span class="reviewDemo-dot"></span>
+            </div>
+          </div>
+          <div class="featureRow-playBadge"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></svg></div>
+        </div>
+        <div class="featureRow-text">
+          <span class="featureRow-num">03 — Spaced repetition</span>
+          <h2>Review that sticks</h2>
+          <p>Spaced-repetition review brings your saved words back right before you'd forget them, instead of a word list you never open again.</p>
+          <button class="btn btn-ghost" data-open-demo="demo-review">See it in action</button>
+        </div>
       </div>
-      <div class="landingCard">
-        <div class="landingCard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg></div>
-        <h3>Review that sticks</h3>
-        <p>Spaced-repetition review brings your saved words back right before you'd forget them, instead of a word list you never open again.</p>
-      </div>
-      <div class="landingCard">
-        <div class="landingCard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 14 4-4" /><path d="M3.34 19a10 10 0 1 1 17.32 0" /></svg></div>
-        <h3>Recommendations that match your level</h3>
-        <p>Set your CEFR level (A1–C2) and get articles picked for how you actually read today, not for someone else's idea of "intermediate."</p>
-      </div>
-      <div class="landingCard">
-        <div class="landingCard-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" /><path d="m22 22-5-10-5 10" /><path d="M14 18h6" /></svg></div>
-        <h3>Built for any language</h3>
-        <p>Switch the interface between English, 中文, and 한국어, and learn any language you're studying — Contexta isn't tied to just English.</p>
+
+      <div class="featureRow reveal" data-demo="demo-recommend">
+        <div class="featureRow-media" data-open-demo="demo-recommend">
+          <div class="recDemo-list" style="pointer-events:none;">
+            <div class="recDemo-row"><span class="recDemo-badge">B2</span><p>City council debates new transit plan amid budget concerns</p></div>
+            <div class="recDemo-row"><span class="recDemo-badge">B2</span><p>Tech startup raises funding to expand into new markets</p></div>
+          </div>
+          <div class="featureRow-playBadge"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></svg></div>
+        </div>
+        <div class="featureRow-text">
+          <span class="featureRow-num">04 — Smart recommendations</span>
+          <h2>Reading picked for your level</h2>
+          <p>Contexta auto-fetches articles and news in your target language, then sets your CEFR level (A1–C2) to pick reading that matches how you actually read today.</p>
+          <button class="btn btn-ghost" data-open-demo="demo-recommend">See it in action</button>
+        </div>
       </div>
     </section>
 
-    <section class="landingClosing">
+    <section class="landingClosing reveal">
       <h2>Start reading in a language you're learning</h2>
       <p>Free to try. No credit card required.</p>
       <a class="btn btn-primary btn-lg" href="/app.html">Get Started</a>
@@ -288,5 +850,292 @@
       <a href="/privacy.html">Privacy Policy</a>
     </span>
   </footer>
+
+  <div id="demoOverlay">
+    <div id="demoModal" role="dialog" aria-modal="true">
+      <div class="demoModal-head">
+        <div></div>
+        <button class="demoModal-close" id="demoModalClose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
+      </div>
+
+      <div class="demoPane" id="demo-lookup">
+        <h3>Look up as you read</h3>
+        <p class="demoPane-sub">Underline a word or sentence — Contexta explains it in context.</p>
+        <div class="lookupDemo">
+          <p class="lookupDemo-text">
+            The committee's decision was <span class="lookupDemo-word" data-step="1">unprecedented</span>, catching even senior analysts off guard. <span class="lookupDemo-sentence" data-step="2">Markets reacted swiftly, wiping out weeks of gains within hours.</span>
+          </p>
+          <div class="lookupDemo-tooltip" data-step="1">
+            <strong>unprecedented</strong> <span class="lookupDemo-pos">adj.</span>
+            <p>never done or known before</p>
+            <p>"an unprecedented step to cut interest rates"</p>
+          </div>
+          <div class="lookupDemo-tooltip" data-step="2">
+            <strong>Sentence analysis</strong>
+            <p>Investors sold quickly and stock prices dropped fast right after the announcement.</p>
+          </div>
+        </div>
+        <button class="btn btn-ghost demoReplay" data-replay="demo-lookup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>Replay</button>
+      </div>
+
+      <div class="demoPane" id="demo-immersion">
+        <h3>Immersion mode</h3>
+        <p class="demoPane-sub">Drag the slider to see more of your target language blended in.</p>
+        <div class="immersionDemo">
+          <p class="immersionDemo-text" id="immersionDemoText"></p>
+          <input type="range" min="0" max="2" value="0" step="1" id="immersionDemoSlider" class="immersionDemo-slider" aria-label="Immersion ratio" />
+          <div class="immersionDemo-labels"><span>Native</span><span>Balanced</span><span>Full immersion</span></div>
+        </div>
+      </div>
+
+      <div class="demoPane" id="demo-review">
+        <h3>Review that sticks</h3>
+        <p class="demoPane-sub">Tap the card to flip it, then mark whether you knew it.</p>
+        <div class="reviewDemo">
+          <div class="reviewDemo-card" id="reviewDemoCard">
+            <div class="reviewDemo-cardInner">
+              <div class="reviewDemo-face reviewDemo-front">
+                <span class="reviewDemo-word" id="reviewDemoWord">ephemeral</span>
+                <span class="reviewDemo-tapHint">Tap to reveal</span>
+              </div>
+              <div class="reviewDemo-face reviewDemo-back">
+                <p class="reviewDemo-def" id="reviewDemoDef">lasting for a very short time</p>
+                <p class="reviewDemo-example" id="reviewDemoExample">"the ephemeral nature of fashion trends"</p>
+              </div>
+            </div>
+          </div>
+          <div class="reviewDemo-actions">
+            <button class="btn btn-ghost" id="reviewDemoDontKnow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>Don't know</button>
+            <button class="btn btn-primary" id="reviewDemoKnow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>Know it</button>
+          </div>
+          <div class="reviewDemo-progress" id="reviewDemoProgress">
+            <span class="reviewDemo-dot" data-i="0"></span>
+            <span class="reviewDemo-dot" data-i="1"></span>
+            <span class="reviewDemo-dot" data-i="2"></span>
+            <span class="reviewDemo-dot" data-i="3"></span>
+            <span class="reviewDemo-dot" data-i="4"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="demoPane" id="demo-recommend">
+        <h3>Reading picked for your level</h3>
+        <p class="demoPane-sub">Pick a CEFR level and see how the picks change.</p>
+        <div class="recDemo">
+          <div class="recDemo-levels" id="recDemoLevels">
+            <button class="recDemo-level is-active" data-level="A2">A2</button>
+            <button class="recDemo-level" data-level="B2">B2</button>
+            <button class="recDemo-level" data-level="C1">C1</button>
+          </div>
+          <div class="recDemo-list" id="recDemoList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- scroll reveal ----------
+    var revealEls = document.querySelectorAll(".reveal");
+    if ("IntersectionObserver" in window) {
+      var revealObserver = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+              revealObserver.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.15 }
+      );
+      revealEls.forEach(function (el) { revealObserver.observe(el); });
+    } else {
+      revealEls.forEach(function (el) { el.classList.add("is-visible"); });
+    }
+
+    // ---------- demo modal ----------
+    var demoOverlay = document.getElementById("demoOverlay");
+    var demoModalClose = document.getElementById("demoModalClose");
+    var activeDemoCleanup = null;
+
+    var demoInitializers = {
+      "demo-lookup": initLookupDemo,
+      "demo-immersion": initImmersionDemo,
+      "demo-review": initReviewDemo,
+      "demo-recommend": initRecommendDemo,
+    };
+
+    function openDemo(id) {
+      document.querySelectorAll(".demoPane").forEach(function (p) { p.classList.toggle("is-active", p.id === id); });
+      demoOverlay.classList.add("is-open");
+      document.body.style.overflow = "hidden";
+      if (activeDemoCleanup) activeDemoCleanup();
+      var init = demoInitializers[id];
+      activeDemoCleanup = init ? init() : null;
+    }
+
+    function closeDemo() {
+      demoOverlay.classList.remove("is-open");
+      document.body.style.overflow = "";
+      if (activeDemoCleanup) { activeDemoCleanup(); activeDemoCleanup = null; }
+    }
+
+    document.querySelectorAll("[data-open-demo]").forEach(function (el) {
+      el.addEventListener("click", function () { openDemo(el.getAttribute("data-open-demo")); });
+    });
+    demoModalClose.addEventListener("click", closeDemo);
+    demoOverlay.addEventListener("click", function (e) { if (e.target === demoOverlay) closeDemo(); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && demoOverlay.classList.contains("is-open")) closeDemo(); });
+
+    // ---------- Demo 1: instant lookup (autoplay) ----------
+    function initLookupDemo() {
+      var root = document.getElementById("demo-lookup");
+      var word = root.querySelector(".lookupDemo-word");
+      var sentence = root.querySelector(".lookupDemo-sentence");
+      var tip1 = root.querySelector('.lookupDemo-tooltip[data-step="1"]');
+      var tip2 = root.querySelector('.lookupDemo-tooltip[data-step="2"]');
+      var steps = [
+        function () {
+          word.classList.remove("is-active");
+          sentence.classList.remove("is-active");
+          tip1.classList.remove("is-visible");
+          tip2.classList.remove("is-visible");
+        },
+        function () {
+          word.classList.add("is-active");
+          tip1.classList.add("is-visible");
+        },
+        function () {
+          word.classList.remove("is-active");
+          tip1.classList.remove("is-visible");
+          sentence.classList.add("is-active");
+          tip2.classList.add("is-visible");
+        },
+      ];
+      var i = 0;
+      function tick() { steps[i](); i = (i + 1) % steps.length; }
+      tick();
+      var interval = setInterval(tick, 2400);
+      var replayBtn = root.parentElement.querySelector('[data-replay="demo-lookup"]');
+      function onReplay() { clearInterval(interval); i = 0; tick(); interval = setInterval(tick, 2400); }
+      replayBtn.addEventListener("click", onReplay);
+      return function cleanup() {
+        clearInterval(interval);
+        replayBtn.removeEventListener("click", onReplay);
+      };
+    }
+
+    // ---------- Demo 2: immersion slider (drag-driven) ----------
+    var IMMERSION_VARIANTS = [
+      'The weather this morning was absolutely beautiful, with clear skies and a gentle breeze.',
+      'The <span class="immersionDemo-swap">temps</span> this morning was absolutely <span class="immersionDemo-swap">magnifique</span>, with clear skies and a gentle breeze.',
+      'The <span class="immersionDemo-swap">temps</span> ce <span class="immersionDemo-swap">matin</span> was absolutely <span class="immersionDemo-swap">magnifique</span>, with clear <span class="immersionDemo-swap">ciel</span> and a gentle <span class="immersionDemo-swap">brise</span>.',
+    ];
+    function initImmersionDemo() {
+      var text = document.getElementById("immersionDemoText");
+      var slider = document.getElementById("immersionDemoSlider");
+      function render() { text.innerHTML = IMMERSION_VARIANTS[slider.value]; }
+      slider.value = 0;
+      render();
+      slider.addEventListener("input", render);
+      return function cleanup() { slider.removeEventListener("input", render); };
+    }
+
+    // ---------- Demo 3: review flashcard (click-driven) ----------
+    var REVIEW_WORDS = [
+      { word: "ephemeral", def: "lasting for a very short time", example: '"the ephemeral nature of fashion trends"' },
+      { word: "meticulous", def: "very careful and precise about details", example: '"a meticulous review of the report"' },
+      { word: "resilient", def: "able to recover quickly from difficulties", example: '"a resilient economy"' },
+    ];
+    function initReviewDemo() {
+      var card = document.getElementById("reviewDemoCard");
+      var wordEl = document.getElementById("reviewDemoWord");
+      var defEl = document.getElementById("reviewDemoDef");
+      var exampleEl = document.getElementById("reviewDemoExample");
+      var knowBtn = document.getElementById("reviewDemoKnow");
+      var dontKnowBtn = document.getElementById("reviewDemoDontKnow");
+      var dots = document.querySelectorAll("#reviewDemoProgress .reviewDemo-dot");
+      var idx = 0;
+      var stage = 2;
+
+      function renderCard() {
+        var entry = REVIEW_WORDS[idx];
+        wordEl.textContent = entry.word;
+        defEl.textContent = entry.def;
+        exampleEl.textContent = entry.example;
+      }
+      function renderDots() {
+        dots.forEach(function (d, i) { d.classList.toggle("is-filled", i < stage); });
+      }
+      function onCardClick() { card.classList.toggle("is-flipped"); }
+      function next(known) {
+        stage = known ? Math.min(stage + 1, 5) : 0;
+        renderDots();
+        card.classList.remove("is-flipped");
+        setTimeout(function () {
+          idx = (idx + 1) % REVIEW_WORDS.length;
+          renderCard();
+        }, 260);
+      }
+      function onKnow() { next(true); }
+      function onDontKnow() { next(false); }
+
+      renderCard();
+      renderDots();
+      card.addEventListener("click", onCardClick);
+      knowBtn.addEventListener("click", onKnow);
+      dontKnowBtn.addEventListener("click", onDontKnow);
+
+      return function cleanup() {
+        card.classList.remove("is-flipped");
+        card.removeEventListener("click", onCardClick);
+        knowBtn.removeEventListener("click", onKnow);
+        dontKnowBtn.removeEventListener("click", onDontKnow);
+      };
+    }
+
+    // ---------- Demo 4: level-matched recommendations (click-driven) ----------
+    var REC_BY_LEVEL = {
+      A2: [
+        "A new café opens downtown",
+        "Local team wins weekend match",
+        "Tips for a healthy morning routine",
+      ],
+      B2: [
+        "City council debates new transit plan amid budget concerns",
+        "Tech startup raises funding to expand into new markets",
+        "Climate researchers report shifting rainfall patterns this year",
+      ],
+      C1: [
+        "Central bank's policy shift signals a broader reassessment of inflation risk",
+        "Diplomatic talks stall as negotiators clash over territorial disputes",
+        "New study challenges longstanding assumptions about early human migration",
+      ],
+    };
+    function initRecommendDemo() {
+      var levelBtns = document.querySelectorAll("#recDemoLevels .recDemo-level");
+      var list = document.getElementById("recDemoList");
+      function render(level) {
+        list.style.opacity = 0;
+        setTimeout(function () {
+          list.innerHTML = REC_BY_LEVEL[level]
+            .map(function (title) {
+              return '<div class="recDemo-row"><span class="recDemo-badge">' + level + '</span><p>' + title + "</p></div>";
+            })
+            .join("");
+          list.style.opacity = 1;
+        }, 150);
+      }
+      function onClick(e) {
+        levelBtns.forEach(function (b) { b.classList.toggle("is-active", b === e.currentTarget); });
+        render(e.currentTarget.getAttribute("data-level"));
+      }
+      levelBtns.forEach(function (b) { b.addEventListener("click", onClick); });
+      render("A2");
+      return function cleanup() {
+        levelBtns.forEach(function (b) { b.removeEventListener("click", onClick); });
+      };
+    }
+  </script>
 </body>
 </html>
