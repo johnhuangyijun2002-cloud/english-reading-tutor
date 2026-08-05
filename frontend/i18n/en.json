@@ -214,7 +214,10 @@
     "privacy": "Privacy Policy"
   },
   "empty": {
-    "noDocument": "Paste an article, or upload a PDF/DOCX file to start reading closely"
+    "noDocument": "Paste an article, or upload a PDF/DOCX file to start reading closely",
+    "getStartedHint": "New here? Get started with:",
+    "tryRecommended": "Browse AI-picked articles",
+    "tryNativeNews": "Read native-language news"
   },
   "sidebar": {
     "history": "History",

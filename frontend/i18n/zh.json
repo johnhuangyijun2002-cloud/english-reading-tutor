@@ -214,7 +214,10 @@
     "privacy": "隐私政策"
   },
   "empty": {
-    "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读"
+    "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读",
+    "getStartedHint": "刚来？可以先试试：",
+    "tryRecommended": "看看 AI 推荐的文章",
+    "tryNativeNews": "读一篇母语新闻"
   },
   "sidebar": {
     "history": "历史记录",

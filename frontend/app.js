@@ -1848,7 +1848,17 @@ function showHistoryEmptyState(message) {
 }
 
 function showNoDocumentState() {
-  viewerContent.innerHTML = `<div id="emptyState"><p>${t("empty.noDocument")}</p></div>`;
+  viewerContent.innerHTML = `
+    <div id="emptyState">
+      <p class="emptyState-hint">${t("empty.getStartedHint")}</p>
+      <div class="emptyStateActions">
+        <button class="btn btn-primary" id="emptyStateRecommend">${t("empty.tryRecommended")}</button>
+        <button class="btn btn-ghost" id="emptyStateNativeNews">${t("empty.tryNativeNews")}</button>
+      </div>
+      <p class="emptyState-or">${t("empty.noDocument")}</p>
+    </div>`;
+  document.getElementById("emptyStateRecommend").addEventListener("click", () => btnRecommend.click());
+  document.getElementById("emptyStateNativeNews").addEventListener("click", () => btnNativeNews.click());
   showHistoryEmptyState(t("history.emptyNoDoc"));
   btnReaderSettings.classList.add("hidden");
   readerSettingsPanel.classList.add("hidden");

@@ -1531,6 +1531,28 @@ body {
   color: var(--text-secondary);
   font-size: 15px;
   text-align: center;
+  max-width: 420px;
+}
+
+.emptyState-hint {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+
+.emptyStateActions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.emptyState-or {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
 }
 
 .text-doc {

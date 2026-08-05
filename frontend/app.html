@@ -523,7 +523,12 @@
       <div id="readingProgress"><div id="readingProgressFill"></div></div>
       <div id="viewerContent">
         <div id="emptyState">
-          <p data-i18n="empty.noDocument">Paste an article, or upload a PDF/DOCX file to start reading closely</p>
+          <p class="emptyState-hint" data-i18n="empty.getStartedHint">New here? Get started with:</p>
+          <div class="emptyStateActions">
+            <button class="btn btn-primary" id="emptyStateRecommend" data-i18n="empty.tryRecommended">Browse AI-picked articles</button>
+            <button class="btn btn-ghost" id="emptyStateNativeNews" data-i18n="empty.tryNativeNews">Read native-language news</button>
+          </div>
+          <p class="emptyState-or" data-i18n="empty.noDocument">Paste an article, or upload a PDF/DOCX file to start reading closely</p>
         </div>
       </div>
     </div>

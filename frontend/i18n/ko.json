@@ -214,7 +214,10 @@
     "privacy": "개인정보 처리방침에 동의하는 것으로 간주돼요"
   },
   "empty": {
-    "noDocument": "글을 붙여넣거나 PDF/DOCX 파일을 업로드해서 정독을 시작해 보세요"
+    "noDocument": "글을 붙여넣거나 PDF/DOCX 파일을 업로드해서 정독을 시작해 보세요",
+    "getStartedHint": "처음이신가요? 이렇게 시작해보세요:",
+    "tryRecommended": "AI 추천 글 보기",
+    "tryNativeNews": "모국어 뉴스 읽기"
   },
   "sidebar": {
     "history": "기록",
