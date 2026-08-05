@@ -2657,6 +2657,26 @@ async def delete_vocab(item_id: str, user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
+class VocabEditRequest(BaseModel):
+    word: Optional[str] = None
+    sentence: Optional[str] = None
+    chinese_meaning: Optional[str] = None
+
+
+@app.patch("/api/vocab/{item_id}")
+async def edit_vocab(item_id: str, req: VocabEditRequest, user: dict = Depends(get_current_user)):
+    target = await db_get_vocab(item_id)
+    if not target or target.get("user_id") != user["id"]:
+        raise HTTPException(404, "Vocab entry not found")
+    fields = req.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(400, "No fields to update")
+    if "word" in fields and not fields["word"].strip():
+        raise HTTPException(400, "Word can't be empty")
+    await db_update_vocab_fields(item_id, **fields)
+    return {"record": await db_get_vocab(item_id)}
+
+
 REVIEW_BATCH_SIZE = 20
 REVIEW_BATCH_SIZE_MAX = 50
 

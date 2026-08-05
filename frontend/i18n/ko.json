@@ -287,7 +287,11 @@
     "deleteConfirm": "이 {label} 기록을 삭제할까요?\n(로컬에서는 바로 삭제돼요. 이미 Google 시트에 동기화됐다면 해당 행은 자동으로 삭제되지 않으니 필요하면 직접 정리해 주세요)",
     "deleteFailed": "삭제 실패: {message}",
     "deleteBtn": "삭제",
-    "jumpMissing": "이 글은 삭제되었거나 이름이 바뀐 것 같아요 — 찾을 수 없어요"
+    "jumpMissing": "이 글은 삭제되었거나 이름이 바뀐 것 같아요 — 찾을 수 없어요",
+    "editBtn": "수정",
+    "editContextPlaceholder": "예문 (선택)",
+    "editWordRequired": "단어를 입력해주세요",
+    "editFailed": "저장하지 못했습니다: {message}"
   },
   "saveAll": {
     "empty": "지금은 저장할 항목이 없어요",

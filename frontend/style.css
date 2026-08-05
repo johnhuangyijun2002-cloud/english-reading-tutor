@@ -2128,6 +2128,69 @@ body {
   color: #ff3b30;
 }
 
+.ann-context {
+  font-size: 12px;
+  line-height: 1.5;
+  font-style: italic;
+  color: var(--text-secondary);
+  margin: -4px 0 10px;
+}
+
+.ann-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ann-edit-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background var(--ease) 0.15s, color var(--ease) 0.15s;
+}
+
+.ann-edit-btn:hover {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.ann-edit-btn .inline-icon {
+  margin-right: 0;
+}
+
+.ann-edit-input,
+.ann-edit-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--surface-2);
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.ann-edit-input:focus,
+.ann-edit-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.ann-edit-textarea {
+  min-height: 56px;
+  resize: vertical;
+}
+
 /* ---------- 划词/划句浮动工具条 ---------- */
 
 #selectionToolbar {

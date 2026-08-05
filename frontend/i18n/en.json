@@ -287,7 +287,11 @@
     "deleteConfirm": "Delete this {label} record?\n(Removed locally right away; if it was already synced to Google Sheets, that row won't be auto-deleted — clean it up there manually if needed)",
     "deleteFailed": "Delete failed: {message}",
     "deleteBtn": "Delete",
-    "jumpMissing": "This article may have been deleted or renamed — can't find it"
+    "jumpMissing": "This article may have been deleted or renamed — can't find it",
+    "editBtn": "Edit",
+    "editContextPlaceholder": "Example sentence (optional)",
+    "editWordRequired": "Word can't be empty",
+    "editFailed": "Couldn't save changes: {message}"
   },
   "saveAll": {
     "empty": "Nothing pending to save right now",

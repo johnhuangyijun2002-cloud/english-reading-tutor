@@ -19,6 +19,8 @@ const ICON_PATHS = {
   pause: '<rect x="14" y="4" width="4" height="16" rx="1" /><rect x="6" y="4" width="4" height="16" rx="1" />',
   square: '<rect x="3" y="3" width="18" height="18" rx="2" />',
   flame: '<path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4" />',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" />',
+  save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" /><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" /><path d="M7 3v4a1 1 0 0 0 1 1h7" />',
 };
 
 function iconHTML(name, extraClass) {
@@ -1903,12 +1905,16 @@ function buildHistoryCard(record) {
     </div>
     <div class="ann-meta"></div>
     <div class="ann-explanation"></div>
+    ${isWord ? '<div class="ann-context"></div>' : ""}
     <div class="ann-footer">
       <div class="ann-footer-meta">
         <span class="ann-source"></span>
         <span class="ann-date"></span>
       </div>
-      <button class="ann-delete-btn">${t("history.deleteBtn")}</button>
+      <div class="ann-footer-actions">
+        ${isWord ? `<button class="ann-edit-btn" title="${t("history.editBtn")}">${iconHTML("pencil")}</button>` : ""}
+        <button class="ann-delete-btn">${t("history.deleteBtn")}</button>
+      </div>
     </div>
   `;
   el.querySelector(".ann-text").textContent = text || "";
@@ -1916,6 +1922,9 @@ function buildHistoryCard(record) {
   el.querySelector(".ann-explanation").textContent = explanation || "";
   el.querySelector(".ann-source").textContent = record.source_doc || "";
   el.querySelector(".ann-date").textContent = record.date || "";
+  if (isWord) {
+    el.querySelector(".ann-context").textContent = record.sentence || "";
+  }
   el.querySelector(".ann-delete-btn").addEventListener("click", async (e) => {
     e.stopPropagation();
     const ok = await deleteRecord(record);
@@ -1928,7 +1937,107 @@ function buildHistoryCard(record) {
       speakText(text, record.learning_language || "en");
     });
   }
+  const editBtn = el.querySelector(".ann-edit-btn");
+  if (editBtn) {
+    editBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openHistoryCardEditForm(el, record);
+    });
+  }
   return el;
+}
+
+function openHistoryCardEditForm(el, record) {
+  const textEl = el.querySelector(".ann-text");
+  const explanationEl = el.querySelector(".ann-explanation");
+  const contextEl = el.querySelector(".ann-context");
+  const footerActions = el.querySelector(".ann-footer-actions");
+  const savedFooterHTML = footerActions.innerHTML;
+
+  const wordInput = document.createElement("input");
+  wordInput.type = "text";
+  wordInput.className = "ann-edit-input";
+  wordInput.value = record.word || "";
+  textEl.replaceWith(wordInput);
+
+  const meaningInput = document.createElement("textarea");
+  meaningInput.className = "ann-edit-textarea";
+  meaningInput.value = record.chinese_meaning || "";
+  explanationEl.replaceWith(meaningInput);
+
+  const contextInput = document.createElement("input");
+  contextInput.type = "text";
+  contextInput.className = "ann-edit-input";
+  contextInput.value = record.sentence || "";
+  contextInput.placeholder = t("history.editContextPlaceholder");
+  contextEl.replaceWith(contextInput);
+
+  footerActions.innerHTML = `
+    <button class="btn btn-ghost btn-small ann-cancel-btn">${t("common.cancel")}</button>
+    <button class="btn btn-primary btn-small ann-save-btn">${t("common.save")}</button>
+  `;
+
+  function restoreDisplay() {
+    const newText = document.createElement("div");
+    newText.className = "ann-text";
+    newText.textContent = record.word || "";
+    wordInput.replaceWith(newText);
+
+    const newExplanation = document.createElement("div");
+    newExplanation.className = "ann-explanation";
+    newExplanation.textContent = record.chinese_meaning || "";
+    meaningInput.replaceWith(newExplanation);
+
+    const newContext = document.createElement("div");
+    newContext.className = "ann-context";
+    newContext.textContent = record.sentence || "";
+    contextInput.replaceWith(newContext);
+
+    footerActions.innerHTML = savedFooterHTML;
+    footerActions.querySelector(".ann-edit-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      openHistoryCardEditForm(el, record);
+    });
+    footerActions.querySelector(".ann-delete-btn").addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const ok = await deleteRecord(record);
+      if (ok) el.remove();
+    });
+  }
+
+  footerActions.querySelector(".ann-cancel-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    restoreDisplay();
+  });
+  footerActions.querySelector(".ann-save-btn").addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const word = wordInput.value.trim();
+    if (!word) {
+      alert(t("history.editWordRequired"));
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/vocab/${record.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          word,
+          chinese_meaning: meaningInput.value.trim(),
+          sentence: contextInput.value.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error(await apiErrorText(res));
+      const data = await res.json();
+      Object.assign(record, data.record);
+      restoreDisplay();
+      if (searchDataCache) {
+        const cached = searchDataCache.find((r) => r.id === record.id);
+        if (cached) Object.assign(cached, data.record);
+      }
+    } catch (err) {
+      alert(t("history.editFailed", { message: err.message }));
+    }
+  });
 }
 
 function renderHistoryEntry(record) {
