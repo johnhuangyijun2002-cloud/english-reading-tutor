@@ -1265,6 +1265,60 @@ body {
   display: none;
 }
 
+.navItem.navTour-highlight {
+  box-shadow: 0 0 0 3px var(--accent-tint), 0 0 0 6px rgba(0, 113, 227, 0.15);
+  border-radius: var(--radius-md);
+  animation: navTourPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes navTourPulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--accent-tint), 0 0 0 6px rgba(0, 113, 227, 0.15); }
+  50% { box-shadow: 0 0 0 5px var(--accent-tint), 0 0 0 10px rgba(0, 113, 227, 0.08); }
+}
+
+#navTourTooltip {
+  position: fixed;
+  z-index: 300;
+  width: 260px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 14px 16px;
+  animation: popIn 0.22s var(--spring-ease);
+}
+
+#navTourTooltip.hidden {
+  display: none;
+}
+
+#navTourTooltip p {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.navTourFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#navTourStep {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.navTourBtns {
+  display: flex;
+  gap: 8px;
+}
+
 .navIcon {
   font-size: 20px;
   line-height: 1;

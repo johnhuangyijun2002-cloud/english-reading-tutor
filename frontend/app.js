@@ -2704,6 +2704,88 @@ btnLogout.addEventListener("click", async () => {
   location.reload();
 });
 
+// ---------- 首次访问的导航栏新手引导 ----------
+
+const NAV_TOUR_SEEN_KEY = "navTourSeen";
+const NAV_TOUR_STEPS = [
+  { target: "btnRecommend", textKey: "navTour.recommend" },
+  { target: "btnNativeNews", textKey: "navTour.nativeNews" },
+  { target: "navReview", textKey: "navTour.review" },
+  { target: "btnStats", textKey: "navTour.stats" },
+  { target: "btnAccountSettings", textKey: "navTour.settings" },
+];
+let navTourIndex = 0;
+const navTourTooltip = document.getElementById("navTourTooltip");
+const navTourText = document.getElementById("navTourText");
+const navTourStepLabel = document.getElementById("navTourStep");
+const navTourNext = document.getElementById("navTourNext");
+const navTourSkip = document.getElementById("navTourSkip");
+
+function clearNavTourHighlight() {
+  document.querySelectorAll(".navTour-highlight").forEach((el) => el.classList.remove("navTour-highlight"));
+}
+
+function positionNavTour(targetEl) {
+  const rect = targetEl.getBoundingClientRect();
+  const isMobile = window.innerWidth <= 860;
+  navTourTooltip.style.top = "";
+  navTourTooltip.style.bottom = "";
+  navTourTooltip.style.left = "";
+  if (isMobile) {
+    navTourTooltip.style.bottom = `${window.innerHeight - rect.top + 12}px`;
+    const left = Math.max(12, Math.min(rect.left + rect.width / 2 - 130, window.innerWidth - 260 - 12));
+    navTourTooltip.style.left = `${left}px`;
+  } else {
+    const top = Math.max(12, Math.min(rect.top + rect.height / 2 - 40, window.innerHeight - 140));
+    navTourTooltip.style.top = `${top}px`;
+    navTourTooltip.style.left = `${rect.right + 12}px`;
+  }
+}
+
+function showNavTourStep(i) {
+  clearNavTourHighlight();
+  const step = NAV_TOUR_STEPS[i];
+  const targetEl = document.getElementById(step.target);
+  if (!targetEl || targetEl.classList.contains("hidden")) {
+    if (i + 1 < NAV_TOUR_STEPS.length) showNavTourStep(i + 1);
+    else finishNavTour();
+    return;
+  }
+  targetEl.classList.add("navTour-highlight");
+  navTourText.textContent = t(step.textKey);
+  navTourStepLabel.textContent = `${i + 1} / ${NAV_TOUR_STEPS.length}`;
+  navTourNext.textContent = i === NAV_TOUR_STEPS.length - 1 ? t("navTour.done") : t("navTour.next");
+  positionNavTour(targetEl);
+  navTourTooltip.classList.remove("hidden");
+}
+
+function finishNavTour() {
+  clearNavTourHighlight();
+  navTourTooltip.classList.add("hidden");
+  localStorage.setItem(NAV_TOUR_SEEN_KEY, "1");
+}
+
+function startNavTour() {
+  if (localStorage.getItem(NAV_TOUR_SEEN_KEY)) return;
+  navTourIndex = 0;
+  showNavTourStep(navTourIndex);
+}
+
+navTourNext.addEventListener("click", () => {
+  navTourIndex++;
+  if (navTourIndex >= NAV_TOUR_STEPS.length) finishNavTour();
+  else showNavTourStep(navTourIndex);
+});
+navTourSkip.addEventListener("click", finishNavTour);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !navTourTooltip.classList.contains("hidden")) finishNavTour();
+});
+window.addEventListener("resize", () => {
+  if (navTourTooltip.classList.contains("hidden")) return;
+  const targetEl = document.getElementById(NAV_TOUR_STEPS[navTourIndex].target);
+  if (targetEl) positionNavTour(targetEl);
+});
+
 // ---------- 登录 / 注册(用户名密码 或 Google) ----------
 
 async function checkToken(token) {
@@ -2749,6 +2831,7 @@ function showWelcomeModal(data) {
 
 btnWelcomeClose.addEventListener("click", () => {
   welcomeModalOverlay.classList.add("hidden");
+  startNavTour();
 });
 
 btnLoginSubmit.addEventListener("click", async () => {
@@ -2770,6 +2853,7 @@ btnLoginSubmit.addEventListener("click", async () => {
     }
     const data = await res.json();
     await enterApp(data.token, data);
+    startNavTour();
   } catch (err) {
     loginError.textContent = err.message;
     loginError.classList.remove("hidden");
@@ -2837,6 +2921,8 @@ btnGoogleLogin.addEventListener("click", () => {
       if (justLinkedGoogle) {
         alert(t("settings.googleLinkSuccess"));
         btnAccountSettings.click();
+      } else {
+        startNavTour();
       }
       return;
     }
@@ -2849,6 +2935,7 @@ btnGoogleLogin.addEventListener("click", () => {
       btnAdminStats.classList.toggle("hidden", !me.is_owner);
       if (me.ui_language && me.ui_language !== currentUiLanguage) await loadI18n(me.ui_language);
       initApp();
+      startNavTour();
       return;
     }
     localStorage.removeItem("authToken");

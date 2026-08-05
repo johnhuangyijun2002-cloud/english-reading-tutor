@@ -327,5 +327,15 @@
     "totalVocab": "Total vocab",
     "signupsChart": "New signups (last 14 days)",
     "activeUsersChart": "Active users (last 14 days)"
+  },
+  "navTour": {
+    "recommend": "AI recommends articles matched to your level — a good place to start.",
+    "nativeNews": "Auto-fetch news in your native language for immersion mode.",
+    "review": "Spaced-repetition review brings your saved words back before you forget them.",
+    "stats": "Track your reading streak and review accuracy here.",
+    "settings": "Configure your AI key, proficiency level, and immersion mode here.",
+    "next": "Next",
+    "done": "Got it",
+    "skip": "Skip"
   }
 }
