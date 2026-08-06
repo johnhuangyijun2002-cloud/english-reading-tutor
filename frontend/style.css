@@ -2521,6 +2521,10 @@ body {
   margin-top: 2px;
 }
 
+@page {
+  margin: 2cm 1.8cm;
+}
+
 @media print {
   /* html/body 平时靠 overflow-x:hidden 防止横向滚动，但 CSS 规则规定"x/y 只设一边
      为非 visible 时，另一边会被浏览器当成 auto 处理"，于是 html/body 变成了一个
