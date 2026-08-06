@@ -215,7 +215,17 @@
     "legalPrefix": "By continuing you agree to the ",
     "terms": "Terms of Service",
     "and": " and ",
-    "privacy": "Privacy Policy"
+    "privacy": "Privacy Policy",
+    "forgotPasswordLink": "Forgot password?",
+    "forgotPasswordTitle": "Reset Password",
+    "forgotPasswordHint": "Enter the recovery email on your account. If it matches one, we'll send a reset link.",
+    "emailPlaceholder": "you@example.com",
+    "back": "Back",
+    "sendResetLink": "Send Reset Link",
+    "forgotPasswordSent": "If that email is on an account, a reset link is on its way — check your inbox.",
+    "resetPasswordTitle": "Set a New Password",
+    "setNewPassword": "Set New Password",
+    "resetPasswordDone": "Password updated. Redirecting to sign in..."
   },
   "empty": {
     "noDocument": "Paste an article, or upload a PDF/DOCX file to start reading closely",

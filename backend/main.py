@@ -67,6 +67,11 @@ HOUSE_AI_API_KEY = os.environ.get("HOUSE_AI_API_KEY", "")
 HOUSE_FREE_CALLS_PER_USER = 10
 HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "5"))
 
+# 通过 Resend 发密码找回邮件：不配置的话 /api/forgot-password 直接返回错误，
+# 前端"忘记密码"链接还在，但点了会提示站长还没配置邮件发送。
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Contexta <onboarding@resend.dev>")
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
@@ -198,6 +203,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
@@ -435,6 +447,33 @@ async def db_get_session_user(token: str) -> Optional[dict]:
         token,
     )
     return _row_to_user(row)
+
+
+PASSWORD_RESET_TTL_MINUTES = 60
+
+
+async def db_create_password_reset_token(user_id: str) -> str:
+    pool = await get_pool()
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_TTL_MINUTES)
+    # 顺手清掉过期/已用过的旧 token，这张表行数很小，不用单独搞定时任务
+    await pool.execute("DELETE FROM password_reset_tokens WHERE expires_at < now() OR used")
+    await pool.execute(
+        "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES ($1,$2,$3)", token, user_id, expires_at,
+    )
+    return token
+
+
+async def db_consume_password_reset_token(token: str) -> Optional[str]:
+    """Token 有效且没用过就标记成已用，返回对应的 user_id；否则返回 None。"""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """UPDATE password_reset_tokens SET used=TRUE
+           WHERE token=$1 AND expires_at > now() AND NOT used
+           RETURNING user_id""",
+        token,
+    )
+    return row["user_id"] if row else None
 
 
 async def db_create_document(record: dict):
@@ -888,6 +927,19 @@ async def _verify_turnstile(token: str, remote_ip: str = "") -> bool:
     return bool(resp.json().get("success"))
 
 
+async def _send_email(to: str, subject: str, html: str):
+    if not RESEND_API_KEY:
+        raise HTTPException(503, "Email sending isn't configured on this server yet")
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            json={"from": RESEND_FROM_EMAIL, "to": [to], "subject": subject, "html": html},
+        )
+    if resp.status_code >= 300:
+        raise HTTPException(502, f"Failed to send email: {resp.text}")
+
+
 MIN_PASSWORD_LENGTH = 8
 
 
@@ -1033,6 +1085,58 @@ async def login(request: Request, req: LoginRequest):
 async def logout(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     if credentials:
         await db_delete_session(credentials.credentials)
+    return {"ok": True}
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+@app.post("/api/forgot-password")
+@limiter.limit("5/minute")
+async def forgot_password(request: Request, req: ForgotPasswordRequest):
+    email = req.email.strip()
+    # 不管邮箱存不存在、发信有没有成功都返回同样的提示，不然可以用这个接口去试探
+    # "这个邮箱注册过没"，或者从报错知道站长压根没配置邮件发送。
+    if email:
+        user = await db_get_user_by_email(email)
+        if user:
+            token = await db_create_password_reset_token(user["id"])
+            reset_link = f"{request.base_url}app.html?reset_token={token}"
+            try:
+                await _send_email(
+                    to=email,
+                    subject="Reset your Contexta password",
+                    html=(
+                        f"<p>Someone requested a password reset for your Contexta account.</p>"
+                        f'<p><a href="{reset_link}">Click here to set a new password</a> '
+                        f"(link expires in {PASSWORD_RESET_TTL_MINUTES} minutes).</p>"
+                        f"<p>If this wasn't you, you can safely ignore this email.</p>"
+                    ),
+                )
+            except HTTPException as exc:
+                print(f"[forgot-password] failed to send reset email: {exc.detail}", flush=True)
+    return {"ok": True}
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@app.post("/api/reset-password")
+@limiter.limit("10/minute")
+async def reset_password(request: Request, req: ResetPasswordRequest):
+    _validate_password_strength(req.new_password)
+    user_id = await db_consume_password_reset_token(req.token)
+    if not user_id:
+        raise HTTPException(400, "This reset link is invalid or has expired, request a new one")
+    salt = secrets.token_hex(16)
+    await db_update_user_fields(user_id, password_salt=salt, password_hash=_hash_password(req.new_password, salt))
+    # 重置密码后把这个账号所有现存 session 都踢掉，防止旧密码泄露时攻击者已经登录的会话还留着
+    pool = await get_pool()
+    await pool.execute("DELETE FROM sessions WHERE user_id=$1", user_id)
+    _audit("reset_password", user_id=user_id)
     return {"ok": True}
 
 

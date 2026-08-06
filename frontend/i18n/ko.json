@@ -215,7 +215,17 @@
     "legalPrefix": "계속 진행하면 ",
     "terms": "서비스 약관",
     "and": " 및 ",
-    "privacy": "개인정보 처리방침에 동의하는 것으로 간주돼요"
+    "privacy": "개인정보 처리방침에 동의하는 것으로 간주돼요",
+    "forgotPasswordLink": "비밀번호를 잊으셨나요?",
+    "forgotPasswordTitle": "비밀번호 재설정",
+    "forgotPasswordHint": "계정에 등록한 복구용 이메일을 입력하세요. 일치하는 계정이 있으면 재설정 링크를 보내드려요.",
+    "emailPlaceholder": "you@example.com",
+    "back": "뒤로",
+    "sendResetLink": "재설정 링크 보내기",
+    "forgotPasswordSent": "해당 이메일로 등록된 계정이 있다면 재설정 링크를 보냈어요 — 받은 편지함을 확인하세요.",
+    "resetPasswordTitle": "새 비밀번호 설정",
+    "setNewPassword": "새 비밀번호 설정",
+    "resetPasswordDone": "비밀번호가 변경됐어요. 로그인 화면으로 이동할게요..."
   },
   "empty": {
     "noDocument": "글을 붙여넣거나 PDF/DOCX 파일을 업로드해서 정독을 시작해 보세요",

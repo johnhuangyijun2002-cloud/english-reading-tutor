@@ -367,6 +367,78 @@ const btnLoginSubmit = document.getElementById("btnLoginSubmit");
 const btnRegisterSubmit = document.getElementById("btnRegisterSubmit");
 const btnGoogleLogin = document.getElementById("btnGoogleLogin");
 
+const loginFormView = document.getElementById("loginFormView");
+const forgotPasswordView = document.getElementById("forgotPasswordView");
+const resetPasswordView = document.getElementById("resetPasswordView");
+const btnForgotPasswordLink = document.getElementById("btnForgotPasswordLink");
+const forgotPasswordEmailInput = document.getElementById("forgotPasswordEmailInput");
+const forgotPasswordStatus = document.getElementById("forgotPasswordStatus");
+const btnForgotPasswordBack = document.getElementById("btnForgotPasswordBack");
+const btnForgotPasswordSubmit = document.getElementById("btnForgotPasswordSubmit");
+const resetPasswordInput = document.getElementById("resetPasswordInput");
+const resetPasswordStatus = document.getElementById("resetPasswordStatus");
+const btnResetPasswordSubmit = document.getElementById("btnResetPasswordSubmit");
+let pendingResetToken = "";
+
+function showLoginView(view) {
+  loginFormView.classList.toggle("hidden", view !== "form");
+  forgotPasswordView.classList.toggle("hidden", view !== "forgot");
+  resetPasswordView.classList.toggle("hidden", view !== "reset");
+}
+
+btnForgotPasswordLink.addEventListener("click", () => {
+  forgotPasswordEmailInput.value = "";
+  forgotPasswordStatus.textContent = "";
+  showLoginView("forgot");
+  forgotPasswordEmailInput.focus();
+});
+
+btnForgotPasswordBack.addEventListener("click", () => showLoginView("form"));
+
+btnForgotPasswordSubmit.addEventListener("click", async () => {
+  const email = forgotPasswordEmailInput.value.trim();
+  if (!email) return;
+  btnForgotPasswordSubmit.disabled = true;
+  forgotPasswordStatus.textContent = t("common.saving");
+  try {
+    const res = await fetch("/api/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    forgotPasswordStatus.textContent = t("login.forgotPasswordSent");
+  } catch (err) {
+    forgotPasswordStatus.textContent = t("common.saveFailed", { message: err.message });
+  } finally {
+    btnForgotPasswordSubmit.disabled = false;
+  }
+});
+
+btnResetPasswordSubmit.addEventListener("click", async () => {
+  const newPassword = resetPasswordInput.value;
+  if (!newPassword) return;
+  btnResetPasswordSubmit.disabled = true;
+  resetPasswordStatus.textContent = t("common.saving");
+  try {
+    const res = await fetch("/api/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: pendingResetToken, new_password: newPassword }),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    resetPasswordInput.value = "";
+    resetPasswordStatus.textContent = t("login.resetPasswordDone");
+    setTimeout(() => showLoginView("form"), 1500);
+  } catch (err) {
+    resetPasswordStatus.textContent = t("common.saveFailed", { message: err.message });
+  } finally {
+    btnResetPasswordSubmit.disabled = false;
+  }
+});
+
 const welcomeModalOverlay = document.getElementById("welcomeModalOverlay");
 const welcomeBody = document.getElementById("welcomeBody");
 const welcomeHouseTrialLine = document.getElementById("welcomeHouseTrialLine");
@@ -2938,6 +3010,18 @@ btnGoogleLogin.addEventListener("click", () => {
 (async () => {
   await loadI18n(currentUiLanguage);
 
+  // 密码找回邮件里的链接带着 ?reset_token=...，不管当前设备有没有登录态，
+  // 都优先弹这个设新密码的表单，不能直接把人送进正在登录的账号里。
+  const resetToken = new URLSearchParams(location.search).get("reset_token");
+  if (resetToken) {
+    pendingResetToken = resetToken;
+    history.replaceState(null, "", location.pathname);
+    loginOverlay.classList.remove("hidden");
+    showLoginView("reset");
+    resetPasswordInput.focus();
+    return;
+  }
+
   // Google 登录/关联跳回来的时候，token 会带在地址栏的 #token=... 里
   const hashMatch = location.hash.match(/token=([^&]+)/);
   const justLinkedGoogle = /(^|&)google_linked=1/.test(location.hash);
@@ -2972,6 +3056,7 @@ btnGoogleLogin.addEventListener("click", () => {
   }
 
   function showLoginScreen() {
+    showLoginView("form");
     loginOverlay.classList.remove("hidden");
     loginUsernameInput.focus();
     initTurnstile();

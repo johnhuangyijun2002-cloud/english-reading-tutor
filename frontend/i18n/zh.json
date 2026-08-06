@@ -215,7 +215,17 @@
     "legalPrefix": "继续即表示你同意",
     "terms": "服务条款",
     "and": "和",
-    "privacy": "隐私政策"
+    "privacy": "隐私政策",
+    "forgotPasswordLink": "忘记密码？",
+    "forgotPasswordTitle": "找回密码",
+    "forgotPasswordHint": "填你账号上的找回邮箱，如果匹配得上，我们会发一封带重置链接的邮件",
+    "emailPlaceholder": "you@example.com",
+    "back": "返回",
+    "sendResetLink": "发送重置链接",
+    "forgotPasswordSent": "如果这个邮箱对应某个账号，重置链接已经发出去了，去邮箱看看",
+    "resetPasswordTitle": "设置新密码",
+    "setNewPassword": "设置新密码",
+    "resetPasswordDone": "密码已更新，马上跳回登录…"
   },
   "empty": {
     "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读",
