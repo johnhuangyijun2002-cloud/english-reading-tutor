@@ -2522,6 +2522,16 @@ body {
 }
 
 @media print {
+  /* html/body 平时靠 overflow-x:hidden 防止横向滚动，但 CSS 规则规定"x/y 只设一边
+     为非 visible 时，另一边会被浏览器当成 auto 处理"，于是 html/body 变成了一个
+     带滚动条的容器。Chrome 打印分页时，只要祖先节点是"可滚动容器"就不会真正分页，
+     只会把第一屏那么高的内容当成唯一一页，后面的文章正文/生词表/句子表全部被截断。
+     打印时强制把 html/body 的 overflow 改回 visible，让内容变成能正常分页的普通文档流。 */
+  html, body {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
   body > *:not(#printArea) {
     display: none !important;
   }
