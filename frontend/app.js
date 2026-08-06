@@ -342,6 +342,9 @@ const btnLogout = document.getElementById("btnLogout");
 const newUsernameInput = document.getElementById("newUsernameInput");
 const btnChangeUsername = document.getElementById("btnChangeUsername");
 const changeUsernameStatus = document.getElementById("changeUsernameStatus");
+const newEmailInput = document.getElementById("newEmailInput");
+const btnChangeEmail = document.getElementById("btnChangeEmail");
+const changeEmailStatus = document.getElementById("changeEmailStatus");
 
 const changePasswordLabel = document.getElementById("changePasswordLabel");
 const newPasswordInput = document.getElementById("newPasswordInput");
@@ -358,6 +361,7 @@ const accountDataStatus = document.getElementById("accountDataStatus");
 const loginOverlay = document.getElementById("loginOverlay");
 const loginUsernameInput = document.getElementById("loginUsernameInput");
 const loginPasswordInput = document.getElementById("loginPasswordInput");
+const regEmailInput = document.getElementById("regEmailInput");
 const loginError = document.getElementById("loginError");
 const btnLoginSubmit = document.getElementById("btnLoginSubmit");
 const btnRegisterSubmit = document.getElementById("btnRegisterSubmit");
@@ -2524,6 +2528,9 @@ async function loadSettingsIntoPanel() {
   newUsernameInput.value = "";
   changeUsernameStatus.textContent = "";
 
+  newEmailInput.value = data.email || "";
+  changeEmailStatus.textContent = "";
+
   googleLinkStatus.textContent = data.has_google
     ? t("settings.googleLinkedStatus", { email: data.google_email })
     : t("settings.googleUnlinkedStatus");
@@ -2568,6 +2575,27 @@ btnChangeUsername.addEventListener("click", async () => {
     changeUsernameStatus.textContent = t("common.saveFailed", { message: err.message });
   } finally {
     btnChangeUsername.disabled = false;
+  }
+});
+
+btnChangeEmail.addEventListener("click", async () => {
+  const newEmail = newEmailInput.value.trim();
+  if (!newEmail) return;
+  btnChangeEmail.disabled = true;
+  changeEmailStatus.textContent = t("common.saving");
+  try {
+    const res = await apiFetch("/api/change-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_email: newEmail }),
+    });
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    changeEmailStatus.textContent = t("common.saved");
+    if (settingsDataCache) settingsDataCache.email = newEmail;
+  } catch (err) {
+    changeEmailStatus.textContent = t("common.saveFailed", { message: err.message });
+  } finally {
+    btnChangeEmail.disabled = false;
   }
 });
 
@@ -2867,6 +2895,7 @@ btnLoginSubmit.addEventListener("click", async () => {
 btnRegisterSubmit.addEventListener("click", async () => {
   const username = loginUsernameInput.value.trim();
   const password = loginPasswordInput.value;
+  const email = regEmailInput.value.trim();
   if (!username || !password) {
     loginError.textContent = t("login.fieldsRequired");
     loginError.classList.remove("hidden");
@@ -2879,7 +2908,7 @@ btnRegisterSubmit.addEventListener("click", async () => {
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, turnstile_token: turnstileToken, ui_language: currentUiLanguage }),
+      body: JSON.stringify({ username, password, email, turnstile_token: turnstileToken, ui_language: currentUiLanguage }),
       cache: "no-store",
     });
     if (!res.ok) {

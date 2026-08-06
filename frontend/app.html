@@ -338,6 +338,16 @@
       </div>
 
       <div class="settingsBlock">
+        <span class="settingsBlockLabel" data-i18n="settings.changeEmail">Recovery Email</span>
+        <p class="urlHint" data-i18n="settings.changeEmailHint">Optional, but without it there's no way to recover your account if you forget your password (unless you also sign in with Google).</p>
+        <input type="email" id="newEmailInput" data-i18n-placeholder="settings.newEmailPlaceholder" placeholder="you@example.com" />
+        <div class="pasteActions">
+          <button id="btnChangeEmail" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
+        </div>
+        <p id="changeEmailStatus" class="urlHint"></p>
+      </div>
+
+      <div class="settingsBlock">
         <span class="settingsBlockLabel" data-i18n="settings.changeUsername">Change Username</span>
         <input type="text" id="newUsernameInput" data-i18n-placeholder="settings.newUsernamePlaceholder" placeholder="New username" />
         <div class="pasteActions">
@@ -458,6 +468,7 @@
       <p class="urlHint" data-i18n="login.hint">Any username works; password needs at least 8 characters. The first account to register automatically becomes the owner.</p>
       <input type="text" id="loginUsernameInput" data-i18n-placeholder="login.username" placeholder="Username" autocomplete="username" />
       <input type="password" id="loginPasswordInput" data-i18n-placeholder="login.password" placeholder="Password" autocomplete="current-password" />
+      <input type="email" id="regEmailInput" data-i18n-placeholder="login.emailOptional" placeholder="Email (optional, for account recovery)" autocomplete="email" />
       <p id="loginError" class="loginError hidden"></p>
       <div id="turnstileWidget" class="cf-turnstile" data-sitekey=""></div>
       <div class="pasteActions">

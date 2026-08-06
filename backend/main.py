@@ -187,6 +187,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_relay_model TEXT NOT NULL DEFAULT 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_target_language TEXT NOT NULL DEFAULT 'follow';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_source_priority TEXT NOT NULL DEFAULT 'vocab';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_exclude_proper_nouns BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
 CREATE TABLE IF NOT EXISTS house_usage (
     month TEXT PRIMARY KEY,
     calls INTEGER NOT NULL DEFAULT 0,
@@ -323,6 +324,11 @@ async def db_get_user_by_username(username: str) -> Optional[dict]:
 async def db_get_user_by_google_id(google_id: str) -> Optional[dict]:
     pool = await get_pool()
     return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE google_id=$1", google_id))
+
+
+async def db_get_user_by_email(email: str) -> Optional[dict]:
+    pool = await get_pool()
+    return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE lower(email)=lower($1)", email))
 
 
 async def db_count_users() -> int:
@@ -890,6 +896,14 @@ def _validate_password_strength(password: str):
         raise HTTPException(400, f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
 
 
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _validate_email(email: str):
+    if not EMAIL_RE.match(email):
+        raise HTTPException(400, "That doesn't look like a valid email address")
+
+
 def _migrate_legacy_invite_users():
     """把改版前"邀请码即凭证"的老账号，自动补上 username/password(初始密码沿用原邀请码)。
     这个函数只操作 JSON 文件，在 Postgres 迁移之前跑，保证迁移过去的数据里没有这种老格式。"""
@@ -937,6 +951,7 @@ def _audit(event: str, **fields):
 class RegisterRequest(BaseModel):
     username: str
     password: str
+    email: str = ""  # 选填，用于以后的邮件找回密码；不填的话就只能用 Google 登录或联系站长手动重置
     turnstile_token: str = ""
     ui_language: str = "en"
 
@@ -946,11 +961,16 @@ class RegisterRequest(BaseModel):
 async def register(request: Request, req: RegisterRequest):
     username = req.username.strip()
     password = req.password
+    email = req.email.strip()
     if not username or not password:
         raise HTTPException(400, "Username and password are required")
     if not await _verify_turnstile(req.turnstile_token, get_remote_address(request)):
         raise HTTPException(400, "Verification failed, please refresh and try again")
     _validate_password_strength(password)
+    if email:
+        _validate_email(email)
+        if await db_get_user_by_email(email):
+            raise HTTPException(400, "This email is already in use by another account")
 
     if await db_get_user_by_username(username):
         raise HTTPException(400, "This username is already taken, try another one")
@@ -966,6 +986,9 @@ async def register(request: Request, req: RegisterRequest):
         is_owner=(user_count == 0),
         ui_language=req.ui_language if req.ui_language in UI_LANGUAGES else "en",
     )
+    if email:
+        await db_update_user_fields(new_user["id"], email=email)
+        new_user["email"] = email
     _audit("register", user_id=new_user["id"], username=username)
     token = await db_create_session(new_user["id"])
     return {
@@ -1063,6 +1086,24 @@ async def change_username(req: ChangeUsernameRequest, user: dict = Depends(get_c
     return {"ok": True, "username": new_username, "name": new_username}
 
 
+class ChangeEmailRequest(BaseModel):
+    new_email: str
+
+
+@app.post("/api/change-email")
+async def change_email(req: ChangeEmailRequest, user: dict = Depends(get_current_user)):
+    new_email = req.new_email.strip()
+    if not new_email:
+        raise HTTPException(400, "New email can't be empty")
+    _validate_email(new_email)
+    existing = await db_get_user_by_email(new_email)
+    if existing and existing["id"] != user["id"]:
+        raise HTTPException(400, "This email is already in use by another account")
+    await db_update_user_fields(user["id"], email=new_email)
+    _audit("change_email", user_id=user["id"], username=user.get("username"))
+    return {"ok": True, "email": new_email}
+
+
 @app.get("/api/account/export")
 @limiter.limit("5/minute")
 async def export_account_data(request: Request, user: dict = Depends(get_current_user)):
@@ -1079,6 +1120,7 @@ async def export_account_data(request: Request, user: dict = Depends(get_current
             "id": user["id"],
             "username": user.get("username"),
             "name": user.get("name"),
+            "email": user.get("email") or None,
             "google_email": user.get("google_email") or None,
             "is_owner": user.get("is_owner", False),
             "ai_provider": user.get("ai_provider"),
@@ -2473,6 +2515,7 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "has_password": bool(user.get("password_hash")),
         "has_google": bool(user.get("google_id")),
         "google_email": user.get("google_email") or "",
+        "email": user.get("email") or "",
         "ai_provider": user.get("ai_provider", "deepseek"),
         "ai_key_status": {
             k: {"has_key": bool(keys.get(k)), "masked": mask_key(keys.get(k, ""))}
