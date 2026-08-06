@@ -70,7 +70,7 @@ HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "5")
 # 通过 Resend 发密码找回邮件：不配置的话 /api/forgot-password 直接返回错误，
 # 前端"忘记密码"链接还在，但点了会提示站长还没配置邮件发送。
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Contexta <onboarding@resend.dev>")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Contextia <onboarding@resend.dev>")
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
@@ -1106,9 +1106,9 @@ async def forgot_password(request: Request, req: ForgotPasswordRequest):
             try:
                 await _send_email(
                     to=email,
-                    subject="Reset your Contexta password",
+                    subject="Reset your Contextia password",
                     html=(
-                        f"<p>Someone requested a password reset for your Contexta account.</p>"
+                        f"<p>Someone requested a password reset for your Contextia account.</p>"
                         f'<p><a href="{reset_link}">Click here to set a new password</a> '
                         f"(link expires in {PASSWORD_RESET_TTL_MINUTES} minutes).</p>"
                         f"<p>If this wasn't you, you can safely ignore this email.</p>"
