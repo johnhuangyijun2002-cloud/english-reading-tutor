@@ -471,8 +471,9 @@ function loadDocument(doc) {
   }
 }
 
-function renderTextDocument(content, title, sourceUrl) {
+function renderTextDocument(content, title, sourceUrl, preserveScroll = false) {
   stopReadAloud(); // 重渲染会整个换掉 DOM，旧的句子元素引用会失效，先把播放状态清掉
+  const savedScrollTop = preserveScroll ? viewer.scrollTop : 0;
   viewerContent.innerHTML = "";
   const container = document.createElement("div");
   container.className = "text-doc";
@@ -496,7 +497,14 @@ function renderTextDocument(content, title, sourceUrl) {
     container.appendChild(el);
   });
   viewerContent.appendChild(container);
-  resetReadingProgress();
+  if (preserveScroll) {
+    // 只是为了刷新已存生词的高亮/沉浸模式替换而重渲染，文章还是同一篇，不该把读者
+    // 拉回顶部——真正切换到一篇新文章时(loadDocument)才需要重置滚动位置和进度条。
+    viewer.scrollTop = savedScrollTop;
+    updateReadingProgress();
+  } else {
+    resetReadingProgress();
+  }
 }
 
 // ---------- 文章头部(标题 / 来源 / 字数 / 预计阅读时长) ----------
@@ -969,7 +977,7 @@ async function fetchImmersionPlan() {
       btn.classList.toggle("active", btn.dataset.value === "off");
     });
   }
-  renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+  renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl, true);
 }
 
 async function saveVocabEntry(record) {
@@ -1012,7 +1020,7 @@ document.querySelectorAll(".immersionToggle button").forEach((btn) => {
       }
     } else {
       immersionPlan = null;
-      renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+      renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl, true);
     }
   });
 });
@@ -1091,7 +1099,7 @@ btnImmersionSaveConfirm.addEventListener("click", async () => {
   }
   if (checked.length > 0) {
     await loadKnownWords();
-    renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+    renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl, true);
   }
   btnImmersionSaveConfirm.disabled = false;
   btnImmersionSaveConfirm.textContent = t("immersion.saveConfirm");
@@ -1177,7 +1185,7 @@ function showWordPopup(mark) {
       const ok = await saveVocabEntry(record);
       if (ok) {
         await loadKnownWords();
-        renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+        renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl, true);
         hideWordPopup();
       } else {
         saveImmersionBtn.disabled = false;
@@ -2065,7 +2073,7 @@ async function deleteRecord(record) {
   if (record.mode === "word") {
     await loadKnownWords();
     if (currentDocContent) {
-      renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+      renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl, true);
     }
   }
   if (searchDataCache) {
@@ -2376,7 +2384,7 @@ async function saveAnnotation(el, text) {
 
     if (el.dataset.mode === "word") {
       await loadKnownWords();
-      renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl);
+      renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl, true);
     }
   } catch (err) {
     saveBtn.disabled = false;
