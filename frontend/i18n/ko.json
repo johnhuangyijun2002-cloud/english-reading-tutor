@@ -279,7 +279,9 @@
     "saveFailed": "저장 실패, 다시 시도해 주세요",
     "analyzeFailedPrefix": "분석 실패: {message}",
     "retry": "다시 시도",
-    "noResult": "(결과 없음)"
+    "noResult": "(결과 없음)",
+    "lemma": "기본형: ",
+    "otherForms": "기타 형태: "
   },
   "history": {
     "emptyDoc": "이 글에는 아직 기록이 없어요 — 단어나 문장을 선택해서 시작해 보세요",
@@ -291,7 +293,8 @@
     "editBtn": "수정",
     "editContextPlaceholder": "예문 (선택)",
     "editWordRequired": "단어를 입력해주세요",
-    "editFailed": "저장하지 못했습니다: {message}"
+    "editFailed": "저장하지 못했습니다: {message}",
+    "editFormsPlaceholder": "기타 형태, 예: 과거형 (선택)"
   },
   "saveAll": {
     "empty": "지금은 저장할 항목이 없어요",

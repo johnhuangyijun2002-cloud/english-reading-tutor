@@ -312,6 +312,7 @@ const reviewCardBack = document.querySelector("#reviewCard .reviewCard-back");
 const reviewCardMeta = document.querySelector("#reviewCard .reviewCard-meta");
 const reviewCardMeaning = document.querySelector("#reviewCard .reviewCard-meaning");
 const reviewCardSentence = document.querySelector("#reviewCard .reviewCard-sentence");
+const reviewCardForms = document.querySelector("#reviewCard .reviewCard-forms");
 const btnReviewExit = document.getElementById("btnReviewExit");
 const btnReviewReveal = document.getElementById("btnReviewReveal");
 const btnReviewDontKnow = document.getElementById("btnReviewDontKnow");
@@ -1161,6 +1162,7 @@ function showWordPopup(mark) {
     <div class="wordPopup-meta"></div>
     <div class="wordPopup-meaning"></div>
     <div class="wordPopup-sentence"></div>
+    <div class="wordPopup-forms hidden"></div>
     <div class="wordPopup-actions">
       ${isSaved
         ? `<button class="wordPopup-delete">${t("wordPopup.delete")}</button>`
@@ -1171,6 +1173,11 @@ function showWordPopup(mark) {
   wordPopup.querySelector(".wordPopup-meta").textContent = meta;
   wordPopup.querySelector(".wordPopup-meaning").textContent = record.chinese_meaning || "";
   wordPopup.querySelector(".wordPopup-sentence").textContent = record.sentence || "";
+  const formsEl = wordPopup.querySelector(".wordPopup-forms");
+  if (record.other_forms) {
+    formsEl.textContent = `${t("annotation.otherForms")}${record.other_forms}`;
+    formsEl.classList.remove("hidden");
+  }
   const deleteBtn = wordPopup.querySelector(".wordPopup-delete");
   if (deleteBtn) {
     deleteBtn.addEventListener("click", async () => {
@@ -1801,6 +1808,8 @@ function addAnnotationEntry(text, mode, context) {
       ${mode === "word" && canSpeak() ? `<button type="button" class="pronounce-btn" title="${t("common.pronounce")}">${iconHTML("volume-2")}</button>` : ""}
     </div>
     <div class="ann-meta"></div>
+    <div class="ann-lemma hidden"></div>
+    <div class="ann-forms hidden"></div>
     <div class="ann-explanation">${t("annotation.analyzing")}</div>
     <div class="ann-actions hidden">
       <button class="ann-save">${mode === "word" ? t("annotation.saveWordBtn") : t("annotation.saveSentenceBtn")}</button>
@@ -1829,16 +1838,38 @@ function updateAnnotationEntry(el, data) {
   el.dataset.chineseMeaning = data.chinese_meaning || "";
   el.dataset.ipa = data.ipa || "";
   el.dataset.pos = data.pos || "";
+  el.dataset.lemma = data.lemma || "";
+  el.dataset.otherForms = data.other_forms || "";
 
   const metaEl = el.querySelector(".ann-meta");
   const explEl = el.querySelector(".ann-explanation");
+  const lemmaEl = el.querySelector(".ann-lemma");
+  const formsEl = el.querySelector(".ann-forms");
 
   if (el.dataset.mode === "word" && data.chinese_meaning) {
     metaEl.textContent = [data.pos, data.ipa].filter(Boolean).join("  ·  ");
     explEl.textContent = data.chinese_meaning;
+
+    // 划中的原词和 AI 识别出的原形不一样才需要提示(比如划中的是过去式)，一样的话
+    // 再显示一遍是啰嗦——由小红书用户燃點IGNITE提议。
+    const rawWord = el.querySelector(".ann-text").textContent.trim();
+    if (data.lemma && data.lemma.trim().toLowerCase() !== rawWord.toLowerCase()) {
+      lemmaEl.textContent = `${t("annotation.lemma")}${data.lemma}`;
+      lemmaEl.classList.remove("hidden");
+    } else {
+      lemmaEl.classList.add("hidden");
+    }
+    if (data.other_forms) {
+      formsEl.textContent = `${t("annotation.otherForms")}${data.other_forms}`;
+      formsEl.classList.remove("hidden");
+    } else {
+      formsEl.classList.add("hidden");
+    }
   } else {
     metaEl.textContent = "";
     explEl.textContent = data.explanation || t("annotation.noResult");
+    lemmaEl.classList.add("hidden");
+    formsEl.classList.add("hidden");
   }
 }
 
@@ -1914,6 +1945,7 @@ function buildHistoryCard(record) {
     <div class="ann-meta"></div>
     <div class="ann-explanation"></div>
     ${isWord ? '<div class="ann-context"></div>' : ""}
+    ${isWord ? '<div class="ann-forms hidden"></div>' : ""}
     <div class="ann-footer">
       <div class="ann-footer-meta">
         <span class="ann-source"></span>
@@ -1932,6 +1964,11 @@ function buildHistoryCard(record) {
   el.querySelector(".ann-date").textContent = record.date || "";
   if (isWord) {
     el.querySelector(".ann-context").textContent = record.sentence || "";
+    const formsEl = el.querySelector(".ann-forms");
+    if (record.other_forms) {
+      formsEl.textContent = `${t("annotation.otherForms")}${record.other_forms}`;
+      formsEl.classList.remove("hidden");
+    }
   }
   el.querySelector(".ann-delete-btn").addEventListener("click", async (e) => {
     e.stopPropagation();
@@ -1959,6 +1996,7 @@ function openHistoryCardEditForm(el, record) {
   const textEl = el.querySelector(".ann-text");
   const explanationEl = el.querySelector(".ann-explanation");
   const contextEl = el.querySelector(".ann-context");
+  const formsEl = el.querySelector(".ann-forms");
   const footerActions = el.querySelector(".ann-footer-actions");
   const savedFooterHTML = footerActions.innerHTML;
 
@@ -1980,6 +2018,13 @@ function openHistoryCardEditForm(el, record) {
   contextInput.placeholder = t("history.editContextPlaceholder");
   contextEl.replaceWith(contextInput);
 
+  const formsInput = document.createElement("input");
+  formsInput.type = "text";
+  formsInput.className = "ann-edit-input";
+  formsInput.value = record.other_forms || "";
+  formsInput.placeholder = t("history.editFormsPlaceholder");
+  formsEl.replaceWith(formsInput);
+
   footerActions.innerHTML = `
     <button class="btn btn-ghost btn-small ann-cancel-btn">${t("common.cancel")}</button>
     <button class="btn btn-primary btn-small ann-save-btn">${t("common.save")}</button>
@@ -2000,6 +2045,11 @@ function openHistoryCardEditForm(el, record) {
     newContext.className = "ann-context";
     newContext.textContent = record.sentence || "";
     contextInput.replaceWith(newContext);
+
+    const newForms = document.createElement("div");
+    newForms.className = "ann-forms" + (record.other_forms ? "" : " hidden");
+    newForms.textContent = record.other_forms ? `${t("annotation.otherForms")}${record.other_forms}` : "";
+    formsInput.replaceWith(newForms);
 
     footerActions.innerHTML = savedFooterHTML;
     footerActions.querySelector(".ann-edit-btn").addEventListener("click", (e) => {
@@ -2032,6 +2082,7 @@ function openHistoryCardEditForm(el, record) {
           word,
           chinese_meaning: meaningInput.value.trim(),
           sentence: contextInput.value.trim(),
+          other_forms: formsInput.value.trim(),
         }),
       });
       if (!res.ok) throw new Error(await apiErrorText(res));
@@ -2242,6 +2293,12 @@ function renderReviewCard() {
   reviewCardMeta.textContent = [record.pos, record.ipa].filter(Boolean).join(" · ");
   reviewCardMeaning.textContent = record.chinese_meaning || "";
   reviewCardSentence.textContent = record.sentence || "";
+  if (record.other_forms) {
+    reviewCardForms.textContent = `${t("annotation.otherForms")}${record.other_forms}`;
+    reviewCardForms.classList.remove("hidden");
+  } else {
+    reviewCardForms.classList.add("hidden");
+  }
   btnReviewReveal.classList.remove("hidden");
   btnReviewDontKnow.classList.add("hidden");
   btnReviewKnow.classList.add("hidden");
@@ -2350,18 +2407,22 @@ async function saveAnnotation(el, text) {
   const statusEl = el.querySelector(".ann-sync-status");
   saveBtn.disabled = true;
   saveBtn.textContent = t("annotation.saving");
+  // 收藏时存原形而不是划中的那个变形(比如划 reached 存 reach)——由小红书用户
+  // 燃點IGNITE提议。lemma 为空(比如这门语言没有原形概念)就照旧存划中的原词。
+  const wordToSave = el.dataset.mode === "word" && el.dataset.lemma ? el.dataset.lemma : text;
   try {
     const res = await apiFetch("/api/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: el.dataset.mode,
-        text,
+        text: wordToSave,
         context: el.dataset.context || "",
         explanation: el.dataset.explanation || "",
         chinese_meaning: el.dataset.chineseMeaning || "",
         ipa: el.dataset.ipa || "",
         pos: el.dataset.pos || "",
+        other_forms: el.dataset.otherForms || "",
         source_doc: currentDocName,
         learning_language: currentDocLearningLanguage,
       }),
@@ -2374,7 +2435,7 @@ async function saveAnnotation(el, text) {
       // 用 innerHTML 只放图标(固定、可信的 SVG)，正文用 append() 当纯文本插入——
       // text 是用户从文章里划的原文，可能包含尖括号之类的字符，绝不能直接拼进 innerHTML。
       statusEl.innerHTML = iconHTML("alert-triangle");
-      statusEl.append(t("annotation.duplicateStatus", { text }));
+      statusEl.append(t("annotation.duplicateStatus", { text: wordToSave }));
       return;
     }
 

@@ -231,6 +231,7 @@ ALTER TABLE vocab ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAUL
 ALTER TABLE vocab ADD COLUMN IF NOT EXISTS srs_level INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE vocab ADD COLUMN IF NOT EXISTS next_review_at TIMESTAMPTZ;
 ALTER TABLE vocab ADD COLUMN IF NOT EXISTS last_reviewed_at TIMESTAMPTZ;
+ALTER TABLE vocab ADD COLUMN IF NOT EXISTS other_forms TEXT;
 CREATE TABLE IF NOT EXISTS sentence_notes (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -467,11 +468,11 @@ async def db_delete_document(doc_id: str):
 async def db_create_vocab(record: dict):
     pool = await get_pool()
     await pool.execute(
-        """INSERT INTO vocab (id, user_id, word, sentence, chinese_meaning, ipa, pos, source_doc, date,
+        """INSERT INTO vocab (id, user_id, word, sentence, chinese_meaning, ipa, pos, other_forms, source_doc, date,
                                learning_language, explain_language, added_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)""",
         record["id"], record["user_id"], record.get("word"), record.get("sentence"),
-        record.get("chinese_meaning"), record.get("ipa"), record.get("pos"),
+        record.get("chinese_meaning"), record.get("ipa"), record.get("pos"), record.get("other_forms"),
         record.get("source_doc"), record.get("date"),
         record.get("learning_language", "en"), record.get("explain_language", "zh"),
         _parse_dt(record.get("added_at")),
@@ -1796,6 +1797,8 @@ async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> 
 
 
 def build_word_prompt(word: str, context: str, learning_language: str, explain_language: str) -> str:
+    # "原形识别 + 其他形态展示"这块由小红书用户燃點IGNITE提议：用户划中非原形的词
+    # (比如过去式)时,希望能看到词典意义上的原形,收藏时也直接存原形。
     learn_label = LANGUAGE_LABELS.get(learning_language, learning_language)
     explain_label = LANGUAGE_LABELS.get(explain_language, explain_language)
     return (
@@ -1805,7 +1808,9 @@ def build_word_prompt(word: str, context: str, learning_language: str, explain_l
         f"请结合例句的语境，以 JSON 格式返回，包含以下字段，不要输出任何多余文字：\n"
         f'{{"chinese_meaning": "这个词在该语境下的准确释义，用{explain_label}表达，简洁，不超过15个字", '
         f'"ipa": "这个词的注音标记(比如{learn_label}有对应的音标/拼音/罗马音等系统就给出，不带斜杠符号；如果这门语言没有这类概念就留空字符串)", '
-        f'"pos": "词性缩写，如 n. / v. / adj. / adv. / prep. 等；如果这门语言没有对应概念就留空字符串"}}'
+        f'"pos": "词性缩写，如 n. / v. / adj. / adv. / prep. 等；如果这门语言没有对应概念就留空字符串", '
+        f'"lemma": "这个词的词典基本形式/原形(比如所选是动词过去式就给动词原形，所选是名词复数就给单数形式；如果所选本身已经是基本形式，就原样返回这个词本身；用原语言书写，不要翻译；如果{learn_label}没有"基本形式"这种概念，就返回这个词本身)", '
+        f'"other_forms": "这个词其他常见形态变化的简短说明(比如动词的过去式/过去分词、名词的复数、形容词的比较级/最高级等)，多个形态之间用顿号分隔，格式例如"过去式 reached、过去分词 reached"；如果{learn_label}没有这类词形变化概念，或者这个词没有值得一提的特殊形态，就返回空字符串"}}'
     )
 
 
@@ -1835,6 +1840,8 @@ class AnalyzeResponse(BaseModel):
     chinese_meaning: Optional[str] = None
     ipa: Optional[str] = None
     pos: Optional[str] = None
+    lemma: Optional[str] = None
+    other_forms: Optional[str] = None
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
@@ -1853,6 +1860,8 @@ async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = 
             chinese_meaning=parsed.get("chinese_meaning", ""),
             ipa=parsed.get("ipa", ""),
             pos=parsed.get("pos", ""),
+            lemma=parsed.get("lemma", ""),
+            other_forms=parsed.get("other_forms", ""),
         )
 
     prompt = build_passage_prompt(req.text, req.learning_language, explain_language)
@@ -2569,6 +2578,7 @@ class SaveRequest(BaseModel):
     chinese_meaning: str = ""
     ipa: str = ""
     pos: str = ""
+    other_forms: str = ""
     source_doc: str = ""
     learning_language: str = "en"
 
@@ -2593,6 +2603,7 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
             "chinese_meaning": req.chinese_meaning,
             "ipa": req.ipa,
             "pos": req.pos,
+            "other_forms": req.other_forms,
             "source_doc": req.source_doc,
             "date": today,
             "learning_language": req.learning_language,
@@ -2609,6 +2620,7 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
                 "chinese_meaning": req.chinese_meaning,
                 "ipa": req.ipa,
                 "pos": req.pos,
+                "other_forms": req.other_forms,
                 "source": req.source_doc,
                 "date": today,
             })
@@ -2661,6 +2673,7 @@ class VocabEditRequest(BaseModel):
     word: Optional[str] = None
     sentence: Optional[str] = None
     chinese_meaning: Optional[str] = None
+    other_forms: Optional[str] = None
 
 
 @app.patch("/api/vocab/{item_id}")

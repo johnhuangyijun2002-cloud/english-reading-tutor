@@ -279,7 +279,9 @@
     "saveFailed": "Save failed, retry",
     "analyzeFailedPrefix": "Analysis failed: {message}",
     "retry": "Retry",
-    "noResult": "(no result)"
+    "noResult": "(no result)",
+    "lemma": "Base form: ",
+    "otherForms": "Other forms: "
   },
   "history": {
     "emptyDoc": "No records for this article yet — select a word or sentence to start collecting",
@@ -291,7 +293,8 @@
     "editBtn": "Edit",
     "editContextPlaceholder": "Example sentence (optional)",
     "editWordRequired": "Word can't be empty",
-    "editFailed": "Couldn't save changes: {message}"
+    "editFailed": "Couldn't save changes: {message}",
+    "editFormsPlaceholder": "Other forms, e.g. past tense (optional)"
   },
   "saveAll": {
     "empty": "Nothing pending to save right now",

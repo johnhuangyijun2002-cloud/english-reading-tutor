@@ -279,7 +279,9 @@
     "saveFailed": "保存失败，重试",
     "analyzeFailedPrefix": "分析失败：{message}",
     "retry": "重试",
-    "noResult": "(无解析结果)"
+    "noResult": "(无解析结果)",
+    "lemma": "原形：",
+    "otherForms": "其他形态："
   },
   "history": {
     "emptyDoc": "这篇文章还没有记录，划选单词或句子即可开始积累",
@@ -291,7 +293,8 @@
     "editBtn": "编辑",
     "editContextPlaceholder": "例句（可选）",
     "editWordRequired": "单词不能为空",
-    "editFailed": "保存失败：{message}"
+    "editFailed": "保存失败：{message}",
+    "editFormsPlaceholder": "其他形态，比如过去式（可选）"
   },
   "saveAll": {
     "empty": "现在没有待保存的解析结果",
