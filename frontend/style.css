@@ -931,6 +931,7 @@ body {
 }
 
 #btnReviewPronounce.hidden,
+#btnReviewReveal.hidden,
 #btnReviewDontKnow.hidden,
 #btnReviewKnow.hidden {
   display: none;
@@ -2703,6 +2704,32 @@ body {
   #loginPanel {
     max-height: 78vh;
     overflow-y: auto;
+  }
+
+  /* "Aa" 阅读设置下拉写死 260px 宽、靠右绝对定位，窄屏下没有任何兜底——
+     跟原来的 260px 取更小的那个，宽屏不受影响，窄屏不会顶到屏幕外面去。 */
+  #readerSettingsPanel {
+    max-width: calc(100vw - 32px);
+  }
+
+  /* 这几个弹层外层容器本来就用 min(Npx, 90vw) 不会横向溢出，但高度这块从来没
+     专门为手机调过，紧一点给底部贴底的 Tab 栏(64px)留出安全余量。 */
+  #searchPanel,
+  #docManagerPanel,
+  #reviewPanel,
+  #reviewSessionPanel,
+  #statsPanel,
+  #adminStatsPanel,
+  #immersionSavePanel,
+  #recommendPanel,
+  #nativeNewsPanel {
+    max-height: 72vh;
+  }
+
+  /* 3 列数字卡片在 375px 宽的手机上一格只有 90-110px，数字+文字标签太挤，
+     压成 2 列给每格多一点空间。 */
+  .adminStatsTiles {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
