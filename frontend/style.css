@@ -2582,6 +2582,11 @@ body {
   margin-top: 2px;
 }
 
+/* Word "普通"模板的标准页边距是上下左右各 1 英寸，浏览器默认的打印页边距比这个窄很多。 */
+@page {
+  margin: 1in;
+}
+
 @media print {
   body > *:not(#printArea) {
     display: none !important;
