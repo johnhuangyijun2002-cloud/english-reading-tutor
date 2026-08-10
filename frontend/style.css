@@ -2588,6 +2588,17 @@ body {
 }
 
 @media print {
+  /* html/body 平时设了 overflow-x: hidden 防止横向滚动条，但只设 x 轴的话，
+     浏览器会按 CSS 规范把 y 轴隐式算成 overflow-y: auto——平时屏幕上因为
+     body 高度本来就跟着内容撑开、没有东西可滚，不会露出问题；但打印分页时
+     Chromium 一旦看到祖先元素有非 visible 的 overflow，就不会正常往下一页
+     续排，超出第一页的内容直接被裁掉，不会出现在后续页面。这里在打印时
+     强制改回 visible，让内容能正常跨页。 */
+  html,
+  body {
+    overflow: visible !important;
+  }
+
   body > *:not(#printArea) {
     display: none !important;
   }
