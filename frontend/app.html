@@ -213,6 +213,40 @@
     </div>
   </div>
 
+  <div id="proPanelOverlay" class="hidden">
+    <div id="proPanel">
+      <h2 data-i18n="pro.title">Upgrade to Pro</h2>
+      <p class="urlHint" data-i18n="pro.subtitle">Pro is coming soon. No setup, no API key to manage — just unlimited house-hosted AI, ready to go.</p>
+
+      <ul class="proFeatureList">
+        <li data-i18n="pro.feature1">Unlimited AI lookups, no personal API key required</li>
+        <li data-i18n="pro.feature2">A stronger default AI model for explanations</li>
+        <li data-i18n="pro.feature3">Priority for new features as they ship</li>
+      </ul>
+
+      <div class="settingsBlock">
+        <span class="settingsBlockLabel" data-i18n="pro.emailLabel">Email</span>
+        <input type="email" id="proEmailInput" data-i18n-placeholder="pro.emailPlaceholder" placeholder="you@example.com" />
+        <div class="pasteActions">
+          <button id="btnProJoinWaitlist" class="btn btn-primary" data-i18n="pro.joinWaitlist">Join the waitlist</button>
+        </div>
+        <p id="proWaitlistStatus" class="urlHint"></p>
+      </div>
+
+      <div id="proSupportBlock" class="settingsBlock hidden">
+        <span class="settingsBlockLabel" data-i18n="pro.supportLabel">Already love Contexta?</span>
+        <p class="urlHint" data-i18n="pro.supportHint">If it's been useful, you can support development directly — completely optional, no extra features unlocked.</p>
+        <div class="pasteActions">
+          <a id="btnProSupport" class="btn btn-ghost" href="#" target="_blank" rel="noopener" data-i18n="pro.supportCta">Support the project</a>
+        </div>
+      </div>
+
+      <div class="pasteActions">
+        <button id="btnProClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div id="adminStatsPanelOverlay" class="hidden">
     <div id="adminStatsPanel">
       <h2 data-i18n="adminStats.title">Site Stats</h2>
@@ -510,6 +544,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg>
         </span>
         <span class="navLabel" data-i18n="nav.settings">Settings</span>
+      </button>
+      <button class="navItem" id="btnUpgradePro">
+        <span class="navIcon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" /><path d="M5 21h14" /></svg>
+        </span>
+        <span class="navLabel" data-i18n="nav.upgradePro">Upgrade to Pro</span>
       </button>
       <div class="navDivider"></div>
       <button class="navItem" id="navReview">

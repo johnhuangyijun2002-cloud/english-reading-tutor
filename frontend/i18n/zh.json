@@ -29,7 +29,8 @@
     "review": "复习",
     "nativeNews": "母语新闻",
     "stats": "学习统计",
-    "adminStats": "站长统计"
+    "adminStats": "站长统计",
+    "upgradePro": "升级到 Pro"
   },
   "docManager": {
     "title": "文章管理",
@@ -334,6 +335,22 @@
     "totalVocab": "总生词数",
     "signupsChart": "每日新增注册（近 14 天）",
     "activeUsersChart": "每日活跃用户（近 14 天）"
+  },
+  "pro": {
+    "title": "升级到 Pro",
+    "subtitle": "Pro 版即将上线。不用配置，不用管理 API Key——开通即用无限量站长托管 AI。",
+    "feature1": "无限量 AI 解析，不需要自己的 API Key",
+    "feature2": "更强的默认 AI 模型",
+    "feature3": "新功能优先体验",
+    "emailLabel": "邮箱",
+    "emailPlaceholder": "you@example.com",
+    "emailRequired": "请先填写邮箱",
+    "joinWaitlist": "加入等待名单",
+    "joinSuccess": "已登记，谢谢关注！",
+    "alreadyJoined": "你已经在等待名单上了",
+    "supportLabel": "已经觉得这个工具有用了？",
+    "supportHint": "如果这个工具对你有帮助，可以直接支持一下开发——完全自愿，不会因此解锁任何额外功能。",
+    "supportCta": "支持这个项目"
   },
   "navTour": {
     "recommend": "AI 会按你的水平推荐文章，适合当作起点。",

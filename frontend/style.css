@@ -1082,6 +1082,59 @@ body {
   background: var(--border);
 }
 
+/* ---------- 升级到 Pro（邮箱登记 + 自愿支持）---------- */
+
+#proPanelOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.18s var(--ease);
+}
+
+#proPanelOverlay.hidden {
+  display: none;
+}
+
+#proPanel {
+  width: min(480px, 90vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: popIn 0.28s var(--spring-ease);
+}
+
+#proPanel h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.proFeatureList {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
 /* ---------- 站长专属统计页面 ---------- */
 
 #adminStatsPanelOverlay {
@@ -2738,7 +2791,8 @@ body {
   #adminStatsPanel,
   #immersionSavePanel,
   #recommendPanel,
-  #nativeNewsPanel {
+  #nativeNewsPanel,
+  #proPanel {
     max-height: 72vh;
   }
 

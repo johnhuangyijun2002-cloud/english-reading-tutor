@@ -29,7 +29,8 @@
     "review": "Review",
     "nativeNews": "Native News",
     "stats": "Stats",
-    "adminStats": "Site Stats"
+    "adminStats": "Site Stats",
+    "upgradePro": "Upgrade to Pro"
   },
   "docManager": {
     "title": "Manage Articles",
@@ -334,6 +335,22 @@
     "totalVocab": "Total vocab",
     "signupsChart": "New signups (last 14 days)",
     "activeUsersChart": "Active users (last 14 days)"
+  },
+  "pro": {
+    "title": "Upgrade to Pro",
+    "subtitle": "Pro is coming soon. No setup, no API key to manage — just unlimited house-hosted AI, ready to go.",
+    "feature1": "Unlimited AI lookups, no personal API key required",
+    "feature2": "A stronger default AI model for explanations",
+    "feature3": "Priority for new features as they ship",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "emailRequired": "Please enter your email first",
+    "joinWaitlist": "Join the waitlist",
+    "joinSuccess": "You're on the list — thanks!",
+    "alreadyJoined": "You're already on the waitlist",
+    "supportLabel": "Already love Contexta?",
+    "supportHint": "If it's been useful, you can support development directly — completely optional, no extra features unlocked.",
+    "supportCta": "Support the project"
   },
   "navTour": {
     "recommend": "AI recommends articles matched to your level — a good place to start.",

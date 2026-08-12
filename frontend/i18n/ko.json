@@ -29,7 +29,8 @@
     "review": "복습",
     "nativeNews": "모국어 뉴스",
     "stats": "학습 통계",
-    "adminStats": "사이트 통계"
+    "adminStats": "사이트 통계",
+    "upgradePro": "Pro로 업그레이드"
   },
   "docManager": {
     "title": "글 관리",
@@ -334,6 +335,22 @@
     "totalVocab": "총 단어 수",
     "signupsChart": "신규 가입(최근 14일)",
     "activeUsersChart": "활성 사용자(최근 14일)"
+  },
+  "pro": {
+    "title": "Pro로 업그레이드",
+    "subtitle": "Pro는 곧 출시됩니다. 별도 설정이나 API 키 관리 없이 무제한 호스팅 AI를 바로 사용할 수 있어요.",
+    "feature1": "개인 API 키 없이 무제한 AI 조회",
+    "feature2": "더 강력한 기본 AI 모델",
+    "feature3": "새 기능 우선 이용",
+    "emailLabel": "이메일",
+    "emailPlaceholder": "you@example.com",
+    "emailRequired": "먼저 이메일을 입력해 주세요",
+    "joinWaitlist": "대기자 명단 등록",
+    "joinSuccess": "등록되었습니다. 감사합니다!",
+    "alreadyJoined": "이미 대기자 명단에 등록되어 있습니다",
+    "supportLabel": "이미 Contexta가 마음에 드셨나요?",
+    "supportHint": "도움이 되었다면 개발을 직접 후원할 수 있어요 — 완전히 자율적이며, 추가 기능이 열리지는 않습니다.",
+    "supportCta": "프로젝트 후원하기"
   },
   "navTour": {
     "recommend": "AI가 당신의 수준에 맞는 글을 추천해드려요 — 시작하기 좋은 곳이에요.",

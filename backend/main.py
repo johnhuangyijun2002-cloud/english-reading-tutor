@@ -67,6 +67,10 @@ HOUSE_AI_API_KEY = os.environ.get("HOUSE_AI_API_KEY", "")
 HOUSE_FREE_CALLS_PER_USER = 10
 HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "5"))
 
+# 变现第一阶段：可选的自愿支持链接（Stripe Payment Link）。没配置就留空，
+# 前端"升级到 Pro"面板会自动隐藏这个入口，不会出现点了没反应的死链接。
+STRIPE_SUPPORT_LINK_URL = os.environ.get("STRIPE_SUPPORT_LINK_URL", "")
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
@@ -267,6 +271,11 @@ CREATE TABLE IF NOT EXISTS user_language_level (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, learning_language)
 );
+CREATE TABLE IF NOT EXISTS waitlist_signups (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 """
 
 
@@ -356,6 +365,22 @@ async def db_set_user_level(user_id: str, learning_language: str, level: str):
            VALUES ($1,$2,$3)
            ON CONFLICT (user_id, learning_language) DO UPDATE SET level=$3, updated_at=now()""",
         user_id, learning_language, level,
+    )
+
+
+async def db_get_waitlist_signup(user_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM waitlist_signups WHERE user_id=$1", user_id)
+    return dict(row) if row else None
+
+
+async def db_upsert_waitlist_signup(user_id: str, email: str):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO waitlist_signups (user_id, email)
+           VALUES ($1,$2)
+           ON CONFLICT (user_id) DO UPDATE SET email=$2""",
+        user_id, email,
     )
 
 
@@ -1656,6 +1681,30 @@ async def get_admin_stats(user: dict = Depends(get_current_user)):
         "signups_by_day": signups_by_day,
         "active_users_by_day": active_users_by_day,
     }
+
+
+class WaitlistJoinRequest(BaseModel):
+    email: str
+
+
+@app.get("/api/waitlist")
+async def get_waitlist_status(user: dict = Depends(get_current_user)):
+    record = await db_get_waitlist_signup(user["id"])
+    return {
+        "joined": record is not None,
+        "email": record["email"] if record else "",
+        "support_link": STRIPE_SUPPORT_LINK_URL,
+    }
+
+
+@app.post("/api/waitlist")
+async def join_waitlist(req: WaitlistJoinRequest, user: dict = Depends(get_current_user)):
+    email = req.email.strip()
+    if not email or "@" not in email:
+        raise HTTPException(400, "Please enter a valid email address")
+    await db_upsert_waitlist_signup(user["id"], email)
+    _audit("waitlist_join", user_id=user["id"])
+    return {"ok": True}
 
 
 async def _call_openai_compatible(url: str, model: str, api_key: str, prompt: str, json_mode: bool):

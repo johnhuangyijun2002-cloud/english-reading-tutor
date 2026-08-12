@@ -286,6 +286,15 @@ const adminStatsSignupsChart = document.getElementById("adminStatsSignupsChart")
 const adminStatsActiveChart = document.getElementById("adminStatsActiveChart");
 const btnAdminStatsClose = document.getElementById("btnAdminStatsClose");
 
+const btnUpgradePro = document.getElementById("btnUpgradePro");
+const proPanelOverlay = document.getElementById("proPanelOverlay");
+const proEmailInput = document.getElementById("proEmailInput");
+const btnProJoinWaitlist = document.getElementById("btnProJoinWaitlist");
+const proWaitlistStatus = document.getElementById("proWaitlistStatus");
+const proSupportBlock = document.getElementById("proSupportBlock");
+const btnProSupport = document.getElementById("btnProSupport");
+const btnProClose = document.getElementById("btnProClose");
+
 const btnSearchHistory = document.getElementById("btnSearchHistory");
 const searchPanelOverlay = document.getElementById("searchPanelOverlay");
 const searchInput = document.getElementById("searchInput");
@@ -811,6 +820,59 @@ btnAdminStats.addEventListener("click", openAdminStatsPanel);
 btnAdminStatsClose.addEventListener("click", () => adminStatsPanelOverlay.classList.add("hidden"));
 adminStatsPanelOverlay.addEventListener("click", (e) => {
   if (e.target === adminStatsPanelOverlay) adminStatsPanelOverlay.classList.add("hidden");
+});
+
+// ---------- 升级到 Pro（邮箱登记 + 自愿支持）----------
+
+async function openProPanel() {
+  proPanelOverlay.classList.remove("hidden");
+  proWaitlistStatus.textContent = "";
+  btnProJoinWaitlist.disabled = false;
+  proSupportBlock.classList.add("hidden");
+  try {
+    const res = await apiFetch("/api/waitlist");
+    if (res.ok) {
+      const data = await res.json();
+      if (data.joined) {
+        proEmailInput.value = data.email || "";
+        btnProJoinWaitlist.disabled = true;
+        proWaitlistStatus.textContent = t("pro.alreadyJoined");
+      }
+      if (data.support_link) {
+        proSupportBlock.classList.remove("hidden");
+        btnProSupport.href = data.support_link;
+      }
+    }
+  } catch (err) {
+    // 打开面板失败不额外提示，留空白即可
+  }
+}
+
+btnUpgradePro.addEventListener("click", openProPanel);
+btnProClose.addEventListener("click", () => proPanelOverlay.classList.add("hidden"));
+proPanelOverlay.addEventListener("click", (e) => {
+  if (e.target === proPanelOverlay) proPanelOverlay.classList.add("hidden");
+});
+
+btnProJoinWaitlist.addEventListener("click", async () => {
+  const email = proEmailInput.value.trim();
+  if (!email) {
+    proWaitlistStatus.textContent = t("pro.emailRequired");
+    return;
+  }
+  btnProJoinWaitlist.disabled = true;
+  try {
+    const res = await apiFetch("/api/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    proWaitlistStatus.textContent = t("pro.joinSuccess");
+  } catch (err) {
+    proWaitlistStatus.textContent = t("common.saveFailed", { message: err.message });
+    btnProJoinWaitlist.disabled = false;
+  }
 });
 
 // ---------- 已学生词高亮 ----------
