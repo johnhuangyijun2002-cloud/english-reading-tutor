@@ -2610,7 +2610,8 @@ body {
   background: var(--border);
 }
 
-.loginGoogleBtn {
+.loginGoogleBtn,
+.loginAppleBtn {
   width: 100%;
 }
 

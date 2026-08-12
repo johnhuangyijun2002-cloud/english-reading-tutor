@@ -5,6 +5,27 @@ let currentUser = null; // {id, name, is_owner}
 // 加上绝对地址前缀；网页版 native-config.js 里这个值是空字符串，行为不变。
 const API_BASE = window.CONTEXTIA_API_BASE || "";
 
+function isNativeApp() {
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+
+// Google/Apple 登录跳转：网页版整页跳转到后端 OAuth 入口，跳回来的时候还是同一个
+// 标签页(location.href)。原生壳里不能这么干——那样是把 App 自己的 WebView 导航去了
+// 后端域名，会离开打包进 App 的本地页面；改成用系统浏览器(@capacitor/browser，iOS 上是
+// ASWebAuthenticationSession/SFSafariViewController)打开登录页，成功后端会跳一个自定义
+// URL scheme 回 App，由下面注册的 appUrlOpen 监听器接住，见 finishOAuthCallback。
+function startOAuthFlow(loginPath) {
+  const native = isNativeApp();
+  const separator = loginPath.includes("?") ? "&" : "?";
+  const url = API_BASE + loginPath + (native ? `${separator}platform=ios` : "");
+  const browser = native && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+  if (browser) {
+    browser.open({ url });
+  } else {
+    location.href = url;
+  }
+}
+
 // ---------- 图标(全站禁用 emoji，统一用 lucide 线条图标) ----------
 // 见 DESIGN_GUIDELINES.md：UI 里任何地方需要图标/图形提示，一律从这里取，不能直接写 emoji 字符。
 const ICON_PATHS = {
@@ -379,6 +400,8 @@ const changePasswordStatus = document.getElementById("changePasswordStatus");
 
 const googleLinkStatus = document.getElementById("googleLinkStatus");
 const btnLinkGoogle = document.getElementById("btnLinkGoogle");
+const appleLinkStatus = document.getElementById("appleLinkStatus");
+const btnLinkApple = document.getElementById("btnLinkApple");
 
 const btnExportData = document.getElementById("btnExportData");
 const btnDeleteAccount = document.getElementById("btnDeleteAccount");
@@ -3028,6 +3051,11 @@ async function loadSettingsIntoPanel() {
     ? t("settings.googleLinkedStatus", { email: data.google_email })
     : t("settings.googleUnlinkedStatus");
   btnLinkGoogle.textContent = data.has_google ? t("settings.googleLinkBtnRelink") : t("settings.googleLinkBtn");
+
+  appleLinkStatus.textContent = data.has_apple
+    ? t("settings.appleLinkedStatus", { email: data.apple_email })
+    : t("settings.appleUnlinkedStatus");
+  btnLinkApple.textContent = data.has_apple ? t("settings.appleLinkBtnRelink") : t("settings.appleLinkBtn");
 }
 
 btnLinkGoogle.addEventListener("click", async () => {
@@ -3037,10 +3065,7 @@ btnLinkGoogle.addEventListener("click", async () => {
     const res = await apiFetch("/api/auth/google/link-init", { method: "POST" });
     if (!res.ok) throw new Error(await apiErrorText(res));
     const data = await res.json();
-    // TODO(iOS App): 原生壳里整页跳转到 Google 登录，Google 对内嵌 WebView 里的 OAuth
-    // 支持不稳定，后续做 Sign in with Apple 时应该一起换成 @capacitor/browser 系统浏览器
-    // + deep link 回调的方案，而不是直接 location.href 跳转。
-    location.href = API_BASE + "/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce);
+    startOAuthFlow("/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce));
   } catch (err) {
     googleLinkStatus.textContent = t("settings.googleLinkFailed", { message: err.message });
     btnLinkGoogle.disabled = false;
@@ -3342,6 +3367,40 @@ async function enterApp(token, me) {
   initApp();
 }
 
+// 处理 Google/Apple OAuth 跳回来带的 "token=...&google_linked=1" 这种 hash 片段。
+// 网页版是页面加载时从 location.hash 里读；原生壳里是从 appUrlOpen 的自定义 URL scheme
+// 里读，两边内容格式一样，共用这一个函数。返回 true 表示确实处理了一个登录/关联。
+async function finishOAuthCallback(hash) {
+  const hashMatch = hash.match(/token=([^&]+)/);
+  if (!hashMatch) return false;
+  const token = decodeURIComponent(hashMatch[1]);
+  const me = await checkToken(token);
+  if (!me) return false;
+  await enterApp(token, me);
+  if (/(^|&)google_linked=1/.test(hash)) {
+    alert(t("settings.googleLinkSuccess"));
+    btnAccountSettings.click();
+  } else if (/(^|&)apple_linked=1/.test(hash)) {
+    alert(t("settings.appleLinkSuccess"));
+    btnAccountSettings.click();
+  } else {
+    startNavTour();
+  }
+  return true;
+}
+
+// 只有原生壳(Capacitor)里才会触发：系统浏览器里的 Google/Apple 登录成功后，后端跳转
+// 到 com.contextia.app://oauth-callback#token=...，操作系统把这个 deep link 转给 App，
+// appUrlOpen 事件里的 url 就是完整的这个自定义 scheme 地址。
+if (isNativeApp() && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+  window.Capacitor.Plugins.App.addListener("appUrlOpen", async (data) => {
+    const hashIndex = (data.url || "").indexOf("#");
+    if (hashIndex === -1) return;
+    if (window.Capacitor.Plugins.Browser) window.Capacitor.Plugins.Browser.close().catch(() => {});
+    await finishOAuthCallback(data.url.slice(hashIndex + 1));
+  });
+}
+
 function showWelcomeModal(data) {
   welcomeBody.textContent = t("welcome.body");
   if (data.house_trial_enabled) {
@@ -3428,8 +3487,25 @@ loginPasswordInput.addEventListener("keydown", (e) => {
 });
 
 btnGoogleLogin.addEventListener("click", () => {
-  // 同上，见 link-init 那处的 TODO。
-  location.href = API_BASE + "/api/auth/google/login";
+  startOAuthFlow("/api/auth/google/login");
+});
+
+btnAppleLogin.addEventListener("click", () => {
+  startOAuthFlow("/api/auth/apple/login");
+});
+
+btnLinkApple.addEventListener("click", async () => {
+  btnLinkApple.disabled = true;
+  appleLinkStatus.textContent = t("settings.appleRedirecting");
+  try {
+    const res = await apiFetch("/api/auth/apple/link-init", { method: "POST" });
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    const data = await res.json();
+    startOAuthFlow("/api/auth/apple/login?link_nonce=" + encodeURIComponent(data.nonce));
+  } catch (err) {
+    appleLinkStatus.textContent = t("settings.appleLinkFailed", { message: err.message });
+    btnLinkApple.disabled = false;
+  }
 });
 
 (async () => {
@@ -3447,23 +3523,12 @@ btnGoogleLogin.addEventListener("click", () => {
     return;
   }
 
-  // Google 登录/关联跳回来的时候，token 会带在地址栏的 #token=... 里
-  const hashMatch = location.hash.match(/token=([^&]+)/);
-  const justLinkedGoogle = /(^|&)google_linked=1/.test(location.hash);
-  if (hashMatch) {
-    const token = decodeURIComponent(hashMatch[1]);
+  // Google/Apple 登录或关联跳回来的时候，token 会带在地址栏的 #token=... 里(网页版专属；
+  // 原生壳里走的是 appUrlOpen 那条路径，见上面 finishOAuthCallback 旁边的监听器)
+  if (location.hash) {
+    const hash = location.hash;
     history.replaceState(null, "", location.pathname + location.search);
-    const me = await checkToken(token);
-    if (me) {
-      await enterApp(token, me);
-      if (justLinkedGoogle) {
-        alert(t("settings.googleLinkSuccess"));
-        btnAccountSettings.click();
-      } else {
-        startNavTour();
-      }
-      return;
-    }
+    if (await finishOAuthCallback(hash)) return;
   }
 
   if (authToken) {

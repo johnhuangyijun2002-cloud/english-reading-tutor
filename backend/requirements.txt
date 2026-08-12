@@ -9,6 +9,7 @@ pdfplumber
 python-docx
 asyncpg
 cryptography
+PyJWT
 slowapi
 jieba
 janome
