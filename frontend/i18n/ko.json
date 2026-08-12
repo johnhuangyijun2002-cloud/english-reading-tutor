@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "Contexta"
+    "title": "Contextia"
   },
   "common": {
     "close": "닫기",
@@ -349,7 +349,7 @@
     "joinWaitlist": "대기자 명단 등록",
     "joinSuccess": "등록되었습니다. 감사합니다!",
     "alreadyJoined": "이미 대기자 명단에 등록되어 있습니다",
-    "supportLabel": "이미 Contexta가 마음에 드셨나요?",
+    "supportLabel": "이미 Contextia가 마음에 드셨나요?",
     "supportHint": "도움이 되었다면 개발을 직접 후원할 수 있어요 — 완전히 자율적이며, 추가 기능이 열리지는 않습니다.",
     "supportCta": "프로젝트 후원하기"
   },

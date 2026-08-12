@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "Contexta"
+    "title": "Contextia"
   },
   "common": {
     "close": "Close",
@@ -349,7 +349,7 @@
     "joinWaitlist": "Join the waitlist",
     "joinSuccess": "You're on the list — thanks!",
     "alreadyJoined": "You're already on the waitlist",
-    "supportLabel": "Already love Contexta?",
+    "supportLabel": "Already love Contextia?",
     "supportHint": "If it's been useful, you can support development directly — completely optional, no extra features unlocked.",
     "supportCta": "Support the project"
   },
