@@ -294,6 +294,7 @@
     "editBtn": "编辑",
     "editContextPlaceholder": "例句（可选）",
     "editWordRequired": "单词不能为空",
+    "editSentenceRequired": "句子不能为空",
     "editFailed": "保存失败：{message}",
     "editFormsPlaceholder": "其他形态，比如过去式（可选）"
   },

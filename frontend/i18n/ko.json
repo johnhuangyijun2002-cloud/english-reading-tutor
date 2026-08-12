@@ -294,6 +294,7 @@
     "editBtn": "수정",
     "editContextPlaceholder": "예문 (선택)",
     "editWordRequired": "단어를 입력해주세요",
+    "editSentenceRequired": "문장을 입력해주세요",
     "editFailed": "저장하지 못했습니다: {message}",
     "editFormsPlaceholder": "기타 형태, 예: 과거형 (선택)"
   },

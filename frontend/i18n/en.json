@@ -294,6 +294,7 @@
     "editBtn": "Edit",
     "editContextPlaceholder": "Example sentence (optional)",
     "editWordRequired": "Word can't be empty",
+    "editSentenceRequired": "Sentence can't be empty",
     "editFailed": "Couldn't save changes: {message}",
     "editFormsPlaceholder": "Other forms, e.g. past tense (optional)"
   },

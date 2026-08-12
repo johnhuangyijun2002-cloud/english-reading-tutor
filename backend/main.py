@@ -691,6 +691,22 @@ async def db_get_sentence_note(item_id: str) -> Optional[dict]:
     return _serialize_row(row) if row else None
 
 
+async def db_update_sentence_note_fields(item_id: str, **fields):
+    """照抄 db_update_vocab_fields 的动态 SET 拼装逻辑，改成按 id 更新 sentence_notes 表。"""
+    if not fields:
+        return
+    pool = await get_pool()
+    set_parts = []
+    values = []
+    i = 1
+    for k, v in fields.items():
+        set_parts.append(f"{k}=${i}")
+        values.append(v)
+        i += 1
+    values.append(item_id)
+    await pool.execute(f"UPDATE sentence_notes SET {', '.join(set_parts)} WHERE id=${i}", *values)
+
+
 async def db_delete_sentence_note(item_id: str):
     pool = await get_pool()
     await pool.execute("DELETE FROM sentence_notes WHERE id=$1", item_id)
@@ -2789,6 +2805,25 @@ async def delete_sentence_note(item_id: str, user: dict = Depends(get_current_us
         raise HTTPException(404, "Sentence note not found")
     await db_delete_sentence_note(item_id)
     return {"ok": True}
+
+
+class SentenceNoteEditRequest(BaseModel):
+    sentence: Optional[str] = None
+    analysis: Optional[str] = None
+
+
+@app.patch("/api/sentence_notes/{item_id}")
+async def edit_sentence_note(item_id: str, req: SentenceNoteEditRequest, user: dict = Depends(get_current_user)):
+    target = await db_get_sentence_note(item_id)
+    if not target or target.get("user_id") != user["id"]:
+        raise HTTPException(404, "Sentence note not found")
+    fields = req.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(400, "No fields to update")
+    if "sentence" in fields and not fields["sentence"].strip():
+        raise HTTPException(400, "Sentence can't be empty")
+    await db_update_sentence_note_fields(item_id, **fields)
+    return {"record": await db_get_sentence_note(item_id)}
 
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

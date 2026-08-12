@@ -2016,7 +2016,7 @@ function buildHistoryCard(record) {
         <span class="ann-date"></span>
       </div>
       <div class="ann-footer-actions">
-        ${isWord ? `<button class="ann-edit-btn" title="${t("history.editBtn")}">${iconHTML("pencil")}</button>` : ""}
+        <button class="ann-edit-btn" title="${t("history.editBtn")}">${iconHTML("pencil")}</button>
         <button class="ann-delete-btn">${t("history.deleteBtn")}</button>
       </div>
     </div>
@@ -2057,6 +2057,7 @@ function buildHistoryCard(record) {
 }
 
 function openHistoryCardEditForm(el, record) {
+  const isWord = record.mode === "word";
   const textEl = el.querySelector(".ann-text");
   const explanationEl = el.querySelector(".ann-explanation");
   const contextEl = el.querySelector(".ann-context");
@@ -2064,30 +2065,34 @@ function openHistoryCardEditForm(el, record) {
   const footerActions = el.querySelector(".ann-footer-actions");
   const savedFooterHTML = footerActions.innerHTML;
 
-  const wordInput = document.createElement("input");
-  wordInput.type = "text";
-  wordInput.className = "ann-edit-input";
-  wordInput.value = record.word || "";
-  textEl.replaceWith(wordInput);
+  const textInput = document.createElement(isWord ? "input" : "textarea");
+  if (isWord) textInput.type = "text";
+  textInput.className = isWord ? "ann-edit-input" : "ann-edit-textarea";
+  textInput.value = (isWord ? record.word : record.sentence) || "";
+  textEl.replaceWith(textInput);
 
-  const meaningInput = document.createElement("textarea");
-  meaningInput.className = "ann-edit-textarea";
-  meaningInput.value = record.chinese_meaning || "";
-  explanationEl.replaceWith(meaningInput);
+  const explanationInput = document.createElement("textarea");
+  explanationInput.className = "ann-edit-textarea";
+  explanationInput.value = (isWord ? record.chinese_meaning : record.analysis) || "";
+  explanationEl.replaceWith(explanationInput);
 
-  const contextInput = document.createElement("input");
-  contextInput.type = "text";
-  contextInput.className = "ann-edit-input";
-  contextInput.value = record.sentence || "";
-  contextInput.placeholder = t("history.editContextPlaceholder");
-  contextEl.replaceWith(contextInput);
+  let contextInput = null;
+  let formsInput = null;
+  if (isWord) {
+    contextInput = document.createElement("input");
+    contextInput.type = "text";
+    contextInput.className = "ann-edit-input";
+    contextInput.value = record.sentence || "";
+    contextInput.placeholder = t("history.editContextPlaceholder");
+    contextEl.replaceWith(contextInput);
 
-  const formsInput = document.createElement("input");
-  formsInput.type = "text";
-  formsInput.className = "ann-edit-input";
-  formsInput.value = record.other_forms || "";
-  formsInput.placeholder = t("history.editFormsPlaceholder");
-  formsEl.replaceWith(formsInput);
+    formsInput = document.createElement("input");
+    formsInput.type = "text";
+    formsInput.className = "ann-edit-input";
+    formsInput.value = record.other_forms || "";
+    formsInput.placeholder = t("history.editFormsPlaceholder");
+    formsEl.replaceWith(formsInput);
+  }
 
   footerActions.innerHTML = `
     <button class="btn btn-ghost btn-small ann-cancel-btn">${t("common.cancel")}</button>
@@ -2097,23 +2102,25 @@ function openHistoryCardEditForm(el, record) {
   function restoreDisplay() {
     const newText = document.createElement("div");
     newText.className = "ann-text";
-    newText.textContent = record.word || "";
-    wordInput.replaceWith(newText);
+    newText.textContent = (isWord ? record.word : record.sentence) || "";
+    textInput.replaceWith(newText);
 
     const newExplanation = document.createElement("div");
     newExplanation.className = "ann-explanation";
-    newExplanation.textContent = record.chinese_meaning || "";
-    meaningInput.replaceWith(newExplanation);
+    newExplanation.textContent = (isWord ? record.chinese_meaning : record.analysis) || "";
+    explanationInput.replaceWith(newExplanation);
 
-    const newContext = document.createElement("div");
-    newContext.className = "ann-context";
-    newContext.textContent = record.sentence || "";
-    contextInput.replaceWith(newContext);
+    if (isWord) {
+      const newContext = document.createElement("div");
+      newContext.className = "ann-context";
+      newContext.textContent = record.sentence || "";
+      contextInput.replaceWith(newContext);
 
-    const newForms = document.createElement("div");
-    newForms.className = "ann-forms" + (record.other_forms ? "" : " hidden");
-    newForms.textContent = record.other_forms ? `${t("annotation.otherForms")}${record.other_forms}` : "";
-    formsInput.replaceWith(newForms);
+      const newForms = document.createElement("div");
+      newForms.className = "ann-forms" + (record.other_forms ? "" : " hidden");
+      newForms.textContent = record.other_forms ? `${t("annotation.otherForms")}${record.other_forms}` : "";
+      formsInput.replaceWith(newForms);
+    }
 
     footerActions.innerHTML = savedFooterHTML;
     footerActions.querySelector(".ann-edit-btn").addEventListener("click", (e) => {
@@ -2133,21 +2140,28 @@ function openHistoryCardEditForm(el, record) {
   });
   footerActions.querySelector(".ann-save-btn").addEventListener("click", async (e) => {
     e.stopPropagation();
-    const word = wordInput.value.trim();
-    if (!word) {
-      alert(t("history.editWordRequired"));
+    const textValue = textInput.value.trim();
+    if (!textValue) {
+      alert(isWord ? t("history.editWordRequired") : t("history.editSentenceRequired"));
       return;
     }
-    try {
-      const res = await apiFetch(`/api/vocab/${record.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          word,
-          chinese_meaning: meaningInput.value.trim(),
+    const endpoint = isWord ? `/api/vocab/${record.id}` : `/api/sentence_notes/${record.id}`;
+    const body = isWord
+      ? {
+          word: textValue,
+          chinese_meaning: explanationInput.value.trim(),
           sentence: contextInput.value.trim(),
           other_forms: formsInput.value.trim(),
-        }),
+        }
+      : {
+          sentence: textValue,
+          analysis: explanationInput.value.trim(),
+        };
+    try {
+      const res = await apiFetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(await apiErrorText(res));
       const data = await res.json();
