@@ -1,0 +1,11 @@
+{
+  "appId": "com.contextia.app",
+  "appName": "Contextia",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "always"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

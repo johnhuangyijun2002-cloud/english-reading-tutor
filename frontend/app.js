@@ -1,6 +1,10 @@
 let authToken = localStorage.getItem("authToken") || "";
 let currentUser = null; // {id, name, is_owner}
 
+// iOS App 壳(Capacitor)里本地打包的静态资源和真实后端不同源，/api/xxx 请求需要
+// 加上绝对地址前缀；网页版 native-config.js 里这个值是空字符串，行为不变。
+const API_BASE = window.CONTEXTIA_API_BASE || "";
+
 // ---------- 图标(全站禁用 emoji，统一用 lucide 线条图标) ----------
 // 见 DESIGN_GUIDELINES.md：UI 里任何地方需要图标/图形提示，一律从这里取，不能直接写 emoji 字符。
 const ICON_PATHS = {
@@ -165,7 +169,7 @@ function apiFetch(url, opts = {}) {
   const headers = { ...(opts.headers || {}), Authorization: `Bearer ${authToken}` };
   // GET 请求默认可能被浏览器按 URL 缓存，Authorization header 不同也可能命中旧缓存，
   // 导致登出/换账号后读到别人或者已登出状态下的数据 —— 强制不缓存。
-  return fetch(url, { ...opts, headers, cache: "no-store" }).then((res) => {
+  return fetch(API_BASE + url, { ...opts, headers, cache: "no-store" }).then((res) => {
     // session token 现在有过期时间了(30天)，正常使用中途过期的话，服务端会返回 401，
     // 这里统一兜底：清掉本地 token 并刷新页面，回到登录页重新登录，而不是让后续操作
     // 一直报奇怪的错。
@@ -423,7 +427,7 @@ btnForgotPasswordSubmit.addEventListener("click", async () => {
   btnForgotPasswordSubmit.disabled = true;
   forgotPasswordStatus.textContent = t("common.saving");
   try {
-    const res = await fetch("/api/forgot-password", {
+    const res = await fetch(API_BASE + "/api/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
@@ -444,7 +448,7 @@ btnResetPasswordSubmit.addEventListener("click", async () => {
   btnResetPasswordSubmit.disabled = true;
   resetPasswordStatus.textContent = t("common.saving");
   try {
-    const res = await fetch("/api/reset-password", {
+    const res = await fetch(API_BASE + "/api/reset-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: pendingResetToken, new_password: newPassword }),
@@ -474,7 +478,7 @@ let turnstileToken = "";
 
 function initTurnstile(retries = 25) {
   if (window.turnstile) {
-    fetch("/api/config", { cache: "no-store" })
+    fetch(API_BASE + "/api/config", { cache: "no-store" })
       .then((r) => r.json())
       .then((cfg) => {
         if (!cfg.turnstile_site_key || turnstileWidgetId !== null) return;
@@ -3033,7 +3037,10 @@ btnLinkGoogle.addEventListener("click", async () => {
     const res = await apiFetch("/api/auth/google/link-init", { method: "POST" });
     if (!res.ok) throw new Error(await apiErrorText(res));
     const data = await res.json();
-    location.href = "/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce);
+    // TODO(iOS App): 原生壳里整页跳转到 Google 登录，Google 对内嵌 WebView 里的 OAuth
+    // 支持不稳定，后续做 Sign in with Apple 时应该一起换成 @capacitor/browser 系统浏览器
+    // + deep link 回调的方案，而不是直接 location.href 跳转。
+    location.href = API_BASE + "/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce);
   } catch (err) {
     googleLinkStatus.textContent = t("settings.googleLinkFailed", { message: err.message });
     btnLinkGoogle.disabled = false;
@@ -3307,7 +3314,7 @@ window.addEventListener("resize", () => {
 
 async function checkToken(token) {
   try {
-    const res = await fetch("/api/me", {
+    const res = await fetch(API_BASE + "/api/me", {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
@@ -3359,7 +3366,7 @@ btnLoginSubmit.addEventListener("click", async () => {
   btnRegisterSubmit.disabled = true;
   loginError.classList.add("hidden");
   try {
-    const res = await fetch("/api/login", {
+    const res = await fetch(API_BASE + "/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, turnstile_token: turnstileToken }),
@@ -3394,7 +3401,7 @@ btnRegisterSubmit.addEventListener("click", async () => {
   btnRegisterSubmit.disabled = true;
   loginError.classList.add("hidden");
   try {
-    const res = await fetch("/api/register", {
+    const res = await fetch(API_BASE + "/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, email, turnstile_token: turnstileToken, ui_language: currentUiLanguage }),
@@ -3421,7 +3428,8 @@ loginPasswordInput.addEventListener("keydown", (e) => {
 });
 
 btnGoogleLogin.addEventListener("click", () => {
-  location.href = "/api/auth/google/login";
+  // 同上，见 link-init 那处的 TODO。
+  location.href = API_BASE + "/api/auth/google/login";
 });
 
 (async () => {
