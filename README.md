@@ -33,6 +33,7 @@
 - 设置里能修改密码、改用户名；用 Google 登录建的账号本来没有密码，这里显示的是"设置密码"，设置完之后这个账号也能用用户名密码登录了
 - 新用户第一次进阅读器主界面，导航栏会依次高亮几个图标（AI 推荐/母语新闻/复习/统计/设置）配一句话说明是干什么的，点一次 Skip 或走完就不会再弹（存在浏览器 `localStorage` 里）
 - **站长专属统计页面**：只有主账号导航栏能看到「Site Stats」，展示全站总用户/文章/生词数，以及近 14 天每日新增注册、每日活跃用户的柱状图，用来看发布之后有没有真实效果；后端也做了服务端校验，非主账号直接调接口会被拒绝（403）
+- **「升级到 Pro」入口**（变现第一阶段，只做验证付费意愿，还没有真实付费功能）：导航栏有个入口，能登记邮箱到等待名单，站长配置了 `STRIPE_SUPPORT_LINK_URL`（Stripe Payment Link）的话还会显示一个完全自愿、不解锁任何功能的支持入口；产品本身依旧完全免费、BYOK 不变
 
 后续阶段计划：照片 OCR 导入。
 
@@ -43,7 +44,7 @@
 3. 参考仓库根目录的 [`.env.example`](.env.example)，在 Railway 项目的环境变量面板里配置：
    - `DATABASE_URL`（必填，上一步拿到的 Postgres 连接串）
    - `ENCRYPTION_KEY`（必填，生成方式见 `.env.example` 里的注释：`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`）
-   - 其余（Google OAuth、Turnstile、Sheets 同步、免费试用额度）都是可选，不配就是对应功能关闭，不影响核心功能
+   - 其余（Google OAuth、Turnstile、Sheets 同步、免费试用额度、Pro 支持链接）都是可选，不配就是对应功能关闭，不影响核心功能
 4. 部署完成后，打开网址会先看到落地页，点 "Get Started" 进到 `/app.html` 自己先注册一个账号，会自动成为"主账号"
 
 ## 本地开发(可选)
