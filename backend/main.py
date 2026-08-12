@@ -71,6 +71,11 @@ HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "5")
 # 前端"升级到 Pro"面板会自动隐藏这个入口，不会出现点了没反应的死链接。
 STRIPE_SUPPORT_LINK_URL = os.environ.get("STRIPE_SUPPORT_LINK_URL", "")
 
+# 通过 Resend 发密码找回邮件：不配置的话 /api/forgot-password 直接返回错误，
+# 前端"忘记密码"链接还在，但点了会提示站长还没配置邮件发送。
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Contextia <onboarding@resend.dev>")
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
@@ -191,6 +196,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_relay_model TEXT NOT NULL DEFAULT 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_target_language TEXT NOT NULL DEFAULT 'follow';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_source_priority TEXT NOT NULL DEFAULT 'vocab';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_exclude_proper_nouns BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
 CREATE TABLE IF NOT EXISTS house_usage (
     month TEXT PRIMARY KEY,
     calls INTEGER NOT NULL DEFAULT 0,
@@ -201,6 +207,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
@@ -335,6 +348,11 @@ async def db_get_user_by_google_id(google_id: str) -> Optional[dict]:
     return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE google_id=$1", google_id))
 
 
+async def db_get_user_by_email(email: str) -> Optional[dict]:
+    pool = await get_pool()
+    return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE lower(email)=lower($1)", email))
+
+
 async def db_count_users() -> int:
     pool = await get_pool()
     return await pool.fetchval("SELECT count(*) FROM users")
@@ -455,6 +473,33 @@ async def db_get_session_user(token: str) -> Optional[dict]:
         token,
     )
     return _row_to_user(row)
+
+
+PASSWORD_RESET_TTL_MINUTES = 60
+
+
+async def db_create_password_reset_token(user_id: str) -> str:
+    pool = await get_pool()
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_TTL_MINUTES)
+    # 顺手清掉过期/已用过的旧 token，这张表行数很小，不用单独搞定时任务
+    await pool.execute("DELETE FROM password_reset_tokens WHERE expires_at < now() OR used")
+    await pool.execute(
+        "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES ($1,$2,$3)", token, user_id, expires_at,
+    )
+    return token
+
+
+async def db_consume_password_reset_token(token: str) -> Optional[str]:
+    """Token 有效且没用过就标记成已用，返回对应的 user_id；否则返回 None。"""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """UPDATE password_reset_tokens SET used=TRUE
+           WHERE token=$1 AND expires_at > now() AND NOT used
+           RETURNING user_id""",
+        token,
+    )
+    return row["user_id"] if row else None
 
 
 async def db_create_document(record: dict):
@@ -924,12 +969,33 @@ async def _verify_turnstile(token: str, remote_ip: str = "") -> bool:
     return bool(resp.json().get("success"))
 
 
+async def _send_email(to: str, subject: str, html: str):
+    if not RESEND_API_KEY:
+        raise HTTPException(503, "Email sending isn't configured on this server yet")
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            json={"from": RESEND_FROM_EMAIL, "to": [to], "subject": subject, "html": html},
+        )
+    if resp.status_code >= 300:
+        raise HTTPException(502, f"Failed to send email: {resp.text}")
+
+
 MIN_PASSWORD_LENGTH = 8
 
 
 def _validate_password_strength(password: str):
     if len(password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(400, f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _validate_email(email: str):
+    if not EMAIL_RE.match(email):
+        raise HTTPException(400, "That doesn't look like a valid email address")
 
 
 def _migrate_legacy_invite_users():
@@ -979,6 +1045,7 @@ def _audit(event: str, **fields):
 class RegisterRequest(BaseModel):
     username: str
     password: str
+    email: str = ""  # 选填，用于以后的邮件找回密码；不填的话就只能用 Google 登录或联系站长手动重置
     turnstile_token: str = ""
     ui_language: str = "en"
 
@@ -988,11 +1055,16 @@ class RegisterRequest(BaseModel):
 async def register(request: Request, req: RegisterRequest):
     username = req.username.strip()
     password = req.password
+    email = req.email.strip()
     if not username or not password:
         raise HTTPException(400, "Username and password are required")
     if not await _verify_turnstile(req.turnstile_token, get_remote_address(request)):
         raise HTTPException(400, "Verification failed, please refresh and try again")
     _validate_password_strength(password)
+    if email:
+        _validate_email(email)
+        if await db_get_user_by_email(email):
+            raise HTTPException(400, "This email is already in use by another account")
 
     if await db_get_user_by_username(username):
         raise HTTPException(400, "This username is already taken, try another one")
@@ -1008,6 +1080,9 @@ async def register(request: Request, req: RegisterRequest):
         is_owner=(user_count == 0),
         ui_language=req.ui_language if req.ui_language in UI_LANGUAGES else "en",
     )
+    if email:
+        await db_update_user_fields(new_user["id"], email=email)
+        new_user["email"] = email
     _audit("register", user_id=new_user["id"], username=username)
     token = await db_create_session(new_user["id"])
     return {
@@ -1052,6 +1127,58 @@ async def login(request: Request, req: LoginRequest):
 async def logout(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     if credentials:
         await db_delete_session(credentials.credentials)
+    return {"ok": True}
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+@app.post("/api/forgot-password")
+@limiter.limit("5/minute")
+async def forgot_password(request: Request, req: ForgotPasswordRequest):
+    email = req.email.strip()
+    # 不管邮箱存不存在、发信有没有成功都返回同样的提示，不然可以用这个接口去试探
+    # "这个邮箱注册过没"，或者从报错知道站长压根没配置邮件发送。
+    if email:
+        user = await db_get_user_by_email(email)
+        if user:
+            token = await db_create_password_reset_token(user["id"])
+            reset_link = f"{request.base_url}app.html?reset_token={token}"
+            try:
+                await _send_email(
+                    to=email,
+                    subject="Reset your Contextia password",
+                    html=(
+                        f"<p>Someone requested a password reset for your Contextia account.</p>"
+                        f'<p><a href="{reset_link}">Click here to set a new password</a> '
+                        f"(link expires in {PASSWORD_RESET_TTL_MINUTES} minutes).</p>"
+                        f"<p>If this wasn't you, you can safely ignore this email.</p>"
+                    ),
+                )
+            except HTTPException as exc:
+                print(f"[forgot-password] failed to send reset email: {exc.detail}", flush=True)
+    return {"ok": True}
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@app.post("/api/reset-password")
+@limiter.limit("10/minute")
+async def reset_password(request: Request, req: ResetPasswordRequest):
+    _validate_password_strength(req.new_password)
+    user_id = await db_consume_password_reset_token(req.token)
+    if not user_id:
+        raise HTTPException(400, "This reset link is invalid or has expired, request a new one")
+    salt = secrets.token_hex(16)
+    await db_update_user_fields(user_id, password_salt=salt, password_hash=_hash_password(req.new_password, salt))
+    # 重置密码后把这个账号所有现存 session 都踢掉，防止旧密码泄露时攻击者已经登录的会话还留着
+    pool = await get_pool()
+    await pool.execute("DELETE FROM sessions WHERE user_id=$1", user_id)
+    _audit("reset_password", user_id=user_id)
     return {"ok": True}
 
 
@@ -1105,6 +1232,24 @@ async def change_username(req: ChangeUsernameRequest, user: dict = Depends(get_c
     return {"ok": True, "username": new_username, "name": new_username}
 
 
+class ChangeEmailRequest(BaseModel):
+    new_email: str
+
+
+@app.post("/api/change-email")
+async def change_email(req: ChangeEmailRequest, user: dict = Depends(get_current_user)):
+    new_email = req.new_email.strip()
+    if not new_email:
+        raise HTTPException(400, "New email can't be empty")
+    _validate_email(new_email)
+    existing = await db_get_user_by_email(new_email)
+    if existing and existing["id"] != user["id"]:
+        raise HTTPException(400, "This email is already in use by another account")
+    await db_update_user_fields(user["id"], email=new_email)
+    _audit("change_email", user_id=user["id"], username=user.get("username"))
+    return {"ok": True, "email": new_email}
+
+
 @app.get("/api/account/export")
 @limiter.limit("5/minute")
 async def export_account_data(request: Request, user: dict = Depends(get_current_user)):
@@ -1121,6 +1266,7 @@ async def export_account_data(request: Request, user: dict = Depends(get_current
             "id": user["id"],
             "username": user.get("username"),
             "name": user.get("name"),
+            "email": user.get("email") or None,
             "google_email": user.get("google_email") or None,
             "is_owner": user.get("is_owner", False),
             "ai_provider": user.get("ai_provider"),
@@ -2548,6 +2694,7 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "has_password": bool(user.get("password_hash")),
         "has_google": bool(user.get("google_id")),
         "google_email": user.get("google_email") or "",
+        "email": user.get("email") or "",
         "ai_provider": user.get("ai_provider", "deepseek"),
         "ai_key_status": {
             k: {"has_key": bool(keys.get(k)), "masked": mask_key(keys.get(k, ""))}
