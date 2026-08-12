@@ -133,7 +133,17 @@
     "placeholder": "搜索单词、释义、例句、来源文章...（留空显示全部）",
     "loading": "加载中...",
     "empty": "还没有生词或笔记记录，阅读文章时划选单词或句子即可开始积累",
-    "noMatch": "没找到匹配的记录"
+    "noMatch": "没找到匹配的记录",
+    "exportCsv": "导出 CSV",
+    "selectMode": "选择",
+    "doneSelecting": "完成",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "selectedCount": "已选 {count} 项",
+    "deleteSelected": "删除已选项",
+    "deleteSelectedConfirm": "确定删除这 {count} 条记录吗？删除后无法恢复。",
+    "deleteSelectedFailed": "有 {count} 条记录删除失败，请重试。",
+    "nothingToExport": "暂时没有可导出的内容。"
   },
   "settings": {
     "uiLanguage": "界面语言",

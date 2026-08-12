@@ -704,6 +704,40 @@ body {
   transform: translateY(-1px);
 }
 
+.searchToolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.searchBulkBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.searchBulkBar.hidden {
+  display: none;
+}
+
+.searchSelectedCount {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.searchCard-checkbox {
+  margin-right: 10px;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.searchResultCard-row {
+  display: flex;
+  align-items: flex-start;
+}
+
 /* ---------- 文章管理弹层 ---------- */
 
 #docManagerPanelOverlay {

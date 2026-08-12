@@ -133,7 +133,17 @@
     "placeholder": "단어, 뜻, 예문, 출처 글 검색... (비워두면 전체 표시)",
     "loading": "불러오는 중...",
     "empty": "아직 저장된 단어나 노트가 없어요 — 글을 읽으며 단어나 문장을 선택해 보세요",
-    "noMatch": "일치하는 기록이 없어요"
+    "noMatch": "일치하는 기록이 없어요",
+    "exportCsv": "CSV로 내보내기",
+    "selectMode": "선택",
+    "doneSelecting": "완료",
+    "selectAll": "전체 선택",
+    "deselectAll": "선택 해제",
+    "selectedCount": "{count}개 선택됨",
+    "deleteSelected": "선택 항목 삭제",
+    "deleteSelectedConfirm": "선택한 {count}개 항목을 삭제할까요? 삭제하면 되돌릴 수 없어요.",
+    "deleteSelectedFailed": "{count}개 항목을 삭제하지 못했어요. 다시 시도해 주세요.",
+    "nothingToExport": "아직 내보낼 내용이 없어요."
   },
   "settings": {
     "uiLanguage": "화면 언어",

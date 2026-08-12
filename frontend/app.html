@@ -124,6 +124,15 @@
     <div id="searchPanel">
       <h2 data-i18n="topbar.vocab">Vocabulary</h2>
       <input type="text" id="searchInput" data-i18n-placeholder="search.placeholder" placeholder="Search words, meanings, sentences, source articles... (leave blank to show all)" />
+      <div class="searchToolbar">
+        <button id="btnSearchExport" class="btn btn-ghost btn-small" data-i18n="search.exportCsv">Export CSV</button>
+        <button id="btnSearchSelectToggle" class="btn btn-ghost btn-small" data-i18n="search.selectMode">Select</button>
+      </div>
+      <div id="searchBulkBar" class="searchBulkBar hidden">
+        <button id="btnSearchSelectAll" class="btn btn-ghost btn-small" data-i18n="search.selectAll">Select all</button>
+        <span id="searchSelectedCount" class="searchSelectedCount"></span>
+        <button id="btnSearchDeleteSelected" class="btn btn-danger btn-small" data-i18n="search.deleteSelected" disabled>Delete Selected</button>
+      </div>
       <div id="searchResults"></div>
       <div class="pasteActions">
         <button id="btnSearchClose" class="btn btn-ghost" data-i18n="common.close">Close</button>

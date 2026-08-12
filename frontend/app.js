@@ -301,7 +301,16 @@ const searchPanelOverlay = document.getElementById("searchPanelOverlay");
 const searchInput = document.getElementById("searchInput");
 const searchResults = document.getElementById("searchResults");
 const btnSearchClose = document.getElementById("btnSearchClose");
+const btnSearchExport = document.getElementById("btnSearchExport");
+const btnSearchSelectToggle = document.getElementById("btnSearchSelectToggle");
+const searchBulkBar = document.getElementById("searchBulkBar");
+const btnSearchSelectAll = document.getElementById("btnSearchSelectAll");
+const searchSelectedCount = document.getElementById("searchSelectedCount");
+const btnSearchDeleteSelected = document.getElementById("btnSearchDeleteSelected");
 let searchDataCache = null;
+let currentSearchMatches = [];
+let selectModeActive = false;
+let selectedSearchIds = new Set();
 
 const btnDocManager = document.getElementById("btnDocManager");
 const docManagerPanelOverlay = document.getElementById("docManagerPanelOverlay");
@@ -2227,22 +2236,34 @@ btnCloseSidebar.addEventListener("click", () => {
 
 // ---------- 全局搜索(跨所有文章的生词/句子笔记) ----------
 
+function resetSearchSelectMode() {
+  selectModeActive = false;
+  selectedSearchIds.clear();
+  btnSearchSelectToggle.textContent = t("search.selectMode");
+  searchBulkBar.classList.add("hidden");
+}
+
 btnSearchHistory.addEventListener("click", async () => {
   searchPanelOverlay.classList.remove("hidden");
   searchInput.value = "";
   searchResults.innerHTML = `<p class="recommend-loading">${t("search.loading")}</p>`;
   searchInput.focus();
   searchDataCache = null;
+  resetSearchSelectMode();
   await loadSearchData();
   renderSearchResults(searchDataCache);
 });
 
 btnSearchClose.addEventListener("click", () => {
   searchPanelOverlay.classList.add("hidden");
+  resetSearchSelectMode();
 });
 
 searchPanelOverlay.addEventListener("click", (e) => {
-  if (e.target === searchPanelOverlay) searchPanelOverlay.classList.add("hidden");
+  if (e.target === searchPanelOverlay) {
+    searchPanelOverlay.classList.add("hidden");
+    resetSearchSelectMode();
+  }
 });
 
 // ---------- 文章管理(标题 + 导入时间 + 删除) ----------
@@ -2451,7 +2472,8 @@ searchInput.addEventListener("input", () => {
 });
 
 function renderSearchResults(matches) {
-  if (!matches || matches.length === 0) {
+  currentSearchMatches = matches || [];
+  if (currentSearchMatches.length === 0) {
     const hasQuery = searchInput.value.trim().length > 0;
     const hasAnyData = searchDataCache && searchDataCache.length > 0;
     searchResults.innerHTML = hasQuery || hasAnyData
@@ -2460,14 +2482,153 @@ function renderSearchResults(matches) {
     return;
   }
   searchResults.innerHTML = "";
-  matches.slice(0, 50).forEach((record) => {
+  currentSearchMatches.slice(0, 50).forEach((record) => {
     const card = buildHistoryCard(record);
     card.classList.add("searchResultCard");
-    card.title = t("docManager.jumpHint");
-    card.addEventListener("click", () => jumpToArticle(record.source_doc));
-    searchResults.appendChild(card);
+
+    if (selectModeActive) {
+      const row = document.createElement("div");
+      row.className = "searchResultCard-row";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "searchCard-checkbox";
+      checkbox.checked = selectedSearchIds.has(record.id);
+      checkbox.addEventListener("click", (e) => e.stopPropagation());
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) selectedSearchIds.add(record.id);
+        else selectedSearchIds.delete(record.id);
+        updateSearchBulkBarState();
+      });
+      card.title = "";
+      card.addEventListener("click", () => {
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event("change"));
+      });
+      row.append(checkbox, card);
+      searchResults.appendChild(row);
+    } else {
+      card.title = t("docManager.jumpHint");
+      card.addEventListener("click", () => jumpToArticle(record.source_doc));
+      searchResults.appendChild(card);
+    }
   });
+  if (selectModeActive) updateSearchBulkBarState();
 }
+
+function updateSearchBulkBarState() {
+  searchSelectedCount.textContent = t("search.selectedCount", { count: selectedSearchIds.size });
+  btnSearchDeleteSelected.disabled = selectedSearchIds.size === 0;
+}
+
+function csvEscape(value) {
+  const str = String(value ?? "");
+  if (/["\n,]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  return str;
+}
+
+function buildVocabCsv(records) {
+  const header = ["Type", "Word/Sentence", "Meaning/Analysis", "Context", "Part of Speech", "IPA", "Other Forms", "Source", "Date"];
+  const rows = records.map((r) => {
+    const isWord = r.mode === "word";
+    return [
+      isWord ? "Word" : "Sentence",
+      isWord ? r.word : r.sentence,
+      isWord ? r.chinese_meaning : r.analysis,
+      isWord ? r.sentence : "",
+      isWord ? r.pos : "",
+      isWord ? r.ipa : "",
+      isWord ? r.other_forms : "",
+      r.source_doc,
+      r.date,
+    ];
+  });
+  return [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\r\n");
+}
+
+btnSearchExport.addEventListener("click", () => {
+  if (currentSearchMatches.length === 0) {
+    alert(t("search.nothingToExport"));
+    return;
+  }
+  const csv = buildVocabCsv(currentSearchMatches);
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `contextia-vocab-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+btnSearchSelectToggle.addEventListener("click", () => {
+  selectModeActive = !selectModeActive;
+  selectedSearchIds.clear();
+  btnSearchSelectToggle.textContent = selectModeActive ? t("search.doneSelecting") : t("search.selectMode");
+  btnSearchSelectAll.textContent = t("search.selectAll");
+  searchBulkBar.classList.toggle("hidden", !selectModeActive);
+  renderSearchResults(currentSearchMatches);
+});
+
+btnSearchSelectAll.addEventListener("click", () => {
+  const checkboxes = [...searchResults.querySelectorAll(".searchCard-checkbox")];
+  const allChecked = checkboxes.length > 0 && checkboxes.every((cb) => cb.checked);
+  const nextChecked = !allChecked;
+  checkboxes.forEach((cb) => {
+    cb.checked = nextChecked;
+    cb.dispatchEvent(new Event("change"));
+  });
+  btnSearchSelectAll.textContent = nextChecked ? t("search.deselectAll") : t("search.selectAll");
+});
+
+async function deleteRecordsBulk(records) {
+  const results = await Promise.allSettled(
+    records.map((r) =>
+      apiFetch(r.mode === "word" ? `/api/vocab/${r.id}` : `/api/sentence_notes/${r.id}`, { method: "DELETE" })
+    )
+  );
+  const succeededIds = new Set();
+  let failCount = 0;
+  results.forEach((res, i) => {
+    if (res.status === "fulfilled" && res.value.ok) succeededIds.add(records[i].id);
+    else failCount++;
+  });
+  return { succeededIds, failCount };
+}
+
+btnSearchDeleteSelected.addEventListener("click", async () => {
+  const count = selectedSearchIds.size;
+  if (count === 0) return;
+  const confirmed = confirm(t("search.deleteSelectedConfirm", { count }));
+  if (!confirmed) return;
+
+  const records = currentSearchMatches.filter((r) => selectedSearchIds.has(r.id));
+  btnSearchDeleteSelected.disabled = true;
+  const { succeededIds, failCount } = await deleteRecordsBulk(records);
+
+  const deletedAnyWord = records.some((r) => succeededIds.has(r.id) && r.mode === "word");
+  if (deletedAnyWord) {
+    await loadKnownWords();
+    if (currentDocContent) {
+      renderTextDocument(currentDocContent, currentDocName, currentDocSourceUrl, true);
+    }
+  }
+  if (searchDataCache) {
+    searchDataCache = searchDataCache.filter((r) => !succeededIds.has(r.id));
+  }
+  if (currentDocName) {
+    renderHistoryForDoc(currentDocName);
+  }
+  currentSearchMatches = currentSearchMatches.filter((r) => !succeededIds.has(r.id));
+  succeededIds.forEach((id) => selectedSearchIds.delete(id));
+  btnSearchSelectAll.textContent = t("search.selectAll");
+  renderSearchResults(currentSearchMatches);
+
+  if (failCount > 0) {
+    alert(t("search.deleteSelectedFailed", { count: failCount }));
+  }
+});
 
 function jumpToArticle(docName) {
   const doc = allDocs.find((d) => d.filename === docName);

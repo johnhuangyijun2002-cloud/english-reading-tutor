@@ -133,7 +133,17 @@
     "placeholder": "Search words, meanings, sentences, source articles... (leave blank to show all)",
     "loading": "Loading...",
     "empty": "No vocab or notes yet — select a word or sentence while reading to start building your collection",
-    "noMatch": "No matching records found"
+    "noMatch": "No matching records found",
+    "exportCsv": "Export CSV",
+    "selectMode": "Select",
+    "doneSelecting": "Done",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "selectedCount": "{count} selected",
+    "deleteSelected": "Delete Selected",
+    "deleteSelectedConfirm": "Delete {count} selected entries? This can't be undone.",
+    "deleteSelectedFailed": "{count} entries couldn't be deleted, please try again.",
+    "nothingToExport": "Nothing to export yet."
   },
   "settings": {
     "uiLanguage": "Interface Language",
