@@ -333,6 +333,7 @@
     "totalUsers": "Total users",
     "totalDocuments": "Total articles",
     "totalVocab": "Total vocab",
+    "totalWaitlist": "Pro waitlist signups",
     "signupsChart": "New signups (last 14 days)",
     "activeUsersChart": "Active users (last 14 days)"
   },

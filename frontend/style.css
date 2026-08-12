@@ -1179,7 +1179,7 @@ body {
 }
 
 .adminStatsTiles {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
 }
 
 .adminStatsChart {
@@ -2794,12 +2794,6 @@ body {
   #nativeNewsPanel,
   #proPanel {
     max-height: 72vh;
-  }
-
-  /* 3 列数字卡片在 375px 宽的手机上一格只有 90-110px，数字+文字标签太挤，
-     压成 2 列给每格多一点空间。 */
-  .adminStatsTiles {
-    grid-template-columns: 1fr 1fr;
   }
 }
 

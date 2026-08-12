@@ -1678,6 +1678,7 @@ async def get_admin_stats(user: dict = Depends(get_current_user)):
         "total_users": await db_count_users(),
         "total_documents": await pool_count_all("documents"),
         "total_vocab": await pool_count_all("vocab"),
+        "total_waitlist_signups": await pool_count_all("waitlist_signups"),
         "signups_by_day": signups_by_day,
         "active_users_by_day": active_users_by_day,
     }

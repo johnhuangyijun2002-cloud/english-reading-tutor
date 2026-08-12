@@ -333,6 +333,7 @@
     "totalUsers": "총 사용자 수",
     "totalDocuments": "총 문서 수",
     "totalVocab": "총 단어 수",
+    "totalWaitlist": "Pro 대기자 명단 인원",
     "signupsChart": "신규 가입(최근 14일)",
     "activeUsersChart": "활성 사용자(최근 14일)"
   },

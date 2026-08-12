@@ -282,6 +282,7 @@ const adminStatsPanelOverlay = document.getElementById("adminStatsPanelOverlay")
 const adminStatsTotalUsers = document.getElementById("adminStatsTotalUsers");
 const adminStatsTotalDocuments = document.getElementById("adminStatsTotalDocuments");
 const adminStatsTotalVocab = document.getElementById("adminStatsTotalVocab");
+const adminStatsTotalWaitlist = document.getElementById("adminStatsTotalWaitlist");
 const adminStatsSignupsChart = document.getElementById("adminStatsSignupsChart");
 const adminStatsActiveChart = document.getElementById("adminStatsActiveChart");
 const btnAdminStatsClose = document.getElementById("btnAdminStatsClose");
@@ -802,6 +803,7 @@ function renderAdminStats(data) {
   adminStatsTotalUsers.textContent = data.total_users;
   adminStatsTotalDocuments.textContent = data.total_documents;
   adminStatsTotalVocab.textContent = data.total_vocab;
+  adminStatsTotalWaitlist.textContent = data.total_waitlist_signups;
   renderAdminBarChart(adminStatsSignupsChart, data.signups_by_day);
   renderAdminBarChart(adminStatsActiveChart, data.active_users_by_day);
 }

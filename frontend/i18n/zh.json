@@ -333,6 +333,7 @@
     "totalUsers": "总用户数",
     "totalDocuments": "总文章数",
     "totalVocab": "总生词数",
+    "totalWaitlist": "Pro 等待名单人数",
     "signupsChart": "每日新增注册（近 14 天）",
     "activeUsersChart": "每日活跃用户（近 14 天）"
   },
