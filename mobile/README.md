@@ -79,10 +79,47 @@ CocoaPods 走的是另一条路：`Podfile` 里 `pod 'Capacitor', :path => '../.
 
 **怎么测**：真机/模拟器上登录、打开几篇文章、存几个生词，然后开飞行模式，重新打开 App——应该还能看到刚才打开过的文章和生词本，顶部会有离线横幅。这个也不需要付费 Apple Developer 账号，只需要能跑 iOS 模拟器的 Mac。
 
+## Apple 内购(StoreKit)：iOS Pro 订阅解锁"不用自己填 AI Key"
+
+网页版目前没有真正的付费墙(核心是 BYOK，自己填 AI Key 免费用；"升级到 Pro"只是等待名单)。跟你确认过，iOS Pro 订阅解锁的是：**订阅有效期内直接用站长的 `HOUSE_AI_API_KEY`，不受免费试用 10 次额度和月度预算限制**——不用自己去 DeepSeek/OpenAI 申请 Key。
+
+不接 RevenueCat 之类的第三方内购 SaaS，自己对接 Apple 官方的 [App Store Server API](https://developer.apple.com/documentation/appstoreserverapi)，用 Apple 官方 Python 库 `app-store-server-library`（PyPI 上现成的，不是自己写的收据校验/签名验证代码）。
+
+### 后端(`backend/main.py` 的 `# ---------- Apple 内购(StoreKit) ----------` 一段)
+
+- `entitlements` 表：一个用户最多一条订阅状态记录(`status` / `expires_at` / `original_transaction_id` 等)
+- `GET /api/entitlement` — 前端查当前订阅状态
+- `POST /api/iap/sync`（登录用户调用，App 内购买成功后前端主动同步一次）——收到 `transaction_id`，调 Apple 的 `get_all_subscription_statuses` 查真实状态(先查 Production，404 就退回 Sandbox 查——沙盒测试交易在生产环境查不到，这是 Apple 官方推荐的处理方式)，用 `SignedDataVerifier` 验证签名(顺着证书链一路验到 Apple 根证书)，写入 `entitlements`
+- `POST /api/iap/notifications` — Apple 的 **App Store Server Notifications V2** webhook，订阅续费/取消/退款时 Apple 主动推给这个接口，不用等用户重新打开 App。没有登录认证，安全性靠验证 `signedPayload` 的签名
+- `resolve_ai_credentials()` 改了：判断顺序变成"自己的 key → iOS Pro 订阅(用站长 key，不限量) → 免费试用额度(10 次/站长月度预算) → 报错"；Pro 订阅走的站长 key 用量**不计入**免费试用的月度预算，两者是分开算的，不然 Pro 用户用多了会把新用户的免费试用额度挤占掉
+
+### 需要的环境变量
+
+`APPLE_IAP_KEY_ID` / `APPLE_IAP_ISSUER_ID` / `APPLE_IAP_PRIVATE_KEY` / `APPLE_APP_APPLE_ID` / `APPLE_PRO_PRODUCT_ID` / `APPLE_IAP_ROOT_CERTS_BASE64`，配置步骤见根目录 `.env.example` 里的详细注释。没配置的话 `/api/iap/sync`、`/api/iap/notifications` 会返回清晰的 500"未配置"错误，不影响其他功能。
+
+**`APPLE_IAP_ROOT_CERTS_BASE64` 这一步我没法替你做**：需要去 <https://www.apple.com/certificateauthority/> 下载 Apple 的根证书——这个域名在我这个开发环境的网络策略里被挡了(沙箱只放行白名单域名，`apple.com` 不在里面)，我没法帮你下载，需要你自己下载、转 base64、填进环境变量。这一步不需要 Apple Developer 账号，任何人都能下载。
+
+### 前端(`app.js` 的 `# ---------- Apple 内购(StoreKit，原生壳专用) ----------` 一段)
+
+用 [`capacitor-plugin-cdv-purchase`](https://www.npmjs.com/package/capacitor-plugin-cdv-purchase)（`cordova-plugin-purchase` 的 Capacitor 版，StoreKit 2 封装，同样不是第三方 SaaS，纯客户端插件）：
+
+- `initIAP()`：注册商品(`APPLE_PRO_PRODUCT_ID` 对应的订阅)、监听购买成功事件，成功后把 `transaction.transactionId` 发给 `/api/iap/sync`，同步完 `transaction.finish()`
+- 这个插件的 JS 运行时(`store.js`，约 500KB，未压缩)不是通过构建工具引入的——项目没有构建工具。`mobile/scripts/build-www.mjs` 在打包时把它从 `node_modules/capacitor-plugin-cdv-purchase/www/` 原样拷贝进 `www/vendor/cdv-purchase/`，`app.js` 用 `loadScriptOnce()` 动态加载，**只有原生壳会请求这两个文件，网页版完全不受影响**(不会拷进网页版部署，也不会有网页版加载这两个文件的代码路径)
+- 复用了网页版已有的"升级到 Pro"面板(`proPanelOverlay`)：原生壳里打开这个面板，等待名单/自愿支持那两块会隐藏，换成订阅按钮 + 恢复购买按钮(苹果审核不允许同一个面板里原生 App 既有真内购、又有指向站外支付的链接)
+
+### App Store Connect 里要配置的东西(等账号批下来、有 Mac 才能做)
+
+1. 建一个自动续费订阅商品，Product ID 填 `APPLE_PRO_PRODUCT_ID` 那个值(默认 `com.contextia.app.pro.monthly`)
+2. Xcode 里给 App 的 Target 加上 "In-App Purchase" capability(Signing & Capabilities 里加，这个我没法帮你在文件层面配好，需要人在 Xcode 里点一下)
+3. 部署后端、拿到域名后，回 App Store Connect 把 App Store Server Notifications 的 Production/Sandbox URL 都填成 `https://你的域名/api/iap/notifications`
+
+### 怎么测
+
+真正的购买流程要走 App Store Connect 的 Sandbox 测试账号，只能在真机/模拟器上、账号批下来之后测。这个环境里能做、也做了的是：**后端这块的 JWT 签名、证书链校验、订阅状态映射逻辑，我用自己生成的假证书链跑通过一次完整的验证流程**(构造一个假的 root CA + 假的 leaf 证书签一个假的订阅交易 JWS，喂给 `SignedDataVerifier`，确认能正确解出 `productId`/`originalTransactionId`，并且证书链对不上时会正确拒绝)——验证到了 Apple 官方库对证书链的最后一步会检查一个只有真实 Apple 签发的证书才有的专属标记(`1.2.840.113635.100.6.11.1`)，这一步没法用假证书绕过，只能等有真实 Apple 收据/沙盒测试账号的时候才能验证，符合预期(这本来就是防伪造的检查点)。
+
 ## 已知待办（还没做的）
 
-1. **Apple 内购(StoreKit)** — 因为要在 iOS 保留付费能力（不做免费版），需要新增：商品配置、购买流程、订单校验、恢复购买；后端要能区分"网页 Stripe 付费"和"iOS 内购付费"两套状态并保持同步。工作量最大的一块。
-2. **账号自助注销** — 已经在网页版做好了（设置页），iOS 端复用同一套网页 UI，不用额外做。
+1. **账号自助注销** — 已经在网页版做好了（设置页），iOS 端复用同一套网页 UI，不用额外做。
 
 ## iOS 编译 CI
 

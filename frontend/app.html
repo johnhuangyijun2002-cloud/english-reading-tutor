@@ -240,7 +240,16 @@
         <li data-i18n="pro.feature3">Priority for new features as they ship</li>
       </ul>
 
-      <div class="settingsBlock">
+      <div id="iapProBlock" class="settingsBlock hidden">
+        <span class="settingsBlockLabel" data-i18n="pro.iapLabel">Contextia Pro</span>
+        <p id="iapProStatus" class="urlHint"></p>
+        <div class="pasteActions">
+          <button id="btnIapSubscribe" class="btn btn-primary" data-i18n="pro.iapSubscribe">Subscribe</button>
+          <button id="btnIapRestore" class="btn btn-ghost" data-i18n="pro.iapRestore">Restore Purchases</button>
+        </div>
+      </div>
+
+      <div id="proWaitlistBlock" class="settingsBlock">
         <span class="settingsBlockLabel" data-i18n="pro.emailLabel">Email</span>
         <input type="email" id="proEmailInput" data-i18n-placeholder="pro.emailPlaceholder" placeholder="you@example.com" />
         <div class="pasteActions">

@@ -159,6 +159,110 @@ async function scheduleReviewReminders() {
   }
 }
 
+// ---------- Apple 内购(StoreKit，原生壳专用) ----------
+// 用 capacitor-plugin-cdv-purchase(StoreKit 2 封装)，不接第三方内购 SaaS——收据校验走
+// 自己后端的 /api/iap/sync(见 backend/main.py 的 "Apple 内购" 一节)，不是这个插件自带的
+// validator 机制。这个插件的 JS 运行时(store.js)不是通过 npm/构建工具引入的——项目本身
+// 没有构建工具，是 mobile/scripts/build-www.mjs 在打包时把它从 node_modules 拷贝进
+// www/vendor/cdv-purchase/，只有原生壳会用到，动态加载，网页版永远不会加载/请求这两个文件。
+const IAP_PRODUCT_ID = "com.contextia.app.pro.monthly";
+let iapStoreReady = false;
+let currentEntitlement = null;
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+async function initIAP() {
+  if (!isNativeApp()) return;
+  try {
+    await loadScriptOnce("vendor/cdv-purchase/capacitor-plugin.js");
+    await loadScriptOnce("vendor/cdv-purchase/store.js");
+    const { store, ProductType, Platform } = window.CdvPurchase;
+    store.register([{ id: IAP_PRODUCT_ID, type: ProductType.PAID_SUBSCRIPTION, platform: Platform.APPLE_APPSTORE }]);
+    store.when().approved(async (transaction) => {
+      try {
+        const res = await apiFetch("/api/iap/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transaction_id: transaction.transactionId }),
+        });
+        if (res.ok) currentEntitlement = await res.json();
+      } catch (err) {
+        // 同步失败也要 finish()，不然 Apple 会一直重复投递这笔交易；下次打开 App 走
+        // loadEntitlement() 或者用户手动点"恢复购买"还能再同步一次
+      } finally {
+        await transaction.finish();
+        updateIapPanel();
+      }
+    });
+    await store.initialize([Platform.APPLE_APPSTORE]);
+    iapStoreReady = true;
+  } catch (err) {
+    // StoreKit 初始化失败(比如插件没装好、模拟器不支持内购)不影响正常使用，安静忽略
+  }
+}
+
+async function loadEntitlement() {
+  if (!isNativeApp()) return;
+  try {
+    const res = await apiFetch("/api/entitlement");
+    if (res.ok) currentEntitlement = await res.json();
+  } catch (err) {
+    // 拿不到订阅状态就当没订阅处理，不阻塞正常使用
+  }
+}
+
+function updateIapPanel() {
+  if (!iapProStatus) return;
+  if (currentEntitlement && currentEntitlement.is_pro) {
+    iapProStatus.textContent = t("pro.iapActiveStatus");
+    btnIapSubscribe.classList.add("hidden");
+  } else {
+    iapProStatus.textContent = iapStoreReady ? "" : t("pro.iapLoading");
+    btnIapSubscribe.classList.remove("hidden");
+    btnIapSubscribe.disabled = !iapStoreReady;
+  }
+}
+
+btnIapSubscribe.addEventListener("click", async () => {
+  if (!iapStoreReady) return;
+  const { store } = window.CdvPurchase;
+  const product = store.get(IAP_PRODUCT_ID);
+  const offer = product && product.getOffer ? product.getOffer() : null;
+  if (!offer) {
+    iapProStatus.textContent = t("pro.iapProductUnavailable");
+    return;
+  }
+  btnIapSubscribe.disabled = true;
+  try {
+    const err = await store.order(offer);
+    if (err) iapProStatus.textContent = t("pro.iapPurchaseFailed", { message: err.message || String(err) });
+  } finally {
+    btnIapSubscribe.disabled = !iapStoreReady;
+  }
+});
+
+btnIapRestore.addEventListener("click", async () => {
+  if (!iapStoreReady) return;
+  btnIapRestore.disabled = true;
+  iapProStatus.textContent = t("pro.iapRestoring");
+  try {
+    await window.CdvPurchase.store.restorePurchases();
+    await loadEntitlement();
+  } finally {
+    btnIapRestore.disabled = false;
+    updateIapPanel();
+  }
+});
+
 // ---------- 图标(全站禁用 emoji，统一用 lucide 线条图标) ----------
 // 见 DESIGN_GUIDELINES.md：UI 里任何地方需要图标/图形提示，一律从这里取，不能直接写 emoji 字符。
 const ICON_PATHS = {
@@ -450,8 +554,13 @@ const proPanelOverlay = document.getElementById("proPanelOverlay");
 const proEmailInput = document.getElementById("proEmailInput");
 const btnProJoinWaitlist = document.getElementById("btnProJoinWaitlist");
 const proWaitlistStatus = document.getElementById("proWaitlistStatus");
+const proWaitlistBlock = document.getElementById("proWaitlistBlock");
 const proSupportBlock = document.getElementById("proSupportBlock");
 const btnProSupport = document.getElementById("btnProSupport");
+const iapProBlock = document.getElementById("iapProBlock");
+const iapProStatus = document.getElementById("iapProStatus");
+const btnIapSubscribe = document.getElementById("btnIapSubscribe");
+const btnIapRestore = document.getElementById("btnIapRestore");
 const btnProClose = document.getElementById("btnProClose");
 
 const btnSearchHistory = document.getElementById("btnSearchHistory");
@@ -1072,6 +1181,21 @@ adminStatsPanelOverlay.addEventListener("click", (e) => {
 
 async function openProPanel() {
   proPanelOverlay.classList.remove("hidden");
+
+  // 原生壳里有真的 Apple 内购可以买，网页版还没有真付费功能——两边显示不同的面板内容：
+  // 原生显示订阅按钮，网页版显示等待名单/自愿支持(iOS App 不能同时展示外部付费入口，
+  // 苹果审核会拒，所以原生这边直接不渲染等待名单/支持链接那两块)。
+  if (isNativeApp()) {
+    proWaitlistBlock.classList.add("hidden");
+    proSupportBlock.classList.add("hidden");
+    iapProBlock.classList.remove("hidden");
+    await loadEntitlement();
+    updateIapPanel();
+    return;
+  }
+
+  iapProBlock.classList.add("hidden");
+  proWaitlistBlock.classList.remove("hidden");
   proWaitlistStatus.textContent = "";
   btnProJoinWaitlist.disabled = false;
   proSupportBlock.classList.add("hidden");
@@ -3483,6 +3607,7 @@ async function initApp() {
   loadUsage();
   loadStats();
   scheduleReviewReminders();
+  initIAP().then(loadEntitlement);
 }
 
 async function enterApp(token, me) {
