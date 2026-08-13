@@ -242,6 +242,7 @@ const btnAddArticle = document.getElementById("btnAddArticle");
 const pastePanelOverlay = document.getElementById("pastePanelOverlay");
 const pasteTitle = document.getElementById("pasteTitle");
 const pasteContent = document.getElementById("pasteContent");
+const pasteFromRecommendHint = document.getElementById("pasteFromRecommendHint");
 const urlInput = document.getElementById("urlInput");
 const btnPasteSubmit = document.getElementById("btnPasteSubmit");
 const btnPasteCancel = document.getElementById("btnPasteCancel");
@@ -1299,8 +1300,26 @@ document.addEventListener("click", (e) => {
 // ---------- 添加文章面板(粘贴文本 / 网址导入) ----------
 
 btnAddArticle.addEventListener("click", () => {
+  pasteFromRecommendHint.classList.add("hidden");
   pastePanelOverlay.classList.remove("hidden");
 });
+
+// 出于版权顾虑，「AI 推荐」的"读这篇"不再自动抓正文，改成跳转到源网站
+// + 引导用户自己复制正文回来粘贴，这个函数就是那座桥。
+function openPasteFromExternal(pick) {
+  window.open(pick.url, "_blank", "noopener");
+  activePasteTab = "paste";
+  pasteTabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === "paste"));
+  document.querySelectorAll(".pasteTabContent").forEach((content) => {
+    content.classList.toggle("hidden", content.dataset.tabContent !== "paste");
+  });
+  pasteTitle.value = pick.source ? `${pick.title} — ${pick.source}` : pick.title;
+  pasteContent.value = "";
+  pasteFromRecommendHint.textContent = t("paste.fromExternalHint");
+  pasteFromRecommendHint.classList.remove("hidden");
+  pastePanelOverlay.classList.remove("hidden");
+  pasteContent.focus();
+}
 
 btnPasteCancel.addEventListener("click", () => {
   pastePanelOverlay.classList.add("hidden");
@@ -1456,7 +1475,7 @@ async function loadRecommendations(refresh) {
     const res = await apiFetch(`/api/recommendations?${params.toString()}`);
     if (!res.ok) throw new Error(await apiErrorText(res));
     const picks = await res.json();
-    renderRecommendations(picks, learningLanguage);
+    renderRecommendations(picks);
     loadUsage();
   } catch (err) {
     recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.failed", { message: err.message })}</p>`;
@@ -1465,7 +1484,7 @@ async function loadRecommendations(refresh) {
   }
 }
 
-function renderRecommendations(picks, learningLanguage) {
+function renderRecommendations(picks) {
   if (!picks || picks.length === 0) {
     recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.empty")}</p>`;
     return;
@@ -1502,18 +1521,12 @@ function renderRecommendations(picks, learningLanguage) {
 
     const readBtn = card.querySelector(".btn-primary");
     readBtn.textContent = t("recommend.readThis");
-    readBtn.addEventListener("click", async () => {
-      readBtn.disabled = true;
-      readBtn.textContent = t("recommend.fetching");
-      try {
-        const doc = await fetchUrlAsDocument(pick.url, learningLanguage);
-        await refreshDocuments(doc.id);
-        recommendPanelOverlay.classList.add("hidden");
-      } catch (err) {
-        alert(t("paste.fetchFailed", { message: err.message }));
-        readBtn.disabled = false;
-        readBtn.textContent = t("recommend.readThis");
-      }
+    // 不在站内抓正文——推荐列表只展示 RSS 本身就公开提供的标题/摘要，点"读这篇"
+    // 直接跳转到源网站的原文页面，不把完整正文抓进自己的数据库,降低版权风险；
+    // 同时把"粘贴文本"面板打开好，方便用户手动复制正文回来继续用完整功能。
+    readBtn.addEventListener("click", () => {
+      recommendPanelOverlay.classList.add("hidden");
+      openPasteFromExternal(pick);
     });
 
     recommendList.appendChild(card);

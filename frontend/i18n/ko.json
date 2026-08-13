@@ -127,7 +127,8 @@
     "needContent": "먼저 글 내용을 붙여넣어 주세요",
     "needUrl": "먼저 글 URL을 입력해 주세요",
     "saveFailed": "저장 실패: {message}",
-    "fetchFailed": "가져오기 실패: {message}"
+    "fetchFailed": "가져오기 실패: {message}",
+    "fromExternalHint": "저작권 문제로 이 글은 자동으로 가져올 수 없어요 — 방금 열린 탭에서 본문을 복사해 아래 텍스트 상자에 붙여넣어 주세요."
   },
   "search": {
     "placeholder": "단어, 뜻, 예문, 출처 글 검색... (비워두면 전체 표시)",

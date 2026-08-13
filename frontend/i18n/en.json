@@ -127,7 +127,8 @@
     "needContent": "Paste the article content first",
     "needUrl": "Paste an article URL first",
     "saveFailed": "Save failed: {message}",
-    "fetchFailed": "Fetch failed: {message}"
+    "fetchFailed": "Fetch failed: {message}",
+    "fromExternalHint": "For copyright reasons, this article can't be imported automatically — copy the text from the tab that just opened, then paste it below."
   },
   "search": {
     "placeholder": "Search words, meanings, sentences, source articles... (leave blank to show all)",

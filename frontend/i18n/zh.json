@@ -127,7 +127,8 @@
     "needContent": "先把文章内容粘贴进去",
     "needUrl": "先粘贴一个文章网址",
     "saveFailed": "保存失败: {message}",
-    "fetchFailed": "抓取失败: {message}"
+    "fetchFailed": "抓取失败: {message}",
+    "fromExternalHint": "出于版权限制，这篇文章无法自动导入——请从刚打开的新标签页复制正文，粘贴到下面的文本框即可。"
   },
   "search": {
     "placeholder": "搜索单词、释义、例句、来源文章...（留空显示全部）",
