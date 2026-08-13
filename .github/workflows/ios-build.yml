@@ -42,16 +42,18 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
-      - name: Resolve Swift package dependencies
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project ios/App/App.xcodeproj \
-            -scheme App
+      # 之前用的是纯 SPM 集成，但官方插件(@capacitor/local-notifications 等)的 Swift 源码
+      # 跟 SPM 那条分发路径的 Capacitor 核心 API 对不上号(缺 getArray<T> 之类的泛型重载)，
+      # 编译不过。CocoaPods 这条路径直接拉的是 @capacitor/ios 包里 ios/ 目录下的完整源码
+      # (而不是 SPM 那边预编译的二进制)，是 Capacitor 更成熟、用得更广的集成方式。
+      - name: Install CocoaPods dependencies
+        run: pod install
+        working-directory: mobile/ios/App
 
       - name: Build for iOS Simulator (no code signing)
         run: |
           xcodebuild build \
-            -project ios/App/App.xcodeproj \
+            -workspace ios/App/App.xcworkspace \
             -scheme App \
             -sdk iphonesimulator \
             -configuration Debug \

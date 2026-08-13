@@ -6,7 +6,7 @@
 
 - `capacitor.config.json` — appId `com.contextia.app`，appName `Contextia`，`webDir` 指向 `www/`
 - `scripts/build-www.mjs` — 把 `../frontend` 整份拷贝进 `www/`，并把入口页换成 `app.html`（网页版的 `index.html` 是产品介绍落地页，App 里不需要，App Store 商品页承担这个角色）
-- `ios/` — `npx cap add ios` 生成的原生 Xcode 工程，**需要 Mac + Xcode 才能真正编译/签名/上传 App Store**，本仓库所在环境没有 Mac，只完成了工程脚手架
+- `ios/` — `npx cap add ios --packagemanager CocoaPods` 生成的原生 Xcode 工程，**需要 Mac + Xcode 才能真正编译/签名/上传 App Store**，本仓库所在环境没有 Mac，只完成了工程脚手架；用的是 CocoaPods 集成（不是 SPM，见下面"为什么是 CocoaPods 不是 SPM"一节），打开前要先在 `ios/App` 目录跑一次 `pod install`
 - `www/` — 构建产物，被 `.gitignore` 排除，不提交；每次改了 `frontend/` 之后要重新生成
 
 ## 后端地址（必须先改这个才能真机联调）
@@ -23,12 +23,19 @@ App 内所有 `/api/xxx` 请求都经过 `frontend/app.js` 顶部的 `API_BASE` 
 
 ```bash
 cd mobile
-npm install       # 装 Capacitor 依赖
-npm run sync:ios  # 拷贝最新 frontend/ 到 www/，再同步进 ios/ 工程
-npm run open:ios  # 需要 Mac，用 Xcode 打开工程
+npm install                        # 装 Capacitor 依赖
+npm run sync:ios                   # 拷贝最新 frontend/ 到 www/，再同步进 ios/ 工程
+cd ios/App && pod install && cd -  # 装/更新原生依赖(CocoaPods)，Podfile 改了或者第一次拉仓库都要跑
+npm run open:ios                   # 需要 Mac，用 Xcode 打开 App.xcworkspace(不是 .xcodeproj)
 ```
 
-首次生成用的是 `npx cap add ios`；以后每次改了 `frontend/` 里的代码，都用 `npm run sync:ios` 同步，不要手动改 `ios/App/App/public` 下的文件（会被覆盖）。
+首次生成用的是 `npx cap add ios --packagemanager CocoaPods`；以后每次改了 `frontend/` 里的代码，都用 `npm run sync:ios` 同步，不要手动改 `ios/App/App/public` 下的文件（会被覆盖）。改了 `mobile/package.json` 里 Capacitor 插件版本之后，记得重新跑一次 `pod install`。
+
+## 为什么是 CocoaPods 不是 SPM
+
+Capacitor CLI 默认给新项目用 SPM(Swift Package Manager)集成，一开始这个项目也是这么生成的。但 GitHub Actions CI(见下面的"iOS 编译 CI"一节)第一次真正跑 `xcodebuild` 就发现编译不过：`@capacitor/local-notifications` 等官方插件的 Swift 源码用到的 `CAPPluginCall.getArray<T>(_:_:)` 之类的泛型 API，在 SPM 那条分发路径（`capacitor-swift-pm` 仓库，发布的是预编译的二进制 xcframework）里对不上号——换过几个 Capacitor 核心库版本都是同样的报错，说明不是版本没对齐，是 SPM 这条分发路径本身跟这批插件当前的源码不兼容。
+
+CocoaPods 走的是另一条路：`Podfile` 里 `pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'` 直接编译 npm 包 `ios/` 目录下的完整源码（插件也是同样的模式，各自指向自己在 `node_modules` 里的路径），不经过任何预编译的二进制中间层，天然不会有"源码和二进制对不上"这类问题。所以把 `ios/` 整个重新生成成了 CocoaPods 版本。
 
 ## Sign in with Apple（已完成代码，等 Apple Developer 账号批下来才能真正联调）
 
@@ -77,9 +84,15 @@ npm run open:ios  # 需要 Mac，用 Xcode 打开工程
 1. **Apple 内购(StoreKit)** — 因为要在 iOS 保留付费能力（不做免费版），需要新增：商品配置、购买流程、订单校验、恢复购买；后端要能区分"网页 Stripe 付费"和"iOS 内购付费"两套状态并保持同步。工作量最大的一块。
 2. **账号自助注销** — 已经在网页版做好了（设置页），iOS 端复用同一套网页 UI，不用额外做。
 
+## iOS 编译 CI
+
+`.github/workflows/ios-build.yml`：这个开发环境是 Linux 容器，没有 Mac/Xcode，写 iOS 原生代码只能靠语法/逻辑检查，没法真正编译。这个 workflow 用 GitHub 提供的云端 macOS runner，在每次改动 `mobile/` 或 `frontend/` 时真正跑一次 `pod install` + `xcodebuild`（模拟器目标，不需要签名证书），验证工程到底编译能不能过——上面那次 SPM 编译不过、换成 CocoaPods 这两轮排查，都是靠这个 CI 的真实报错定位出来的，不是靠读代码猜的。
+
+不做签名、不装真机/模拟器、不跑交互测试（登录弹窗、通知权限这些需要人工点）——那些需要 Apple Developer 账号和真机/模拟器的图形界面，CI 做不到，得在真 Mac 上做。
+
 ## App Store 4.2 与真机构建的现实限制
 
 这个开发环境是 Linux 容器，没有 Mac/Xcode，所以：
 
-- 能做：生成/维护 Capacitor 配置和 `ios/` 工程骨架、写前端联调代码（API_BASE 等）、写后端新接口（Apple 登录回调、StoreKit 收据校验等）
-- 不能做：真正 `xcodebuild` 编译、真机/模拟器运行、代码签名、生成 `.ipa`、上传 App Store Connect —— 这些步骤需要在实际 Mac（或 Codemagic / Ionic Appflow 之类的云端 Mac 构建服务）上完成
+- 能做：生成/维护 Capacitor 配置和 `ios/` 工程骨架、写前端联调代码（API_BASE 等）、写后端新接口（Apple 登录回调、StoreKit 收据校验等）、靠 CI 验证工程编译能不能过
+- 不能做：真机/模拟器运行、代码签名、生成 `.ipa`、上传 App Store Connect、任何需要人工点击的交互测试 —— 这些步骤需要在实际 Mac（或 Codemagic / Ionic Appflow 之类的云端 Mac 构建服务）上完成
