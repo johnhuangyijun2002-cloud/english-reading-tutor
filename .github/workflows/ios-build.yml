@@ -1,0 +1,62 @@
+name: iOS build check
+
+# 这个仓库所在的开发环境没有 Mac，写 iOS 原生代码只能靠语法/逻辑检查，从没真正编译过。
+# 这个 workflow 用 GitHub 提供的云端 macOS runner，在每次改动 mobile/ 或 frontend/ 时
+# 真正跑一次 `xcodebuild`(模拟器目标，不需要签名证书)，验证 Capacitor 配置、Info.plist、
+# 插件注册这些东西编译能不能通过。不做签名、不装真机/模拟器、不跑交互测试——那些需要
+# Apple Developer 账号和人工操作，CI 做不到。
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "mobile/**"
+      - "frontend/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "frontend/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Capacitor deps
+        run: npm ci
+
+      - name: Sync www + iOS project
+        run: npm run sync:ios
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      # 之前用的是纯 SPM 集成，但官方插件(@capacitor/local-notifications 等)的 Swift 源码
+      # 跟 SPM 那条分发路径的 Capacitor 核心 API 对不上号(缺 getArray<T> 之类的泛型重载)，
+      # 编译不过。CocoaPods 这条路径直接拉的是 @capacitor/ios 包里 ios/ 目录下的完整源码
+      # (而不是 SPM 那边预编译的二进制)，是 Capacitor 更成熟、用得更广的集成方式。
+      - name: Install CocoaPods dependencies
+        run: pod install
+        working-directory: mobile/ios/App
+
+      - name: Build for iOS Simulator (no code signing)
+        run: |
+          xcodebuild build \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO

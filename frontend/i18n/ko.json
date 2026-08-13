@@ -170,6 +170,9 @@
     "houseTrialLeft": "키가 없어도 체험 횟수로 사용할 수 있어요 — {left}/{total}회 남음",
     "houseTrialUsedUp": "체험 횟수를 모두 사용했어요 ({total}/{total}) — 계속 사용하려면 본인 AI 키를 등록해 주세요",
     "sheetsSync": "Google 시트에 동기화",
+    "changeEmail": "복구용 이메일",
+    "changeEmailHint": "선택 사항이지만, 등록하지 않으면 비밀번호를 잊어버렸을 때 복구할 방법이 없어요 (Google 로그인을 함께 연동한 경우는 예외).",
+    "newEmailPlaceholder": "you@example.com",
     "changeUsername": "사용자 이름 변경",
     "newUsernamePlaceholder": "새 사용자 이름",
     "changePassword": "비밀번호 변경",
@@ -183,6 +186,14 @@
     "googleRedirecting": "Google 인증 페이지로 이동 중...",
     "googleLinkFailed": "연동 실패: {message}",
     "googleLinkSuccess": "Google 계정이 연동됐어요. 앞으로 Google 로그인으로도 이 계정을 사용할 수 있어요.",
+    "appleLink": "Apple 계정 연동",
+    "appleLinkBtn": "Apple 계정 연동하기",
+    "appleLinkBtnRelink": "다시 연동 / 계정 변경",
+    "appleLinkedStatus": "연동됨: {email}",
+    "appleUnlinkedStatus": "연동되지 않음 — 사용자 이름/비밀번호로만 로그인할 수 있어요",
+    "appleRedirecting": "Apple 인증 페이지로 이동 중...",
+    "appleLinkFailed": "연동 실패: {message}",
+    "appleLinkSuccess": "Apple 계정이 연동됐어요. 앞으로 Apple 로그인으로도 이 계정을 사용할 수 있어요.",
     "logout": "로그아웃",
     "accountData": "계정 데이터",
     "exportData": "내 데이터 내보내기",
@@ -213,6 +224,7 @@
     "hint": "사용자 이름은 자유롭게, 비밀번호는 8자 이상 입력하세요. 처음 가입한 계정이 자동으로 관리자 계정이 돼요.",
     "username": "사용자 이름",
     "password": "비밀번호",
+    "emailOptional": "이메일 (선택, 계정 복구용)",
     "registerBtn": "새 계정 만들기",
     "loginBtn": "로그인",
     "credentialsWrong": "사용자 이름 또는 비밀번호가 올바르지 않아요. 다시 확인해 주세요.",
@@ -220,10 +232,21 @@
     "registerFailed": "가입 실패: {message}",
     "or": "또는",
     "googleLogin": "Google로 로그인",
+    "appleLogin": "Apple로 로그인",
     "legalPrefix": "계속 진행하면 ",
     "terms": "서비스 약관",
     "and": " 및 ",
-    "privacy": "개인정보 처리방침에 동의하는 것으로 간주돼요"
+    "privacy": "개인정보 처리방침에 동의하는 것으로 간주돼요",
+    "forgotPasswordLink": "비밀번호를 잊으셨나요?",
+    "forgotPasswordTitle": "비밀번호 재설정",
+    "forgotPasswordHint": "계정에 등록한 복구용 이메일을 입력하세요. 일치하는 계정이 있으면 재설정 링크를 보내드려요.",
+    "emailPlaceholder": "you@example.com",
+    "back": "뒤로",
+    "sendResetLink": "재설정 링크 보내기",
+    "forgotPasswordSent": "해당 이메일로 등록된 계정이 있다면 재설정 링크를 보냈어요 — 받은 편지함을 확인하세요.",
+    "resetPasswordTitle": "새 비밀번호 설정",
+    "setNewPassword": "새 비밀번호 설정",
+    "resetPasswordDone": "비밀번호가 변경됐어요. 로그인 화면으로 이동할게요..."
   },
   "empty": {
     "noDocument": "글을 붙여넣거나 PDF/DOCX 파일을 업로드해서 정독을 시작해 보세요",
@@ -363,7 +386,15 @@
     "alreadyJoined": "이미 대기자 명단에 등록되어 있습니다",
     "supportLabel": "이미 Contextia가 마음에 드셨나요?",
     "supportHint": "도움이 되었다면 개발을 직접 후원할 수 있어요 — 완전히 자율적이며, 추가 기능이 열리지는 않습니다.",
-    "supportCta": "프로젝트 후원하기"
+    "supportCta": "프로젝트 후원하기",
+    "iapLabel": "Contextia Pro",
+    "iapSubscribe": "구독하기",
+    "iapRestore": "구매 복원",
+    "iapRestoring": "구매 복원 중...",
+    "iapLoading": "불러오는 중...",
+    "iapActiveStatus": "Contextia Pro를 구독 중이에요 — API 키 없이 무제한 AI 조회를 사용할 수 있어요.",
+    "iapProductUnavailable": "구독 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요",
+    "iapPurchaseFailed": "구매 실패: {message}"
   },
   "navTour": {
     "recommend": "AI가 당신의 수준에 맞는 글을 추천해드려요 — 시작하기 좋은 곳이에요.",
@@ -374,5 +405,11 @@
     "next": "다음",
     "done": "확인했어요",
     "skip": "건너뛰기"
+  },
+  "offline": {
+    "banner": "오프라인 — 마지막으로 온라인이었을 때의 콘텐츠를 표시하고 있어요"
+  },
+  "notifications": {
+    "reviewDue": "복습할 단어가 {count}개 있어요"
   }
 }

@@ -186,6 +186,23 @@ body {
   }
 }
 
+/* 只有原生 App 壳离线兜底显示缓存内容时才会出现，网页版永远不会触发(见 app.js 的
+   setOfflineBanner) */
+#offlineBanner {
+  position: sticky;
+  top: 0;
+  z-index: 101;
+  text-align: center;
+  font-size: 12px;
+  padding: 6px 12px;
+  background: #ff9500;
+  color: #fff;
+}
+
+#offlineBanner.hidden {
+  display: none;
+}
+
 .topbar-brand {
   display: flex;
   align-items: center;
@@ -2446,7 +2463,8 @@ body {
 
 .settingsSelect,
 #accountSettingsPanel input[type="password"],
-#accountSettingsPanel input[type="text"] {
+#accountSettingsPanel input[type="text"],
+#accountSettingsPanel input[type="email"] {
   padding: 11px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -2458,7 +2476,8 @@ body {
 
 .settingsSelect:focus,
 #accountSettingsPanel input[type="password"]:focus,
-#accountSettingsPanel input[type="text"]:focus {
+#accountSettingsPanel input[type="text"]:focus,
+#accountSettingsPanel input[type="email"]:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-tint);
@@ -2502,6 +2521,20 @@ body {
   animation: popIn 0.28s var(--spring-ease);
 }
 
+#loginFormView,
+#forgotPasswordView,
+#resetPasswordView {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#loginFormView.hidden,
+#forgotPasswordView.hidden,
+#resetPasswordView.hidden {
+  display: none;
+}
+
 #loginPanel h2 {
   margin: 0;
   font-size: 19px;
@@ -2510,7 +2543,8 @@ body {
 }
 
 #loginPanel input[type="text"],
-#loginPanel input[type="password"] {
+#loginPanel input[type="password"],
+#loginPanel input[type="email"] {
   padding: 11px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -2521,7 +2555,8 @@ body {
 }
 
 #loginPanel input[type="text"]:focus,
-#loginPanel input[type="password"]:focus {
+#loginPanel input[type="password"]:focus,
+#loginPanel input[type="email"]:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-tint);
@@ -2533,6 +2568,22 @@ body {
 
 #loginPanel .pasteActions .btn {
   flex: 1;
+}
+
+.linkBtn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: -4px 0 0;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.linkBtn:hover {
+  text-decoration: underline;
 }
 
 .loginError {
@@ -2580,7 +2631,8 @@ body {
   background: var(--border);
 }
 
-.loginGoogleBtn {
+.loginGoogleBtn,
+.loginAppleBtn {
   width: 100%;
 }
 
@@ -2679,15 +2731,15 @@ body {
 }
 
 @media print {
-  /* html/body 平时设了 overflow-x: hidden 防止横向滚动条，但只设 x 轴的话，
-     浏览器会按 CSS 规范把 y 轴隐式算成 overflow-y: auto——平时屏幕上因为
-     body 高度本来就跟着内容撑开、没有东西可滚，不会露出问题；但打印分页时
-     Chromium 一旦看到祖先元素有非 visible 的 overflow，就不会正常往下一页
-     续排，超出第一页的内容直接被裁掉，不会出现在后续页面。这里在打印时
-     强制改回 visible，让内容能正常跨页。 */
+  /* html/body 平时靠 overflow-x:hidden 防止横向滚动，但 CSS 规则规定"x/y 只设一边
+     为非 visible 时，另一边会被浏览器当成 auto 处理"，于是 html/body 变成了一个
+     带滚动条的容器。Chrome 打印分页时，只要祖先节点是"可滚动容器"就不会真正分页，
+     只会把第一屏那么高的内容当成唯一一页，后面的文章正文/生词表/句子表全部被截断。
+     打印时强制把 html/body 的 overflow 改回 visible，让内容变成能正常分页的普通文档流。 */
   html,
   body {
     overflow: visible !important;
+    height: auto !important;
   }
 
   body > *:not(#printArea) {

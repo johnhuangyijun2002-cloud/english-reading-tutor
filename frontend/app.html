@@ -4,10 +4,17 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title data-i18n="app.title">Contextia</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#0071e3" />
 <link rel="stylesheet" href="style.css" />
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
+  <div id="offlineBanner" class="hidden" data-i18n="offline.banner">Offline — showing content from the last time you were online</div>
   <div id="topbar">
     <div class="topbar-brand">Contextia<span id="usageBadge" class="usageBadge"></span><span id="streakBadge" class="usageBadge"></span></div>
     <div class="topbar-actions">
@@ -234,7 +241,16 @@
         <li data-i18n="pro.feature3">Priority for new features as they ship</li>
       </ul>
 
-      <div class="settingsBlock">
+      <div id="iapProBlock" class="settingsBlock hidden">
+        <span class="settingsBlockLabel" data-i18n="pro.iapLabel">Contextia Pro</span>
+        <p id="iapProStatus" class="urlHint"></p>
+        <div class="pasteActions">
+          <button id="btnIapSubscribe" class="btn btn-primary" data-i18n="pro.iapSubscribe">Subscribe</button>
+          <button id="btnIapRestore" class="btn btn-ghost" data-i18n="pro.iapRestore">Restore Purchases</button>
+        </div>
+      </div>
+
+      <div id="proWaitlistBlock" class="settingsBlock">
         <span class="settingsBlockLabel" data-i18n="pro.emailLabel">Email</span>
         <input type="email" id="proEmailInput" data-i18n-placeholder="pro.emailPlaceholder" placeholder="you@example.com" />
         <div class="pasteActions">
@@ -381,6 +397,16 @@
       </div>
 
       <div class="settingsBlock">
+        <span class="settingsBlockLabel" data-i18n="settings.changeEmail">Recovery Email</span>
+        <p class="urlHint" data-i18n="settings.changeEmailHint">Optional, but without it there's no way to recover your account if you forget your password (unless you also sign in with Google).</p>
+        <input type="email" id="newEmailInput" data-i18n-placeholder="settings.newEmailPlaceholder" placeholder="you@example.com" />
+        <div class="pasteActions">
+          <button id="btnChangeEmail" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
+        </div>
+        <p id="changeEmailStatus" class="urlHint"></p>
+      </div>
+
+      <div class="settingsBlock">
         <span class="settingsBlockLabel" data-i18n="settings.changeUsername">Change Username</span>
         <input type="text" id="newUsernameInput" data-i18n-placeholder="settings.newUsernamePlaceholder" placeholder="New username" />
         <div class="pasteActions">
@@ -403,6 +429,14 @@
         <p id="googleLinkStatus" class="urlHint"></p>
         <div class="pasteActions">
           <button id="btnLinkGoogle" class="btn btn-ghost btn-small" data-i18n="settings.googleLinkBtn">Link Google Account</button>
+        </div>
+      </div>
+
+      <div class="settingsBlock">
+        <span class="settingsBlockLabel" data-i18n="settings.appleLink">Apple Account Link</span>
+        <p id="appleLinkStatus" class="urlHint"></p>
+        <div class="pasteActions">
+          <button id="btnLinkApple" class="btn btn-ghost btn-small" data-i18n="settings.appleLinkBtn">Link Apple Account</button>
         </div>
       </div>
 
@@ -497,21 +531,46 @@
 
   <div id="loginOverlay" class="hidden">
     <div id="loginPanel">
-      <h2 id="loginPanelTitle" data-i18n="login.title">Sign In</h2>
-      <p class="urlHint" data-i18n="login.hint">Any username works; password needs at least 8 characters. The first account to register automatically becomes the owner.</p>
-      <input type="text" id="loginUsernameInput" data-i18n-placeholder="login.username" placeholder="Username" autocomplete="username" />
-      <input type="password" id="loginPasswordInput" data-i18n-placeholder="login.password" placeholder="Password" autocomplete="current-password" />
-      <p id="loginError" class="loginError hidden"></p>
-      <div id="turnstileWidget" class="cf-turnstile" data-sitekey=""></div>
-      <div class="pasteActions">
-        <button id="btnRegisterSubmit" class="btn btn-ghost" data-i18n="login.registerBtn">Register</button>
-        <button id="btnLoginSubmit" class="btn btn-primary" data-i18n="login.loginBtn">Sign In</button>
+      <div id="loginFormView">
+        <h2 id="loginPanelTitle" data-i18n="login.title">Sign In</h2>
+        <p class="urlHint" data-i18n="login.hint">Any username works; password needs at least 8 characters. The first account to register automatically becomes the owner.</p>
+        <input type="text" id="loginUsernameInput" data-i18n-placeholder="login.username" placeholder="Username" autocomplete="username" />
+        <input type="password" id="loginPasswordInput" data-i18n-placeholder="login.password" placeholder="Password" autocomplete="current-password" />
+        <input type="email" id="regEmailInput" data-i18n-placeholder="login.emailOptional" placeholder="Email (optional, for account recovery)" autocomplete="email" />
+        <button type="button" id="btnForgotPasswordLink" class="linkBtn" data-i18n="login.forgotPasswordLink">Forgot password?</button>
+        <p id="loginError" class="loginError hidden"></p>
+        <div id="turnstileWidget" class="cf-turnstile" data-sitekey=""></div>
+        <div class="pasteActions">
+          <button id="btnRegisterSubmit" class="btn btn-ghost" data-i18n="login.registerBtn">Register</button>
+          <button id="btnLoginSubmit" class="btn btn-primary" data-i18n="login.loginBtn">Sign In</button>
+        </div>
+        <div class="loginDivider"><span data-i18n="login.or">or</span></div>
+        <button id="btnGoogleLogin" class="btn btn-ghost loginGoogleBtn" data-i18n="login.googleLogin">Sign in with Google</button>
+        <button id="btnAppleLogin" class="btn btn-ghost loginAppleBtn" data-i18n="login.appleLogin">Sign in with Apple</button>
+        <p class="loginLegalLinks">
+          <span data-i18n="login.legalPrefix">By continuing you agree to the </span><a href="/terms.html" target="_blank" data-i18n="login.terms">Terms of Service</a><span data-i18n="login.and"> and </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a>
+        </p>
       </div>
-      <div class="loginDivider"><span data-i18n="login.or">or</span></div>
-      <button id="btnGoogleLogin" class="btn btn-ghost loginGoogleBtn" data-i18n="login.googleLogin">Sign in with Google</button>
-      <p class="loginLegalLinks">
-        <span data-i18n="login.legalPrefix">By continuing you agree to the </span><a href="/terms.html" target="_blank" data-i18n="login.terms">Terms of Service</a><span data-i18n="login.and"> and </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a>
-      </p>
+
+      <div id="forgotPasswordView" class="hidden">
+        <h2 data-i18n="login.forgotPasswordTitle">Reset Password</h2>
+        <p class="urlHint" data-i18n="login.forgotPasswordHint">Enter the recovery email on your account. If it matches one, we'll send a reset link.</p>
+        <input type="email" id="forgotPasswordEmailInput" data-i18n-placeholder="login.emailPlaceholder" placeholder="you@example.com" autocomplete="email" />
+        <p id="forgotPasswordStatus" class="urlHint"></p>
+        <div class="pasteActions">
+          <button type="button" id="btnForgotPasswordBack" class="btn btn-ghost" data-i18n="login.back">Back</button>
+          <button type="button" id="btnForgotPasswordSubmit" class="btn btn-primary" data-i18n="login.sendResetLink">Send Reset Link</button>
+        </div>
+      </div>
+
+      <div id="resetPasswordView" class="hidden">
+        <h2 data-i18n="login.resetPasswordTitle">Set a New Password</h2>
+        <input type="password" id="resetPasswordInput" data-i18n-placeholder="settings.newPasswordPlaceholder" placeholder="New password, at least 8 characters" autocomplete="new-password" />
+        <p id="resetPasswordStatus" class="urlHint"></p>
+        <div class="pasteActions">
+          <button type="button" id="btnResetPasswordSubmit" class="btn btn-primary" data-i18n="login.setNewPassword">Set New Password</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -630,6 +689,7 @@
 
   <div id="printArea"></div>
 
+  <script src="native-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import hashlib
 import hmac
 import io
@@ -12,12 +13,18 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 
+from appstoreserverlibrary.api_client import AppStoreServerAPIClient, APIException
+from appstoreserverlibrary.models.Environment import Environment as AppleEnvironment
+from appstoreserverlibrary.models.Status import Status as AppleSubscriptionStatus
+from appstoreserverlibrary.signed_data_verifier import SignedDataVerifier, VerificationException
 import asyncpg
 import feedparser
 from cryptography.fernet import Fernet, InvalidToken
 import httpx
 import jieba
 import jieba.posseg as pseg
+import jwt
+from jwt import PyJWKClient
 from janome.tokenizer import Tokenizer as JanomeTokenizer
 import pdfplumber
 import trafilatura
@@ -56,6 +63,45 @@ SHEETS_TOKEN = os.environ.get("SHEETS_TOKEN", "")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 
+# Sign in with Apple：iOS App 里有 Google 登录，苹果审核要求必须同时提供 Apple 登录
+# (guideline 4.8)。跟 Google 走的是同一套 OAuth authorization-code 流程，但 client_secret
+# 不是固定字符串，而是每次现算的一个短期 JWT(用 Apple Developer 后台生成的 .p8 私钥签)。
+# APPLE_SERVICES_ID 是网页/混合应用登录用的 Services ID，跟 App 的 Bundle ID(com.contextia.app)
+# 是两个不同的标识，要在 Apple Developer 后台单独注册。
+APPLE_TEAM_ID = os.environ.get("APPLE_TEAM_ID", "")
+APPLE_SERVICES_ID = os.environ.get("APPLE_SERVICES_ID", "")
+APPLE_KEY_ID = os.environ.get("APPLE_KEY_ID", "")
+# .p8 私钥文件的完整 PEM 内容；有些托管平台的环境变量输入框会把换行压成字面 "\n"，
+# 用到的地方会自动把 "\n" 换回真正的换行符，两种粘贴方式都能用。
+APPLE_PRIVATE_KEY = os.environ.get("APPLE_PRIVATE_KEY", "")
+
+# 原生 App 壳(Capacitor)发起的 OAuth 登录，成功后不能像网页版那样跳回 /app.html——
+# 那样会跳到系统浏览器里的网页版，而不是跳回原生 App。原生登录时前端会带上
+# ?platform=ios，回调成功后改成跳这个自定义 URL scheme，原生壳监听 appUrlOpen 接住。
+NATIVE_APP_URL_SCHEME = "com.contextia.app"
+
+# Apple 内购(StoreKit)：iOS Pro 订阅解锁"不用自己填 AI Key"——订阅有效期内直接用站长的
+# HOUSE_AI_API_KEY，不受免费试用 10 次额度和月度预算的限制(见 resolve_ai_credentials)。
+# 用 Apple 官方的 app-store-server-library 校验交易/查订阅状态，不接第三方内购 SaaS，
+# 跟这个项目一贯的自托管风格一致。
+#
+# APPLE_IAP_KEY_ID / APPLE_IAP_ISSUER_ID / APPLE_IAP_PRIVATE_KEY 是 App Store Connect 里
+# 单独生成的 "In-App Purchase Key"，跟 Sign in with Apple 那个 key 是两回事。
+APPLE_BUNDLE_ID = "com.contextia.app"
+APPLE_IAP_KEY_ID = os.environ.get("APPLE_IAP_KEY_ID", "")
+APPLE_IAP_ISSUER_ID = os.environ.get("APPLE_IAP_ISSUER_ID", "")
+APPLE_IAP_PRIVATE_KEY = os.environ.get("APPLE_IAP_PRIVATE_KEY", "")
+# App 首次在 App Store Connect 建好之后才会有这个数字 ID，验证 Production 环境的收据要用到；
+# 沙盒测试不需要，账号/App 还没建好之前留空不影响开发。
+APPLE_APP_APPLE_ID = os.environ.get("APPLE_APP_APPLE_ID", "")
+# Pro 订阅商品在 App Store Connect 里配置时用的 Product ID，要跟这里保持一致。
+APPLE_PRO_PRODUCT_ID = os.environ.get("APPLE_PRO_PRODUCT_ID", "com.contextia.app.pro.monthly")
+# Apple 的根证书(.cer)，用来验证 App Store 返回的签名数据确实是 Apple 签的、没被篡改。
+# 去 https://www.apple.com/certificateauthority/ 下载 "Apple Root CA - G3 Root"，转成
+# base64(一行，比如 `base64 -i AppleRootCA-G3.cer | tr -d '\n'`)后填进来；
+# 多个证书用逗号分开。
+APPLE_IAP_ROOT_CERTS_BASE64 = os.environ.get("APPLE_IAP_ROOT_CERTS_BASE64", "")
+
 TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 
@@ -70,6 +116,11 @@ HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "5")
 # 变现第一阶段：可选的自愿支持链接（Stripe Payment Link）。没配置就留空，
 # 前端"升级到 Pro"面板会自动隐藏这个入口，不会出现点了没反应的死链接。
 STRIPE_SUPPORT_LINK_URL = os.environ.get("STRIPE_SUPPORT_LINK_URL", "")
+
+# 通过 Resend 发密码找回邮件：不配置的话 /api/forgot-password 直接返回错误，
+# 前端"忘记密码"链接还在，但点了会提示站长还没配置邮件发送。
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Contextia <onboarding@resend.dev>")
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
@@ -169,6 +220,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT,
     google_id TEXT UNIQUE,
     google_email TEXT,
+    apple_id TEXT,
+    apple_email TEXT,
     is_owner BOOLEAN NOT NULL DEFAULT FALSE,
     ai_provider TEXT NOT NULL DEFAULT 'deepseek',
     ai_api_keys TEXT NOT NULL DEFAULT '{}',
@@ -191,16 +244,46 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_relay_model TEXT NOT NULL DEFAULT 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_target_language TEXT NOT NULL DEFAULT 'follow';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_source_priority TEXT NOT NULL DEFAULT 'vocab';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_exclude_proper_nouns BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_email TEXT;
+-- 用部分唯一索引而不是列级 UNIQUE 约束，这样才能用 IF NOT EXISTS 安全地对已有部署重复执行；
+-- WHERE apple_id IS NOT NULL 让没绑 Apple 账号的用户(apple_id 是 NULL)不受唯一性限制。
+CREATE UNIQUE INDEX IF NOT EXISTS users_apple_id_unique_idx ON users (apple_id) WHERE apple_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS house_usage (
     month TEXT PRIMARY KEY,
     calls INTEGER NOT NULL DEFAULT 0,
     cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0
 );
+-- iOS Pro 订阅状态：一个用户最多一条(够用——不支持同一账号绑多个 Apple 订阅)。
+-- original_transaction_id 是同一次订阅(含续费)从始至终不变的标识，App Store Server
+-- Notifications webhook 靠它找到该更新哪一行(webhook 不知道是哪个 user_id，
+-- 只能通过用户之前用 /api/iap/sync 建立过的这个关联反查)。
+CREATE TABLE IF NOT EXISTS entitlements (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    source TEXT NOT NULL DEFAULT 'ios_iap',
+    product_id TEXT NOT NULL,
+    original_transaction_id TEXT NOT NULL,
+    latest_transaction_id TEXT,
+    status TEXT NOT NULL,
+    environment TEXT NOT NULL DEFAULT 'Production',
+    expires_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS entitlements_original_transaction_id_idx
+    ON entitlements (original_transaction_id);
 CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
@@ -335,6 +418,16 @@ async def db_get_user_by_google_id(google_id: str) -> Optional[dict]:
     return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE google_id=$1", google_id))
 
 
+async def db_get_user_by_apple_id(apple_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE apple_id=$1", apple_id))
+
+
+async def db_get_user_by_email(email: str) -> Optional[dict]:
+    pool = await get_pool()
+    return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE lower(email)=lower($1)", email))
+
+
 async def db_count_users() -> int:
     pool = await get_pool()
     return await pool.fetchval("SELECT count(*) FROM users")
@@ -392,6 +485,8 @@ async def db_create_user(
     password_hash: Optional[str] = None,
     google_id: Optional[str] = None,
     google_email: Optional[str] = None,
+    apple_id: Optional[str] = None,
+    apple_email: Optional[str] = None,
     is_owner: bool = False,
     ai_provider: str = "deepseek",
     ai_api_keys: Optional[dict] = None,
@@ -401,10 +496,12 @@ async def db_create_user(
     pool = await get_pool()
     await pool.execute(
         """INSERT INTO users (id, name, username, password_salt, password_hash, google_id, google_email,
-                               is_owner, ai_provider, ai_api_keys, sheets_sync_enabled, ui_language)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
+                               apple_id, apple_email, is_owner, ai_provider, ai_api_keys, sheets_sync_enabled,
+                               ui_language)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)""",
         id, name, username, password_salt, password_hash, google_id, google_email,
-        is_owner, ai_provider, json.dumps({k: _encrypt_key(v) for k, v in (ai_api_keys or {}).items()}),
+        apple_id, apple_email, is_owner, ai_provider,
+        json.dumps({k: _encrypt_key(v) for k, v in (ai_api_keys or {}).items()}),
         sheets_sync_enabled, ui_language,
     )
     return await db_get_user_by_id(id)
@@ -455,6 +552,33 @@ async def db_get_session_user(token: str) -> Optional[dict]:
         token,
     )
     return _row_to_user(row)
+
+
+PASSWORD_RESET_TTL_MINUTES = 60
+
+
+async def db_create_password_reset_token(user_id: str) -> str:
+    pool = await get_pool()
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_TTL_MINUTES)
+    # 顺手清掉过期/已用过的旧 token，这张表行数很小，不用单独搞定时任务
+    await pool.execute("DELETE FROM password_reset_tokens WHERE expires_at < now() OR used")
+    await pool.execute(
+        "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES ($1,$2,$3)", token, user_id, expires_at,
+    )
+    return token
+
+
+async def db_consume_password_reset_token(token: str) -> Optional[str]:
+    """Token 有效且没用过就标记成已用，返回对应的 user_id；否则返回 None。"""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """UPDATE password_reset_tokens SET used=TRUE
+           WHERE token=$1 AND expires_at > now() AND NOT used
+           RETURNING user_id""",
+        token,
+    )
+    return row["user_id"] if row else None
 
 
 async def db_create_document(record: dict):
@@ -758,6 +882,52 @@ async def db_increment_house_calls_used(user_id: str):
     await pool.execute("UPDATE users SET house_calls_used = house_calls_used + 1 WHERE id=$1", user_id)
 
 
+async def db_get_entitlement(user_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM entitlements WHERE user_id=$1", user_id)
+    return dict(row) if row else None
+
+
+async def db_has_active_entitlement(user_id: str) -> bool:
+    ent = await db_get_entitlement(user_id)
+    if not ent or ent["status"] != "active":
+        return False
+    if ent["expires_at"] and ent["expires_at"] < datetime.now(timezone.utc):
+        return False
+    return True
+
+
+async def db_upsert_entitlement_by_user(
+    user_id: str, product_id: str, original_transaction_id: str, latest_transaction_id: Optional[str],
+    status: str, environment: str, expires_at: Optional[datetime],
+):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO entitlements (user_id, product_id, original_transaction_id, latest_transaction_id,
+                                      status, environment, expires_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,now())
+           ON CONFLICT (user_id) DO UPDATE SET
+             product_id=$2, original_transaction_id=$3, latest_transaction_id=$4,
+             status=$5, environment=$6, expires_at=$7, updated_at=now()""",
+        user_id, product_id, original_transaction_id, latest_transaction_id, status, environment, expires_at,
+    )
+
+
+async def db_update_entitlement_by_original_transaction(
+    original_transaction_id: str, latest_transaction_id: Optional[str], status: str, expires_at: Optional[datetime],
+):
+    # App Store Server Notifications webhook 用——这时候不知道是哪个 user_id，只能靠
+    # original_transaction_id 找到之前 /api/iap/sync 建立的那一行去更新。如果这个
+    # original_transaction_id 从来没被同步关联过任何账号(比如用户还没打开过 App 走一遍
+    # 同步)，这里就什么都不做——等用户下次打开 App 走 /api/iap/sync 会重新建立关联。
+    pool = await get_pool()
+    await pool.execute(
+        """UPDATE entitlements SET latest_transaction_id=$2, status=$3, expires_at=$4, updated_at=now()
+           WHERE original_transaction_id=$1""",
+        original_transaction_id, latest_transaction_id, status, expires_at,
+    )
+
+
 async def db_delete_user(user_id: str):
     pool = await get_pool()
     await pool.execute("DELETE FROM users WHERE id=$1", user_id)
@@ -924,12 +1094,33 @@ async def _verify_turnstile(token: str, remote_ip: str = "") -> bool:
     return bool(resp.json().get("success"))
 
 
+async def _send_email(to: str, subject: str, html: str):
+    if not RESEND_API_KEY:
+        raise HTTPException(503, "Email sending isn't configured on this server yet")
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            json={"from": RESEND_FROM_EMAIL, "to": [to], "subject": subject, "html": html},
+        )
+    if resp.status_code >= 300:
+        raise HTTPException(502, f"Failed to send email: {resp.text}")
+
+
 MIN_PASSWORD_LENGTH = 8
 
 
 def _validate_password_strength(password: str):
     if len(password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(400, f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _validate_email(email: str):
+    if not EMAIL_RE.match(email):
+        raise HTTPException(400, "That doesn't look like a valid email address")
 
 
 def _migrate_legacy_invite_users():
@@ -979,6 +1170,7 @@ def _audit(event: str, **fields):
 class RegisterRequest(BaseModel):
     username: str
     password: str
+    email: str = ""  # 选填，用于以后的邮件找回密码；不填的话就只能用 Google 登录或联系站长手动重置
     turnstile_token: str = ""
     ui_language: str = "en"
 
@@ -988,11 +1180,16 @@ class RegisterRequest(BaseModel):
 async def register(request: Request, req: RegisterRequest):
     username = req.username.strip()
     password = req.password
+    email = req.email.strip()
     if not username or not password:
         raise HTTPException(400, "Username and password are required")
     if not await _verify_turnstile(req.turnstile_token, get_remote_address(request)):
         raise HTTPException(400, "Verification failed, please refresh and try again")
     _validate_password_strength(password)
+    if email:
+        _validate_email(email)
+        if await db_get_user_by_email(email):
+            raise HTTPException(400, "This email is already in use by another account")
 
     if await db_get_user_by_username(username):
         raise HTTPException(400, "This username is already taken, try another one")
@@ -1008,6 +1205,9 @@ async def register(request: Request, req: RegisterRequest):
         is_owner=(user_count == 0),
         ui_language=req.ui_language if req.ui_language in UI_LANGUAGES else "en",
     )
+    if email:
+        await db_update_user_fields(new_user["id"], email=email)
+        new_user["email"] = email
     _audit("register", user_id=new_user["id"], username=username)
     token = await db_create_session(new_user["id"])
     return {
@@ -1052,6 +1252,58 @@ async def login(request: Request, req: LoginRequest):
 async def logout(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
     if credentials:
         await db_delete_session(credentials.credentials)
+    return {"ok": True}
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+@app.post("/api/forgot-password")
+@limiter.limit("5/minute")
+async def forgot_password(request: Request, req: ForgotPasswordRequest):
+    email = req.email.strip()
+    # 不管邮箱存不存在、发信有没有成功都返回同样的提示，不然可以用这个接口去试探
+    # "这个邮箱注册过没"，或者从报错知道站长压根没配置邮件发送。
+    if email:
+        user = await db_get_user_by_email(email)
+        if user:
+            token = await db_create_password_reset_token(user["id"])
+            reset_link = f"{request.base_url}app.html?reset_token={token}"
+            try:
+                await _send_email(
+                    to=email,
+                    subject="Reset your Contextia password",
+                    html=(
+                        f"<p>Someone requested a password reset for your Contextia account.</p>"
+                        f'<p><a href="{reset_link}">Click here to set a new password</a> '
+                        f"(link expires in {PASSWORD_RESET_TTL_MINUTES} minutes).</p>"
+                        f"<p>If this wasn't you, you can safely ignore this email.</p>"
+                    ),
+                )
+            except HTTPException as exc:
+                print(f"[forgot-password] failed to send reset email: {exc.detail}", flush=True)
+    return {"ok": True}
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@app.post("/api/reset-password")
+@limiter.limit("10/minute")
+async def reset_password(request: Request, req: ResetPasswordRequest):
+    _validate_password_strength(req.new_password)
+    user_id = await db_consume_password_reset_token(req.token)
+    if not user_id:
+        raise HTTPException(400, "This reset link is invalid or has expired, request a new one")
+    salt = secrets.token_hex(16)
+    await db_update_user_fields(user_id, password_salt=salt, password_hash=_hash_password(req.new_password, salt))
+    # 重置密码后把这个账号所有现存 session 都踢掉，防止旧密码泄露时攻击者已经登录的会话还留着
+    pool = await get_pool()
+    await pool.execute("DELETE FROM sessions WHERE user_id=$1", user_id)
+    _audit("reset_password", user_id=user_id)
     return {"ok": True}
 
 
@@ -1105,6 +1357,24 @@ async def change_username(req: ChangeUsernameRequest, user: dict = Depends(get_c
     return {"ok": True, "username": new_username, "name": new_username}
 
 
+class ChangeEmailRequest(BaseModel):
+    new_email: str
+
+
+@app.post("/api/change-email")
+async def change_email(req: ChangeEmailRequest, user: dict = Depends(get_current_user)):
+    new_email = req.new_email.strip()
+    if not new_email:
+        raise HTTPException(400, "New email can't be empty")
+    _validate_email(new_email)
+    existing = await db_get_user_by_email(new_email)
+    if existing and existing["id"] != user["id"]:
+        raise HTTPException(400, "This email is already in use by another account")
+    await db_update_user_fields(user["id"], email=new_email)
+    _audit("change_email", user_id=user["id"], username=user.get("username"))
+    return {"ok": True, "email": new_email}
+
+
 @app.get("/api/account/export")
 @limiter.limit("5/minute")
 async def export_account_data(request: Request, user: dict = Depends(get_current_user)):
@@ -1121,6 +1391,7 @@ async def export_account_data(request: Request, user: dict = Depends(get_current
             "id": user["id"],
             "username": user.get("username"),
             "name": user.get("name"),
+            "email": user.get("email") or None,
             "google_email": user.get("google_email") or None,
             "is_owner": user.get("is_owner", False),
             "ai_provider": user.get("ai_provider"),
@@ -1155,7 +1426,7 @@ async def delete_account(request: Request, user: dict = Depends(get_current_user
 # 由于 OAuth 是整页跳转，中途拿不到 Authorization header，所以先用一个短期一次性 nonce
 # (通过已登录状态的 POST 请求换到)把"是谁在发起关联"这件事传过去，再带着 nonce 跳转。
 
-_pending_oauth_states: dict = {}  # state -> {"ts": 时间, "link_user_id": 关联目标账号id或None}
+_pending_oauth_states: dict = {}  # state -> {"ts": 时间, "link_user_id": 关联目标账号id或None, "platform": ""或"ios"}
 _pending_link_nonces: dict = {}  # nonce -> {"ts": 时间, "user_id": ...}
 
 
@@ -1166,11 +1437,23 @@ def _cleanup_stale(d: dict, max_age_seconds: int = 600):
         d.pop(k, None)
 
 
-def _new_oauth_state(link_user_id: Optional[str] = None) -> str:
+def _new_oauth_state(link_user_id: Optional[str] = None, platform: str = "") -> str:
     _cleanup_stale(_pending_oauth_states)
     state = secrets.token_urlsafe(16)
-    _pending_oauth_states[state] = {"ts": datetime.now(timezone.utc), "link_user_id": link_user_id}
+    _pending_oauth_states[state] = {
+        "ts": datetime.now(timezone.utc), "link_user_id": link_user_id, "platform": platform,
+    }
     return state
+
+
+def _oauth_success_redirect(platform: str, token: str, extra_hash_params: str = "") -> RedirectResponse:
+    # 网页版整页跳回 /app.html，靠 URL fragment 里的 token 完成登录(见 app.js 里解析
+    # location.hash 那段)。原生壳里不能这么跳——那样是跳进系统浏览器里的网页版，不是
+    # 跳回 App，所以改跳一个自定义 URL scheme，原生壳里 App 插件的 appUrlOpen 监听器接住。
+    suffix = f"&{extra_hash_params}" if extra_hash_params else ""
+    if platform == "ios":
+        return RedirectResponse(f"{NATIVE_APP_URL_SCHEME}://oauth-callback#token={token}{suffix}")
+    return RedirectResponse(f"/app.html#token={token}{suffix}")
 
 
 @app.post("/api/auth/google/link-init")
@@ -1183,7 +1466,7 @@ async def google_link_init(request: Request, user: dict = Depends(get_current_us
 
 
 @app.get("/api/auth/google/login")
-async def google_login(request: Request, link_nonce: str = ""):
+async def google_login(request: Request, link_nonce: str = "", platform: str = ""):
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(500, "This deployment hasn't configured Google sign-in (missing GOOGLE_CLIENT_ID)")
 
@@ -1194,7 +1477,7 @@ async def google_login(request: Request, link_nonce: str = ""):
             raise HTTPException(400, "This link request has expired, go back to Settings and try again")
         link_user_id = entry["user_id"]
 
-    state = _new_oauth_state(link_user_id=link_user_id)
+    state = _new_oauth_state(link_user_id=link_user_id, platform=platform)
     redirect_uri = str(request.base_url) + "api/auth/google/callback"
     params = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -1215,6 +1498,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         raise HTTPException(400, "Sign-in session expired, click \"Sign in with Google\" again")
     state_entry = _pending_oauth_states.pop(state)
     link_user_id = state_entry.get("link_user_id")
+    platform = state_entry.get("platform", "")
 
     redirect_uri = str(request.base_url) + "api/auth/google/callback"
     async with httpx.AsyncClient(timeout=15) as client:
@@ -1261,7 +1545,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         await db_update_user_fields(link_user_id, google_id=google_id, google_email=email)
         _audit("google_link", user_id=link_user_id, google_email=email)
         token = await db_create_session(link_user_id)
-        return RedirectResponse(f"/app.html#token={token}&google_linked=1")
+        return _oauth_success_redirect(platform, token, "google_linked=1")
 
     user = await db_get_user_by_google_id(google_id)
     if not user:
@@ -1276,7 +1560,348 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         _audit("google_register", user_id=user["id"], google_email=email)
 
     token = await db_create_session(user["id"])
-    return RedirectResponse(f"/app.html#token={token}")
+    return _oauth_success_redirect(platform, token)
+
+
+# ---------- Apple 登录 / 关联(Sign in with Apple) ----------
+# 结构跟上面的 Google 登录基本对称，区别有两个：
+# 1. Apple 的 client_secret 不是固定字符串，是每次现算一个短期 JWT(见 _apple_client_secret)。
+# 2. 因为请求了 name/email scope，Apple 规定回调必须用 response_mode=form_post(POST 表单)，
+#    不能像 Google 那样简单地 GET 带 query string 回调。
+
+_apple_jwks_client = PyJWKClient("https://appleid.apple.com/auth/keys")
+
+
+def _apple_client_secret() -> str:
+    if not (APPLE_TEAM_ID and APPLE_SERVICES_ID and APPLE_KEY_ID and APPLE_PRIVATE_KEY):
+        raise HTTPException(
+            500,
+            "This deployment hasn't configured Sign in with Apple "
+            "(missing APPLE_TEAM_ID/APPLE_SERVICES_ID/APPLE_KEY_ID/APPLE_PRIVATE_KEY)",
+        )
+    now = datetime.now(timezone.utc)
+    private_key = APPLE_PRIVATE_KEY.replace("\\n", "\n")
+    return jwt.encode(
+        {
+            "iss": APPLE_TEAM_ID,
+            "iat": now,
+            "exp": now + timedelta(minutes=30),
+            "aud": "https://appleid.apple.com",
+            "sub": APPLE_SERVICES_ID,
+        },
+        private_key,
+        algorithm="ES256",
+        headers={"kid": APPLE_KEY_ID},
+    )
+
+
+@app.post("/api/auth/apple/link-init")
+@limiter.limit("10/minute")
+async def apple_link_init(request: Request, user: dict = Depends(get_current_user)):
+    _cleanup_stale(_pending_link_nonces)
+    nonce = secrets.token_urlsafe(24)
+    _pending_link_nonces[nonce] = {"ts": datetime.now(timezone.utc), "user_id": user["id"]}
+    return {"nonce": nonce}
+
+
+@app.get("/api/auth/apple/login")
+async def apple_login(request: Request, link_nonce: str = "", platform: str = ""):
+    if not APPLE_SERVICES_ID:
+        raise HTTPException(500, "This deployment hasn't configured Sign in with Apple (missing APPLE_SERVICES_ID)")
+
+    link_user_id = None
+    if link_nonce:
+        entry = _pending_link_nonces.pop(link_nonce, None)
+        if not entry:
+            raise HTTPException(400, "This link request has expired, go back to Settings and try again")
+        link_user_id = entry["user_id"]
+
+    state = _new_oauth_state(link_user_id=link_user_id, platform=platform)
+    redirect_uri = str(request.base_url) + "api/auth/apple/callback"
+    params = {
+        "client_id": APPLE_SERVICES_ID,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "response_mode": "form_post",
+        "scope": "name email",
+        "state": state,
+    }
+    return RedirectResponse("https://appleid.apple.com/auth/authorize?" + urlencode(params))
+
+
+@app.post("/api/auth/apple/callback")
+async def apple_callback(
+    request: Request,
+    code: str = Form(""),
+    state: str = Form(""),
+    error: str = Form(""),
+    user: str = Form(""),  # 只有账号第一次授权这个 App 的时候 Apple 才会带这个字段(JSON 字符串，含姓名)
+):
+    if error:
+        raise HTTPException(400, f"Sign in with Apple failed: {error}")
+    if not state or state not in _pending_oauth_states:
+        raise HTTPException(400, "Sign-in session expired, click \"Sign in with Apple\" again")
+    state_entry = _pending_oauth_states.pop(state)
+    link_user_id = state_entry.get("link_user_id")
+    platform = state_entry.get("platform", "")
+
+    redirect_uri = str(request.base_url) + "api/auth/apple/callback"
+    client_secret = _apple_client_secret()
+    async with httpx.AsyncClient(timeout=15) as client:
+        token_resp = await client.post(
+            "https://appleid.apple.com/auth/token",
+            data={
+                "code": code,
+                "client_id": APPLE_SERVICES_ID,
+                "client_secret": client_secret,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+        )
+    if token_resp.status_code != 200:
+        raise HTTPException(400, f"Failed to exchange Apple login token: {token_resp.text}")
+    id_token = token_resp.json().get("id_token", "")
+    if not id_token:
+        raise HTTPException(400, "Apple didn't return an id_token")
+
+    # id_token 是 Apple 签发的 JWT，用 Apple 公开的 JWKS 验证签名，而不是直接信任内容——
+    # 这一步确认 token 确实是 Apple 签的，没被中间篡改。
+    try:
+        signing_key = _apple_jwks_client.get_signing_key_from_jwt(id_token)
+        claims = jwt.decode(
+            id_token, signing_key.key, algorithms=["RS256"],
+            audience=APPLE_SERVICES_ID, issuer="https://appleid.apple.com",
+        )
+    except jwt.InvalidTokenError as exc:
+        raise HTTPException(400, f"Couldn't verify Apple account info: {exc}")
+
+    apple_id = claims.get("sub", "")
+    email = claims.get("email", "")
+    if not apple_id:
+        raise HTTPException(400, "Apple account info is missing a user ID")
+
+    # 姓名只在第一次授权时随 `user` 表单字段带过来一次，之后 Apple 不会再重复给，
+    # 拿不到就退化成邮箱、再退化成一个占位名字(跟 Google 那边的兜底逻辑一致)。
+    name = ""
+    if user:
+        try:
+            name_obj = json.loads(user).get("name") or {}
+            name = " ".join(filter(None, [name_obj.get("firstName"), name_obj.get("lastName")])).strip()
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    name = name or email or "Apple user"
+
+    if link_user_id:
+        # 关联流程，跟 Google 那边同样的逻辑：见上面 google_callback 里的中文注释。
+        target = await db_get_user_by_id(link_user_id)
+        if not target:
+            raise HTTPException(400, "The account you're linking no longer exists, sign in again and retry")
+        existing_owner = await db_get_user_by_apple_id(apple_id)
+        if existing_owner and existing_owner["id"] != link_user_id:
+            await db_update_user_fields(existing_owner["id"], apple_id=None, apple_email=None)
+            _audit("apple_unlink", user_id=existing_owner["id"], apple_email=email)
+        await db_update_user_fields(link_user_id, apple_id=apple_id, apple_email=email)
+        _audit("apple_link", user_id=link_user_id, apple_email=email)
+        token = await db_create_session(link_user_id)
+        return _oauth_success_redirect(platform, token, "apple_linked=1")
+
+    existing_user = await db_get_user_by_apple_id(apple_id)
+    if not existing_user:
+        user_count = await db_count_users()
+        existing_user = await db_create_user(
+            id="u_" + uuid.uuid4().hex[:10],
+            name=name,
+            apple_id=apple_id,
+            apple_email=email,
+            is_owner=(user_count == 0),
+        )
+        _audit("apple_register", user_id=existing_user["id"], apple_email=email)
+
+    token = await db_create_session(existing_user["id"])
+    return _oauth_success_redirect(platform, token)
+
+
+# ---------- Apple 内购(StoreKit) ----------
+# 用 Apple 官方的 app-store-server-library 校验订阅状态，不接第三方内购 SaaS。
+# 两条路径都会走到这里：
+#   1. App 内买完之后，前端主动调 /api/iap/sync 把 transaction id 发过来同步一次
+#   2. Apple 的 App Store Server Notifications V2 webhook 在续费/取消/退款时主动推给
+#      /api/iap/notifications，不用等用户再打开 App
+# 两条路径最终都落到同一张 entitlements 表。
+
+
+def _apple_iap_configured() -> bool:
+    return bool(APPLE_IAP_KEY_ID and APPLE_IAP_ISSUER_ID and APPLE_IAP_PRIVATE_KEY and APPLE_IAP_ROOT_CERTS_BASE64)
+
+
+_apple_iap_api_clients: dict = {}  # AppleEnvironment -> AppStoreServerAPIClient，懒加载缓存
+_apple_iap_verifiers: dict = {}  # AppleEnvironment -> SignedDataVerifier
+
+
+def _apple_iap_signing_key() -> bytes:
+    return APPLE_IAP_PRIVATE_KEY.replace("\\n", "\n").encode()
+
+
+def _apple_iap_root_certs() -> list:
+    return [base64.b64decode(c.strip()) for c in APPLE_IAP_ROOT_CERTS_BASE64.split(",") if c.strip()]
+
+
+def _apple_iap_api_client(environment: AppleEnvironment) -> AppStoreServerAPIClient:
+    if environment not in _apple_iap_api_clients:
+        _apple_iap_api_clients[environment] = AppStoreServerAPIClient(
+            _apple_iap_signing_key(), APPLE_IAP_KEY_ID, APPLE_IAP_ISSUER_ID, APPLE_BUNDLE_ID, environment,
+        )
+    return _apple_iap_api_clients[environment]
+
+
+def _apple_iap_verifier(environment: AppleEnvironment) -> SignedDataVerifier:
+    if environment not in _apple_iap_verifiers:
+        app_apple_id = int(APPLE_APP_APPLE_ID) if APPLE_APP_APPLE_ID else None
+        _apple_iap_verifiers[environment] = SignedDataVerifier(
+            _apple_iap_root_certs(), True, environment, APPLE_BUNDLE_ID, app_apple_id,
+        )
+    return _apple_iap_verifiers[environment]
+
+
+def _map_apple_status(status: Optional[AppleSubscriptionStatus]) -> str:
+    # BILLING_GRACE_PERIOD(续费扣款失败、Apple 给的宽限期)按 Apple 的建议照常提供服务，
+    # 归到 active 里；BILLING_RETRY(宽限期也过了，还在重试扣款)不算 active。
+    if status in (AppleSubscriptionStatus.ACTIVE, AppleSubscriptionStatus.BILLING_GRACE_PERIOD):
+        return "active"
+    if status == AppleSubscriptionStatus.REVOKED:
+        return "revoked"
+    if status == AppleSubscriptionStatus.BILLING_RETRY:
+        return "billing_retry"
+    return "expired"
+
+
+async def _fetch_subscription_status(transaction_id: str):
+    # 先按 Production 查；TestFlight/沙盒测试产生的 transaction id 在生产环境查不到，
+    # Apple 会返回 404，这时候退回 Sandbox 再查一次——这是 Apple 官方文档推荐的处理方式，
+    # 不需要客户端自己告诉后端"这是沙盒交易"。
+    try:
+        resp = _apple_iap_api_client(AppleEnvironment.PRODUCTION).get_all_subscription_statuses(transaction_id)
+        return resp, AppleEnvironment.PRODUCTION
+    except APIException as exc:
+        if exc.http_status_code != 404:
+            raise
+    resp = _apple_iap_api_client(AppleEnvironment.SANDBOX).get_all_subscription_statuses(transaction_id)
+    return resp, AppleEnvironment.SANDBOX
+
+
+async def _entitlement_response(user_id: str) -> dict:
+    ent = await db_get_entitlement(user_id)
+    return {
+        "is_pro": await db_has_active_entitlement(user_id),
+        "product_id": ent["product_id"] if ent else None,
+        "status": ent["status"] if ent else None,
+        "expires_at": ent["expires_at"].isoformat() if ent and ent["expires_at"] else None,
+    }
+
+
+@app.get("/api/entitlement")
+async def get_entitlement(user: dict = Depends(get_current_user)):
+    return await _entitlement_response(user["id"])
+
+
+class IAPSyncRequest(BaseModel):
+    transaction_id: str
+
+
+@app.post("/api/iap/sync")
+@limiter.limit("20/minute")
+async def iap_sync(request: Request, req: IAPSyncRequest, user: dict = Depends(get_current_user)):
+    if not _apple_iap_configured():
+        raise HTTPException(500, "This deployment hasn't configured Apple in-app purchases")
+
+    try:
+        status_resp, environment = await _fetch_subscription_status(req.transaction_id)
+    except APIException as exc:
+        raise HTTPException(400, f"Couldn't verify purchase with Apple: {exc.error_message or exc.http_status_code}")
+
+    # 拿到的是这个用户所有订阅群组的状态，只挑我们自己这个 Pro 商品那一条(同一个订阅群组
+    # 里只会有一条最新记录，理论上不会有多条同时匹配)。
+    verifier = _apple_iap_verifier(environment)
+    matched = None
+    for group in status_resp.data or []:
+        for txn in group.lastTransactions or []:
+            if not txn.signedTransactionInfo:
+                continue
+            try:
+                payload = verifier.verify_and_decode_signed_transaction(txn.signedTransactionInfo)
+            except VerificationException:
+                continue
+            if payload.productId == APPLE_PRO_PRODUCT_ID:
+                matched = (txn, payload)
+                break
+        if matched:
+            break
+
+    if not matched:
+        raise HTTPException(400, "No matching subscription found for this transaction")
+
+    txn, payload = matched
+    expires_at = (
+        datetime.fromtimestamp(payload.expiresDate / 1000, tz=timezone.utc) if payload.expiresDate else None
+    )
+    status = _map_apple_status(txn.status)
+    await db_upsert_entitlement_by_user(
+        user_id=user["id"],
+        product_id=payload.productId,
+        original_transaction_id=txn.originalTransactionId,
+        latest_transaction_id=payload.transactionId,
+        status=status,
+        environment=environment.value,
+        expires_at=expires_at,
+    )
+    _audit("iap_sync", user_id=user["id"], product_id=payload.productId, status=status)
+    return await _entitlement_response(user["id"])
+
+
+class IAPNotificationBody(BaseModel):
+    signedPayload: str
+
+
+@app.post("/api/iap/notifications")
+async def iap_notifications(body: IAPNotificationBody):
+    # 这个接口没有账号认证——是 Apple 服务器直接调用的 webhook，安全性靠验证
+    # signedPayload 的签名(SignedDataVerifier 会顺着证书链一路验到 Apple 的根证书)，
+    # 不是靠登录态。要在 App Store Connect 里把这个接口的完整 URL 配成
+    # "App Store Server Notifications V2" 的地址。
+    if not _apple_iap_configured():
+        raise HTTPException(500, "This deployment hasn't configured Apple in-app purchases")
+
+    payload = None
+    for environment in (AppleEnvironment.PRODUCTION, AppleEnvironment.SANDBOX):
+        try:
+            payload = _apple_iap_verifier(environment).verify_and_decode_notification(body.signedPayload)
+            break
+        except VerificationException:
+            continue
+    if payload is None:
+        raise HTTPException(400, "Couldn't verify notification signature")
+
+    data = payload.data
+    if not data or not data.signedTransactionInfo or not data.status:
+        return {"ok": True}  # 摘要类/不带交易状态的通知，没什么好同步的
+
+    txn_environment = data.environment or AppleEnvironment.PRODUCTION
+    txn_payload = _apple_iap_verifier(txn_environment).verify_and_decode_signed_transaction(data.signedTransactionInfo)
+    if not txn_payload.originalTransactionId:
+        return {"ok": True}
+
+    expires_at = (
+        datetime.fromtimestamp(txn_payload.expiresDate / 1000, tz=timezone.utc) if txn_payload.expiresDate else None
+    )
+    status = _map_apple_status(data.status)
+    await db_update_entitlement_by_original_transaction(
+        original_transaction_id=txn_payload.originalTransactionId,
+        latest_transaction_id=txn_payload.transactionId,
+        status=status,
+        expires_at=expires_at,
+    )
+    _audit("iap_notification", original_transaction_id=txn_payload.originalTransactionId, status=status)
+    return {"ok": True}
 
 
 # ---------- 文档管理(粘贴文本 / 网址导入 / PDF·DOCX 上传，最终都存成统一的文字文档) ----------
@@ -1814,30 +2439,36 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
 
 
 async def resolve_ai_credentials(user: dict):
-    """决定这次调用实际用谁的 key：优先用用户自己配置的；没配的话，如果还有公共
-    体验额度(账户没用满 10 次、当月公共预算没超)，就用站长的公共 key。
-    返回 (provider, api_key, using_house, blocked_reason)。api_key 为空时，
+    """决定这次调用实际用谁的 key：优先用用户自己配置的；没配的话，iOS Pro 订阅用户
+    直接用站长的公共 key(不受额度/预算限制)；否则看公共体验额度(账户没用满 10 次、
+    当月公共预算没超)，够的话也用站长的公共 key。
+    返回 (provider, api_key, house_reason, blocked_reason)。house_reason 是 None(用的是
+    用户自己的 key) / "trial"(公共体验额度) / "pro"(iOS Pro 订阅)。api_key 为空时，
     blocked_reason 是 "no_key" / "user_limit" / "global_budget" 之一，方便上层给出准确的提示。"""
     provider = user.get("ai_provider", "deepseek")
     own_key = user.get("ai_api_keys", {}).get(provider, "")
     if own_key:
-        return provider, own_key, False, None
+        return provider, own_key, None, None
 
     if not HOUSE_AI_API_KEY:
-        return provider, "", False, "no_key"
+        return provider, "", None, "no_key"
+
+    if await db_has_active_entitlement(user["id"]):
+        return HOUSE_AI_PROVIDER, HOUSE_AI_API_KEY, "pro", None
+
     if user.get("house_calls_used", 0) >= HOUSE_FREE_CALLS_PER_USER:
-        return provider, "", False, "user_limit"
+        return provider, "", None, "user_limit"
 
     month_key = datetime.now().strftime("%Y-%m")
     house_usage = await db_get_house_usage(month_key)
     if house_usage["cost_usd"] >= HOUSE_MONTHLY_BUDGET_USD:
-        return provider, "", False, "global_budget"
+        return provider, "", None, "global_budget"
 
-    return HOUSE_AI_PROVIDER, HOUSE_AI_API_KEY, True, None
+    return HOUSE_AI_PROVIDER, HOUSE_AI_API_KEY, "trial", None
 
 
 async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> str:
-    provider, api_key, using_house, blocked_reason = await resolve_ai_credentials(user)
+    provider, api_key, house_reason, blocked_reason = await resolve_ai_credentials(user)
     if not api_key:
         if blocked_reason == "user_limit":
             raise HTTPException(
@@ -1847,17 +2478,19 @@ async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> 
             raise HTTPException(400, "The shared free trial budget is used up for this month — add your own AI key in Settings to keep going")
         raise HTTPException(400, "No AI API key configured yet — add one in Settings")
 
-    relay_base_url = "" if using_house else (user.get("ai_relay_base_url") or "")
-    relay_model = "" if using_house else (user.get("ai_relay_model") or "")
+    relay_base_url = "" if house_reason else (user.get("ai_relay_base_url") or "")
+    relay_model = "" if house_reason else (user.get("ai_relay_model") or "")
     text, cost = await call_ai(
         prompt, provider, api_key, user["id"], json_mode=json_mode,
         relay_base_url=relay_base_url, relay_model=relay_model,
     )
 
-    if using_house:
+    if house_reason == "trial":
         await db_increment_house_calls_used(user["id"])
         month_key = datetime.now().strftime("%Y-%m")
         await db_record_house_usage(month_key, cost)
+    # house_reason == "pro"：Pro 订阅用户走站长 key，但不计入体验额度/体验月度预算——
+    # 这两个是为免费试用设计的，不该被付费订阅的用量占用。
 
     return text
 
@@ -2548,6 +3181,9 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "has_password": bool(user.get("password_hash")),
         "has_google": bool(user.get("google_id")),
         "google_email": user.get("google_email") or "",
+        "has_apple": bool(user.get("apple_id")),
+        "apple_email": user.get("apple_email") or "",
+        "email": user.get("email") or "",
         "ai_provider": user.get("ai_provider", "deepseek"),
         "ai_key_status": {
             k: {"has_key": bool(keys.get(k)), "masked": mask_key(keys.get(k, ""))}

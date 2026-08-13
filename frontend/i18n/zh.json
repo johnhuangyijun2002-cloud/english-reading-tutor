@@ -170,6 +170,9 @@
     "houseTrialLeft": "不填 key 也能先用体验额度，还剩 {left}/{total} 次",
     "houseTrialUsedUp": "体验额度已用完（{total}/{total}），要继续用 AI 解析得自己填 key",
     "sheetsSync": "同步到 Google Sheet",
+    "changeEmail": "找回邮箱",
+    "changeEmailHint": "选填，但不填的话一旦忘记密码就没法自助找回（除非你还绑定了 Google 登录）",
+    "newEmailPlaceholder": "you@example.com",
     "changeUsername": "修改用户名",
     "newUsernamePlaceholder": "填新用户名",
     "changePassword": "修改密码",
@@ -183,6 +186,14 @@
     "googleRedirecting": "跳转到 Google 授权页...",
     "googleLinkFailed": "关联失败：{message}",
     "googleLinkSuccess": "Google 账号关联成功，以后用 Google 登录也能看到这个账号下的内容",
+    "appleLink": "Apple 账号关联",
+    "appleLinkBtn": "关联 Apple 账号",
+    "appleLinkBtnRelink": "重新关联/换绑",
+    "appleLinkedStatus": "已关联：{email}",
+    "appleUnlinkedStatus": "还没关联，只能用用户名密码登录",
+    "appleRedirecting": "跳转到 Apple 授权页...",
+    "appleLinkFailed": "关联失败：{message}",
+    "appleLinkSuccess": "Apple 账号关联成功，以后用 Apple 登录也能看到这个账号下的内容",
     "logout": "退出登录",
     "accountData": "账号数据",
     "exportData": "导出我的数据",
@@ -213,6 +224,7 @@
     "hint": "用户名不限格式，密码至少需要 8 位；首个注册的账号将自动成为主账号",
     "username": "用户名",
     "password": "密码",
+    "emailOptional": "邮箱（选填，用于找回账号）",
     "registerBtn": "注册新账号",
     "loginBtn": "登录",
     "credentialsWrong": "用户名或密码不正确，请检查后重试",
@@ -220,10 +232,21 @@
     "registerFailed": "注册失败：{message}",
     "or": "或",
     "googleLogin": "用 Google 登录",
+    "appleLogin": "用 Apple 登录",
     "legalPrefix": "继续即表示你同意",
     "terms": "服务条款",
     "and": "和",
-    "privacy": "隐私政策"
+    "privacy": "隐私政策",
+    "forgotPasswordLink": "忘记密码？",
+    "forgotPasswordTitle": "找回密码",
+    "forgotPasswordHint": "填你账号上的找回邮箱，如果匹配得上，我们会发一封带重置链接的邮件",
+    "emailPlaceholder": "you@example.com",
+    "back": "返回",
+    "sendResetLink": "发送重置链接",
+    "forgotPasswordSent": "如果这个邮箱对应某个账号，重置链接已经发出去了，去邮箱看看",
+    "resetPasswordTitle": "设置新密码",
+    "setNewPassword": "设置新密码",
+    "resetPasswordDone": "密码已更新，马上跳回登录…"
   },
   "empty": {
     "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读",
@@ -363,7 +386,15 @@
     "alreadyJoined": "你已经在等待名单上了",
     "supportLabel": "已经觉得这个工具有用了？",
     "supportHint": "如果这个工具对你有帮助，可以直接支持一下开发——完全自愿，不会因此解锁任何额外功能。",
-    "supportCta": "支持这个项目"
+    "supportCta": "支持这个项目",
+    "iapLabel": "Contextia Pro",
+    "iapSubscribe": "订阅",
+    "iapRestore": "恢复购买",
+    "iapRestoring": "正在恢复购买...",
+    "iapLoading": "加载中...",
+    "iapActiveStatus": "你已经订阅 Contextia Pro——无限量 AI 解析，不需要自己的 API Key。",
+    "iapProductUnavailable": "订阅信息加载失败，稍后再试",
+    "iapPurchaseFailed": "购买失败：{message}"
   },
   "navTour": {
     "recommend": "AI 会按你的水平推荐文章，适合当作起点。",
@@ -374,5 +405,11 @@
     "next": "下一个",
     "done": "知道了",
     "skip": "跳过"
+  },
+  "offline": {
+    "banner": "离线中——显示的是上次联网时同步的内容"
+  },
+  "notifications": {
+    "reviewDue": "你有 {count} 个单词待复习"
   }
 }
