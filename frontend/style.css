@@ -1180,6 +1180,12 @@ body {
   letter-spacing: -0.01em;
 }
 
+#iapProBlock.hidden,
+#proWaitlistBlock.hidden,
+#proSupportBlock.hidden {
+  display: none;
+}
+
 .proFeatureList {
   margin: 0;
   padding-left: 20px;

@@ -232,37 +232,6 @@ function updateIapPanel() {
   }
 }
 
-btnIapSubscribe.addEventListener("click", async () => {
-  if (!iapStoreReady) return;
-  const { store } = window.CdvPurchase;
-  const product = store.get(IAP_PRODUCT_ID);
-  const offer = product && product.getOffer ? product.getOffer() : null;
-  if (!offer) {
-    iapProStatus.textContent = t("pro.iapProductUnavailable");
-    return;
-  }
-  btnIapSubscribe.disabled = true;
-  try {
-    const err = await store.order(offer);
-    if (err) iapProStatus.textContent = t("pro.iapPurchaseFailed", { message: err.message || String(err) });
-  } finally {
-    btnIapSubscribe.disabled = !iapStoreReady;
-  }
-});
-
-btnIapRestore.addEventListener("click", async () => {
-  if (!iapStoreReady) return;
-  btnIapRestore.disabled = true;
-  iapProStatus.textContent = t("pro.iapRestoring");
-  try {
-    await window.CdvPurchase.store.restorePurchases();
-    await loadEntitlement();
-  } finally {
-    btnIapRestore.disabled = false;
-    updateIapPanel();
-  }
-});
-
 // ---------- 图标(全站禁用 emoji，统一用 lucide 线条图标) ----------
 // 见 DESIGN_GUIDELINES.md：UI 里任何地方需要图标/图形提示，一律从这里取，不能直接写 emoji 字符。
 const ICON_PATHS = {
@@ -563,6 +532,37 @@ const iapProStatus = document.getElementById("iapProStatus");
 const btnIapSubscribe = document.getElementById("btnIapSubscribe");
 const btnIapRestore = document.getElementById("btnIapRestore");
 const btnProClose = document.getElementById("btnProClose");
+
+btnIapSubscribe.addEventListener("click", async () => {
+  if (!iapStoreReady) return;
+  const { store } = window.CdvPurchase;
+  const product = store.get(IAP_PRODUCT_ID);
+  const offer = product && product.getOffer ? product.getOffer() : null;
+  if (!offer) {
+    iapProStatus.textContent = t("pro.iapProductUnavailable");
+    return;
+  }
+  btnIapSubscribe.disabled = true;
+  try {
+    const err = await store.order(offer);
+    if (err) iapProStatus.textContent = t("pro.iapPurchaseFailed", { message: err.message || String(err) });
+  } finally {
+    btnIapSubscribe.disabled = !iapStoreReady;
+  }
+});
+
+btnIapRestore.addEventListener("click", async () => {
+  if (!iapStoreReady) return;
+  btnIapRestore.disabled = true;
+  iapProStatus.textContent = t("pro.iapRestoring");
+  try {
+    await window.CdvPurchase.store.restorePurchases();
+    await loadEntitlement();
+  } finally {
+    btnIapRestore.disabled = false;
+    updateIapPanel();
+  }
+});
 
 const btnSearchHistory = document.getElementById("btnSearchHistory");
 const searchPanelOverlay = document.getElementById("searchPanelOverlay");
