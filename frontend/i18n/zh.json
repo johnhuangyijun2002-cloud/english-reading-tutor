@@ -185,6 +185,14 @@
     "googleRedirecting": "跳转到 Google 授权页...",
     "googleLinkFailed": "关联失败：{message}",
     "googleLinkSuccess": "Google 账号关联成功，以后用 Google 登录也能看到这个账号下的内容",
+    "appleLink": "Apple 账号关联",
+    "appleLinkBtn": "关联 Apple 账号",
+    "appleLinkBtnRelink": "重新关联/换绑",
+    "appleLinkedStatus": "已关联：{email}",
+    "appleUnlinkedStatus": "还没关联，只能用用户名密码登录",
+    "appleRedirecting": "跳转到 Apple 授权页...",
+    "appleLinkFailed": "关联失败：{message}",
+    "appleLinkSuccess": "Apple 账号关联成功，以后用 Apple 登录也能看到这个账号下的内容",
     "logout": "退出登录",
     "accountData": "账号数据",
     "exportData": "导出我的数据",
@@ -223,6 +231,7 @@
     "registerFailed": "注册失败：{message}",
     "or": "或",
     "googleLogin": "用 Google 登录",
+    "appleLogin": "用 Apple 登录",
     "legalPrefix": "继续即表示你同意",
     "terms": "服务条款",
     "and": "和",
@@ -387,5 +396,11 @@
     "next": "下一个",
     "done": "知道了",
     "skip": "跳过"
+  },
+  "offline": {
+    "banner": "离线中——显示的是上次联网时同步的内容"
+  },
+  "notifications": {
+    "reviewDue": "你有 {count} 个单词待复习"
   }
 }

@@ -185,6 +185,14 @@
     "googleRedirecting": "Redirecting to Google sign-in...",
     "googleLinkFailed": "Linking failed: {message}",
     "googleLinkSuccess": "Google account linked. You can now sign in with Google to access this account.",
+    "appleLink": "Apple Account Link",
+    "appleLinkBtn": "Link Apple Account",
+    "appleLinkBtnRelink": "Re-link / switch account",
+    "appleLinkedStatus": "Linked: {email}",
+    "appleUnlinkedStatus": "Not linked — can only sign in with username/password",
+    "appleRedirecting": "Redirecting to Apple sign-in...",
+    "appleLinkFailed": "Linking failed: {message}",
+    "appleLinkSuccess": "Apple account linked. You can now sign in with Apple to access this account.",
     "logout": "Log Out",
     "accountData": "Account Data",
     "exportData": "Export My Data",
@@ -223,6 +231,7 @@
     "registerFailed": "Registration failed: {message}",
     "or": "or",
     "googleLogin": "Sign in with Google",
+    "appleLogin": "Sign in with Apple",
     "legalPrefix": "By continuing you agree to the ",
     "terms": "Terms of Service",
     "and": " and ",
@@ -387,5 +396,11 @@
     "next": "Next",
     "done": "Got it",
     "skip": "Skip"
+  },
+  "offline": {
+    "banner": "Offline — showing content from the last time you were online"
+  },
+  "notifications": {
+    "reviewDue": "You have {count} words due for review"
   }
 }

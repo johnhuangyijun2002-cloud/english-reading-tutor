@@ -1,6 +1,164 @@
 let authToken = localStorage.getItem("authToken") || "";
 let currentUser = null; // {id, name, is_owner}
 
+// iOS App 壳(Capacitor)里本地打包的静态资源和真实后端不同源，/api/xxx 请求需要
+// 加上绝对地址前缀；网页版 native-config.js 里这个值是空字符串，行为不变。
+const API_BASE = window.CONTEXTIA_API_BASE || "";
+
+function isNativeApp() {
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+
+// Google/Apple 登录跳转：网页版整页跳转到后端 OAuth 入口，跳回来的时候还是同一个
+// 标签页(location.href)。原生壳里不能这么干——那样是把 App 自己的 WebView 导航去了
+// 后端域名，会离开打包进 App 的本地页面；改成用系统浏览器(@capacitor/browser，iOS 上是
+// ASWebAuthenticationSession/SFSafariViewController)打开登录页，成功后端会跳一个自定义
+// URL scheme 回 App，由下面注册的 appUrlOpen 监听器接住，见 finishOAuthCallback。
+function startOAuthFlow(loginPath) {
+  const native = isNativeApp();
+  const separator = loginPath.includes("?") ? "&" : "?";
+  const url = API_BASE + loginPath + (native ? `${separator}platform=ios` : "");
+  const browser = native && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+  if (browser) {
+    browser.open({ url });
+  } else {
+    location.href = url;
+  }
+}
+
+// ---------- 离线缓存(原生壳专用) ----------
+// 网页版本身就要联网才能打开，不需要这套；原生壳里网络断了也该能看已经存过的文章/生词/
+// 句子笔记，所以每次读接口成功都顺手写一份到设备本地文件(@capacitor/filesystem)，
+// 下次同样的读请求失败(网络断了、后端暂时挂了)时退回读这份本地缓存。
+const OFFLINE_CACHE_DIR = "offline-cache";
+const offlineBanner = document.getElementById("offlineBanner");
+
+function setOfflineBanner(active) {
+  if (offlineBanner) offlineBanner.classList.toggle("hidden", !active);
+}
+
+async function offlineCacheWrite(key, data) {
+  if (!isNativeApp()) return;
+  try {
+    await window.Capacitor.Plugins.Filesystem.writeFile({
+      path: `${OFFLINE_CACHE_DIR}/${key}.json`,
+      data: JSON.stringify(data),
+      directory: "DATA",
+      encoding: "utf8",
+      recursive: true,
+    });
+  } catch (err) {
+    // 写缓存失败(比如设备存储满了)不影响正常使用，安静忽略
+  }
+}
+
+async function offlineCacheRead(key) {
+  if (!isNativeApp()) return null;
+  try {
+    const result = await window.Capacitor.Plugins.Filesystem.readFile({
+      path: `${OFFLINE_CACHE_DIR}/${key}.json`,
+      directory: "DATA",
+      encoding: "utf8",
+    });
+    return JSON.parse(result.data);
+  } catch (err) {
+    return null; // 还没缓存过，或者缓存文件读不出来——当没有缓存处理
+  }
+}
+
+// 统一的"读数据，拿不到就退回上次缓存"包装：网络请求失败、或者后端返回错误状态，
+// 只要本地有上次成功缓存过的内容，都退回显示那份缓存(并标记离线横幅)，而不是直接报错。
+async function fetchJsonWithOfflineCache(path, cacheKey) {
+  try {
+    const res = await apiFetch(path);
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    const data = await res.json();
+    offlineCacheWrite(cacheKey, data);
+    setOfflineBanner(false);
+    return data;
+  } catch (err) {
+    const cached = await offlineCacheRead(cacheKey);
+    if (cached !== null) {
+      setOfflineBanner(true);
+      return cached;
+    }
+    throw err;
+  }
+}
+
+async function getVocabAndNotes() {
+  try {
+    const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
+    if (!vocabRes.ok || !notesRes.ok) throw new Error("couldn't load vocab/sentence notes");
+    const vocab = await vocabRes.json();
+    const notes = await notesRes.json();
+    offlineCacheWrite("vocab", vocab);
+    offlineCacheWrite("sentence_notes", notes);
+    setOfflineBanner(false);
+    return { vocab, notes };
+  } catch (err) {
+    const [cachedVocab, cachedNotes] = await Promise.all([
+      offlineCacheRead("vocab"),
+      offlineCacheRead("sentence_notes"),
+    ]);
+    if (cachedVocab !== null && cachedNotes !== null) {
+      setOfflineBanner(true);
+      return { vocab: cachedVocab, notes: cachedNotes };
+    }
+    throw err;
+  }
+}
+
+// ---------- 推送通知(本地通知，原生壳专用) ----------
+// 用 @capacitor/local-notifications 在设备本地预约通知，提醒"有 N 个单词待复习"——
+// 跟间隔重复复习功能直接挂钩，不需要 APNs 推送证书，也不需要后端另外搭一套推送队列。
+// 每次 App 打开时，用当前的待复习总数重新预约未来几天每天一条提醒(先撤销旧的预约，
+// 避免数字过期)。已知局限：这是"预约"出来的通知，不是服务端主动推送——如果用户连续
+// 超过 REVIEW_REMINDER_DAYS 天不打开 App，预约会用完，得下次打开才重新续上；预约的
+// 这几天里数字也是打开 App 那一刻的快照，中途复习掉一些也不会实时更新通知里的数字。
+// 真正做到"无论多久不开都能收到实时提醒"需要服务端 APNs 推送，工作量大很多，等后面
+// 有需要再做。
+const REVIEW_REMINDER_DAYS = 7;
+const REVIEW_REMINDER_HOUR = 10; // 每天提醒的本地时间(24 小时制)
+const REVIEW_REMINDER_ID_BASE = 9000;
+
+async function scheduleReviewReminders() {
+  if (!isNativeApp()) return;
+  const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+  if (!LocalNotifications) return;
+  try {
+    let perm = await LocalNotifications.checkPermissions();
+    if (perm.display !== "granted") {
+      perm = await LocalNotifications.requestPermissions();
+    }
+    if (perm.display !== "granted") return;
+
+    await LocalNotifications.cancel({
+      notifications: Array.from({ length: REVIEW_REMINDER_DAYS }, (_, i) => ({ id: REVIEW_REMINDER_ID_BASE + i })),
+    });
+
+    const res = await apiFetch("/api/review/due-counts");
+    const counts = res.ok ? await res.json() : {};
+    const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    if (total <= 0) return;
+
+    const notifications = Array.from({ length: REVIEW_REMINDER_DAYS }, (_, i) => {
+      const at = new Date();
+      at.setDate(at.getDate() + i + 1);
+      at.setHours(REVIEW_REMINDER_HOUR, 0, 0, 0);
+      return {
+        id: REVIEW_REMINDER_ID_BASE + i,
+        title: "Contextia",
+        body: t("notifications.reviewDue", { count: total }),
+        schedule: { at },
+      };
+    });
+    await LocalNotifications.schedule({ notifications });
+  } catch (err) {
+    // 通知预约失败(比如用户拒绝了权限)不影响正常使用，安静忽略
+  }
+}
+
 // ---------- 图标(全站禁用 emoji，统一用 lucide 线条图标) ----------
 // 见 DESIGN_GUIDELINES.md：UI 里任何地方需要图标/图形提示，一律从这里取，不能直接写 emoji 字符。
 const ICON_PATHS = {
@@ -165,7 +323,7 @@ function apiFetch(url, opts = {}) {
   const headers = { ...(opts.headers || {}), Authorization: `Bearer ${authToken}` };
   // GET 请求默认可能被浏览器按 URL 缓存，Authorization header 不同也可能命中旧缓存，
   // 导致登出/换账号后读到别人或者已登出状态下的数据 —— 强制不缓存。
-  return fetch(url, { ...opts, headers, cache: "no-store" }).then((res) => {
+  return fetch(API_BASE + url, { ...opts, headers, cache: "no-store" }).then((res) => {
     // session token 现在有过期时间了(30天)，正常使用中途过期的话，服务端会返回 401，
     // 这里统一兜底：清掉本地 token 并刷新页面，回到登录页重新登录，而不是让后续操作
     // 一直报奇怪的错。
@@ -375,6 +533,8 @@ const changePasswordStatus = document.getElementById("changePasswordStatus");
 
 const googleLinkStatus = document.getElementById("googleLinkStatus");
 const btnLinkGoogle = document.getElementById("btnLinkGoogle");
+const appleLinkStatus = document.getElementById("appleLinkStatus");
+const btnLinkApple = document.getElementById("btnLinkApple");
 
 const btnExportData = document.getElementById("btnExportData");
 const btnDeleteAccount = document.getElementById("btnDeleteAccount");
@@ -423,7 +583,7 @@ btnForgotPasswordSubmit.addEventListener("click", async () => {
   btnForgotPasswordSubmit.disabled = true;
   forgotPasswordStatus.textContent = t("common.saving");
   try {
-    const res = await fetch("/api/forgot-password", {
+    const res = await fetch(API_BASE + "/api/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
@@ -444,7 +604,7 @@ btnResetPasswordSubmit.addEventListener("click", async () => {
   btnResetPasswordSubmit.disabled = true;
   resetPasswordStatus.textContent = t("common.saving");
   try {
-    const res = await fetch("/api/reset-password", {
+    const res = await fetch(API_BASE + "/api/reset-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: pendingResetToken, new_password: newPassword }),
@@ -474,7 +634,7 @@ let turnstileToken = "";
 
 function initTurnstile(retries = 25) {
   if (window.turnstile) {
-    fetch("/api/config", { cache: "no-store" })
+    fetch(API_BASE + "/api/config", { cache: "no-store" })
       .then((r) => r.json())
       .then((cfg) => {
         if (!cfg.turnstile_site_key || turnstileWidgetId !== null) return;
@@ -498,8 +658,7 @@ function resetTurnstile() {
 // ---------- 文档列表 / 加载 ----------
 
 async function refreshDocuments(selectId) {
-  const res = await apiFetch("/api/documents");
-  allDocs = await res.json();
+  allDocs = await fetchJsonWithOfflineCache("/api/documents", "documents");
   docSelect.innerHTML = "";
   allDocs.forEach((d) => {
     const opt = document.createElement("option");
@@ -965,8 +1124,7 @@ btnProJoinWaitlist.addEventListener("click", async () => {
 // ---------- 已学生词高亮 ----------
 
 async function loadKnownWords() {
-  const res = await apiFetch("/api/vocab");
-  const vocab = await res.json();
+  const { vocab } = await getVocabAndNotes();
   knownWordsMap = new Map();
   vocab.forEach((v) => {
     const key = (v.word || "").trim().toLowerCase();
@@ -2058,9 +2216,7 @@ function showNoDocumentState() {
 async function renderHistoryForDoc(docName) {
   annotationList.innerHTML = "";
 
-  const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
-  const vocab = await vocabRes.json();
-  const notes = await notesRes.json();
+  const { vocab, notes } = await getVocabAndNotes();
 
   const combined = [
     ...vocab.map((v) => ({ ...v, mode: "word" })),
@@ -2521,9 +2677,7 @@ function endReviewSession(completed) {
 btnReviewExit.addEventListener("click", () => endReviewSession(false));
 
 async function loadSearchData() {
-  const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
-  const vocab = await vocabRes.json();
-  const notes = await notesRes.json();
+  const { vocab, notes } = await getVocabAndNotes();
   searchDataCache = [
     ...vocab.map((v) => ({ ...v, mode: "word" })),
     ...notes.map((n) => ({ ...n, mode: "passage" })),
@@ -2798,9 +2952,9 @@ btnPrint.addEventListener("click", async () => {
   const originalLabel = btnPrint.textContent;
   btnPrint.textContent = t("print.preparing");
   try {
-    const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
-    const vocab = (await vocabRes.json()).filter((v) => v.source_doc === currentDocName);
-    const notes = (await notesRes.json()).filter((n) => n.source_doc === currentDocName);
+    const { vocab: allVocab, notes: allNotes } = await getVocabAndNotes();
+    const vocab = allVocab.filter((v) => v.source_doc === currentDocName);
+    const notes = allNotes.filter((n) => n.source_doc === currentDocName);
     buildPrintArea(vocab, notes);
     window.print();
   } catch (err) {
@@ -3024,6 +3178,11 @@ async function loadSettingsIntoPanel() {
     ? t("settings.googleLinkedStatus", { email: data.google_email })
     : t("settings.googleUnlinkedStatus");
   btnLinkGoogle.textContent = data.has_google ? t("settings.googleLinkBtnRelink") : t("settings.googleLinkBtn");
+
+  appleLinkStatus.textContent = data.has_apple
+    ? t("settings.appleLinkedStatus", { email: data.apple_email })
+    : t("settings.appleUnlinkedStatus");
+  btnLinkApple.textContent = data.has_apple ? t("settings.appleLinkBtnRelink") : t("settings.appleLinkBtn");
 }
 
 btnLinkGoogle.addEventListener("click", async () => {
@@ -3033,7 +3192,7 @@ btnLinkGoogle.addEventListener("click", async () => {
     const res = await apiFetch("/api/auth/google/link-init", { method: "POST" });
     if (!res.ok) throw new Error(await apiErrorText(res));
     const data = await res.json();
-    location.href = "/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce);
+    startOAuthFlow("/api/auth/google/login?link_nonce=" + encodeURIComponent(data.nonce));
   } catch (err) {
     googleLinkStatus.textContent = t("settings.googleLinkFailed", { message: err.message });
     btnLinkGoogle.disabled = false;
@@ -3307,7 +3466,7 @@ window.addEventListener("resize", () => {
 
 async function checkToken(token) {
   try {
-    const res = await fetch("/api/me", {
+    const res = await fetch(API_BASE + "/api/me", {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
@@ -3323,6 +3482,7 @@ async function initApp() {
   refreshDocuments();
   loadUsage();
   loadStats();
+  scheduleReviewReminders();
 }
 
 async function enterApp(token, me) {
@@ -3333,6 +3493,40 @@ async function enterApp(token, me) {
   if (me.ui_language && me.ui_language !== currentUiLanguage) await loadI18n(me.ui_language);
   loginOverlay.classList.add("hidden");
   initApp();
+}
+
+// 处理 Google/Apple OAuth 跳回来带的 "token=...&google_linked=1" 这种 hash 片段。
+// 网页版是页面加载时从 location.hash 里读；原生壳里是从 appUrlOpen 的自定义 URL scheme
+// 里读，两边内容格式一样，共用这一个函数。返回 true 表示确实处理了一个登录/关联。
+async function finishOAuthCallback(hash) {
+  const hashMatch = hash.match(/token=([^&]+)/);
+  if (!hashMatch) return false;
+  const token = decodeURIComponent(hashMatch[1]);
+  const me = await checkToken(token);
+  if (!me) return false;
+  await enterApp(token, me);
+  if (/(^|&)google_linked=1/.test(hash)) {
+    alert(t("settings.googleLinkSuccess"));
+    btnAccountSettings.click();
+  } else if (/(^|&)apple_linked=1/.test(hash)) {
+    alert(t("settings.appleLinkSuccess"));
+    btnAccountSettings.click();
+  } else {
+    startNavTour();
+  }
+  return true;
+}
+
+// 只有原生壳(Capacitor)里才会触发：系统浏览器里的 Google/Apple 登录成功后，后端跳转
+// 到 com.contextia.app://oauth-callback#token=...，操作系统把这个 deep link 转给 App，
+// appUrlOpen 事件里的 url 就是完整的这个自定义 scheme 地址。
+if (isNativeApp() && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+  window.Capacitor.Plugins.App.addListener("appUrlOpen", async (data) => {
+    const hashIndex = (data.url || "").indexOf("#");
+    if (hashIndex === -1) return;
+    if (window.Capacitor.Plugins.Browser) window.Capacitor.Plugins.Browser.close().catch(() => {});
+    await finishOAuthCallback(data.url.slice(hashIndex + 1));
+  });
 }
 
 function showWelcomeModal(data) {
@@ -3359,7 +3553,7 @@ btnLoginSubmit.addEventListener("click", async () => {
   btnRegisterSubmit.disabled = true;
   loginError.classList.add("hidden");
   try {
-    const res = await fetch("/api/login", {
+    const res = await fetch(API_BASE + "/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, turnstile_token: turnstileToken }),
@@ -3394,7 +3588,7 @@ btnRegisterSubmit.addEventListener("click", async () => {
   btnRegisterSubmit.disabled = true;
   loginError.classList.add("hidden");
   try {
-    const res = await fetch("/api/register", {
+    const res = await fetch(API_BASE + "/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, email, turnstile_token: turnstileToken, ui_language: currentUiLanguage }),
@@ -3421,7 +3615,25 @@ loginPasswordInput.addEventListener("keydown", (e) => {
 });
 
 btnGoogleLogin.addEventListener("click", () => {
-  location.href = "/api/auth/google/login";
+  startOAuthFlow("/api/auth/google/login");
+});
+
+btnAppleLogin.addEventListener("click", () => {
+  startOAuthFlow("/api/auth/apple/login");
+});
+
+btnLinkApple.addEventListener("click", async () => {
+  btnLinkApple.disabled = true;
+  appleLinkStatus.textContent = t("settings.appleRedirecting");
+  try {
+    const res = await apiFetch("/api/auth/apple/link-init", { method: "POST" });
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    const data = await res.json();
+    startOAuthFlow("/api/auth/apple/login?link_nonce=" + encodeURIComponent(data.nonce));
+  } catch (err) {
+    appleLinkStatus.textContent = t("settings.appleLinkFailed", { message: err.message });
+    btnLinkApple.disabled = false;
+  }
 });
 
 (async () => {
@@ -3439,23 +3651,12 @@ btnGoogleLogin.addEventListener("click", () => {
     return;
   }
 
-  // Google 登录/关联跳回来的时候，token 会带在地址栏的 #token=... 里
-  const hashMatch = location.hash.match(/token=([^&]+)/);
-  const justLinkedGoogle = /(^|&)google_linked=1/.test(location.hash);
-  if (hashMatch) {
-    const token = decodeURIComponent(hashMatch[1]);
+  // Google/Apple 登录或关联跳回来的时候，token 会带在地址栏的 #token=... 里(网页版专属；
+  // 原生壳里走的是 appUrlOpen 那条路径，见上面 finishOAuthCallback 旁边的监听器)
+  if (location.hash) {
+    const hash = location.hash;
     history.replaceState(null, "", location.pathname + location.search);
-    const me = await checkToken(token);
-    if (me) {
-      await enterApp(token, me);
-      if (justLinkedGoogle) {
-        alert(t("settings.googleLinkSuccess"));
-        btnAccountSettings.click();
-      } else {
-        startNavTour();
-      }
-      return;
-    }
+    if (await finishOAuthCallback(hash)) return;
   }
 
   if (authToken) {

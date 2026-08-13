@@ -186,6 +186,23 @@ body {
   }
 }
 
+/* 只有原生 App 壳离线兜底显示缓存内容时才会出现，网页版永远不会触发(见 app.js 的
+   setOfflineBanner) */
+#offlineBanner {
+  position: sticky;
+  top: 0;
+  z-index: 101;
+  text-align: center;
+  font-size: 12px;
+  padding: 6px 12px;
+  background: #ff9500;
+  color: #fff;
+}
+
+#offlineBanner.hidden {
+  display: none;
+}
+
 .topbar-brand {
   display: flex;
   align-items: center;
@@ -2610,7 +2627,8 @@ body {
   background: var(--border);
 }
 
-.loginGoogleBtn {
+.loginGoogleBtn,
+.loginAppleBtn {
   width: 100%;
 }
 

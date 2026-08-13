@@ -18,6 +18,8 @@ from cryptography.fernet import Fernet, InvalidToken
 import httpx
 import jieba
 import jieba.posseg as pseg
+import jwt
+from jwt import PyJWKClient
 from janome.tokenizer import Tokenizer as JanomeTokenizer
 import pdfplumber
 import trafilatura
@@ -55,6 +57,23 @@ SHEETS_TOKEN = os.environ.get("SHEETS_TOKEN", "")
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+
+# Sign in with Apple：iOS App 里有 Google 登录，苹果审核要求必须同时提供 Apple 登录
+# (guideline 4.8)。跟 Google 走的是同一套 OAuth authorization-code 流程，但 client_secret
+# 不是固定字符串，而是每次现算的一个短期 JWT(用 Apple Developer 后台生成的 .p8 私钥签)。
+# APPLE_SERVICES_ID 是网页/混合应用登录用的 Services ID，跟 App 的 Bundle ID(com.contextia.app)
+# 是两个不同的标识，要在 Apple Developer 后台单独注册。
+APPLE_TEAM_ID = os.environ.get("APPLE_TEAM_ID", "")
+APPLE_SERVICES_ID = os.environ.get("APPLE_SERVICES_ID", "")
+APPLE_KEY_ID = os.environ.get("APPLE_KEY_ID", "")
+# .p8 私钥文件的完整 PEM 内容；有些托管平台的环境变量输入框会把换行压成字面 "\n"，
+# 用到的地方会自动把 "\n" 换回真正的换行符，两种粘贴方式都能用。
+APPLE_PRIVATE_KEY = os.environ.get("APPLE_PRIVATE_KEY", "")
+
+# 原生 App 壳(Capacitor)发起的 OAuth 登录，成功后不能像网页版那样跳回 /app.html——
+# 那样会跳到系统浏览器里的网页版，而不是跳回原生 App。原生登录时前端会带上
+# ?platform=ios，回调成功后改成跳这个自定义 URL scheme，原生壳监听 appUrlOpen 接住。
+NATIVE_APP_URL_SCHEME = "com.contextia.app"
 
 TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
@@ -174,6 +193,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT,
     google_id TEXT UNIQUE,
     google_email TEXT,
+    apple_id TEXT,
+    apple_email TEXT,
     is_owner BOOLEAN NOT NULL DEFAULT FALSE,
     ai_provider TEXT NOT NULL DEFAULT 'deepseek',
     ai_api_keys TEXT NOT NULL DEFAULT '{}',
@@ -197,6 +218,11 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_target_language TEXT NOT NU
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_source_priority TEXT NOT NULL DEFAULT 'vocab';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS immersion_exclude_proper_nouns BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_email TEXT;
+-- 用部分唯一索引而不是列级 UNIQUE 约束，这样才能用 IF NOT EXISTS 安全地对已有部署重复执行；
+-- WHERE apple_id IS NOT NULL 让没绑 Apple 账号的用户(apple_id 是 NULL)不受唯一性限制。
+CREATE UNIQUE INDEX IF NOT EXISTS users_apple_id_unique_idx ON users (apple_id) WHERE apple_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS house_usage (
     month TEXT PRIMARY KEY,
     calls INTEGER NOT NULL DEFAULT 0,
@@ -348,6 +374,11 @@ async def db_get_user_by_google_id(google_id: str) -> Optional[dict]:
     return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE google_id=$1", google_id))
 
 
+async def db_get_user_by_apple_id(apple_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE apple_id=$1", apple_id))
+
+
 async def db_get_user_by_email(email: str) -> Optional[dict]:
     pool = await get_pool()
     return _row_to_user(await pool.fetchrow("SELECT * FROM users WHERE lower(email)=lower($1)", email))
@@ -410,6 +441,8 @@ async def db_create_user(
     password_hash: Optional[str] = None,
     google_id: Optional[str] = None,
     google_email: Optional[str] = None,
+    apple_id: Optional[str] = None,
+    apple_email: Optional[str] = None,
     is_owner: bool = False,
     ai_provider: str = "deepseek",
     ai_api_keys: Optional[dict] = None,
@@ -419,10 +452,12 @@ async def db_create_user(
     pool = await get_pool()
     await pool.execute(
         """INSERT INTO users (id, name, username, password_salt, password_hash, google_id, google_email,
-                               is_owner, ai_provider, ai_api_keys, sheets_sync_enabled, ui_language)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
+                               apple_id, apple_email, is_owner, ai_provider, ai_api_keys, sheets_sync_enabled,
+                               ui_language)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)""",
         id, name, username, password_salt, password_hash, google_id, google_email,
-        is_owner, ai_provider, json.dumps({k: _encrypt_key(v) for k, v in (ai_api_keys or {}).items()}),
+        apple_id, apple_email, is_owner, ai_provider,
+        json.dumps({k: _encrypt_key(v) for k, v in (ai_api_keys or {}).items()}),
         sheets_sync_enabled, ui_language,
     )
     return await db_get_user_by_id(id)
@@ -1301,7 +1336,7 @@ async def delete_account(request: Request, user: dict = Depends(get_current_user
 # 由于 OAuth 是整页跳转，中途拿不到 Authorization header，所以先用一个短期一次性 nonce
 # (通过已登录状态的 POST 请求换到)把"是谁在发起关联"这件事传过去，再带着 nonce 跳转。
 
-_pending_oauth_states: dict = {}  # state -> {"ts": 时间, "link_user_id": 关联目标账号id或None}
+_pending_oauth_states: dict = {}  # state -> {"ts": 时间, "link_user_id": 关联目标账号id或None, "platform": ""或"ios"}
 _pending_link_nonces: dict = {}  # nonce -> {"ts": 时间, "user_id": ...}
 
 
@@ -1312,11 +1347,23 @@ def _cleanup_stale(d: dict, max_age_seconds: int = 600):
         d.pop(k, None)
 
 
-def _new_oauth_state(link_user_id: Optional[str] = None) -> str:
+def _new_oauth_state(link_user_id: Optional[str] = None, platform: str = "") -> str:
     _cleanup_stale(_pending_oauth_states)
     state = secrets.token_urlsafe(16)
-    _pending_oauth_states[state] = {"ts": datetime.now(timezone.utc), "link_user_id": link_user_id}
+    _pending_oauth_states[state] = {
+        "ts": datetime.now(timezone.utc), "link_user_id": link_user_id, "platform": platform,
+    }
     return state
+
+
+def _oauth_success_redirect(platform: str, token: str, extra_hash_params: str = "") -> RedirectResponse:
+    # 网页版整页跳回 /app.html，靠 URL fragment 里的 token 完成登录(见 app.js 里解析
+    # location.hash 那段)。原生壳里不能这么跳——那样是跳进系统浏览器里的网页版，不是
+    # 跳回 App，所以改跳一个自定义 URL scheme，原生壳里 App 插件的 appUrlOpen 监听器接住。
+    suffix = f"&{extra_hash_params}" if extra_hash_params else ""
+    if platform == "ios":
+        return RedirectResponse(f"{NATIVE_APP_URL_SCHEME}://oauth-callback#token={token}{suffix}")
+    return RedirectResponse(f"/app.html#token={token}{suffix}")
 
 
 @app.post("/api/auth/google/link-init")
@@ -1329,7 +1376,7 @@ async def google_link_init(request: Request, user: dict = Depends(get_current_us
 
 
 @app.get("/api/auth/google/login")
-async def google_login(request: Request, link_nonce: str = ""):
+async def google_login(request: Request, link_nonce: str = "", platform: str = ""):
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(500, "This deployment hasn't configured Google sign-in (missing GOOGLE_CLIENT_ID)")
 
@@ -1340,7 +1387,7 @@ async def google_login(request: Request, link_nonce: str = ""):
             raise HTTPException(400, "This link request has expired, go back to Settings and try again")
         link_user_id = entry["user_id"]
 
-    state = _new_oauth_state(link_user_id=link_user_id)
+    state = _new_oauth_state(link_user_id=link_user_id, platform=platform)
     redirect_uri = str(request.base_url) + "api/auth/google/callback"
     params = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -1361,6 +1408,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         raise HTTPException(400, "Sign-in session expired, click \"Sign in with Google\" again")
     state_entry = _pending_oauth_states.pop(state)
     link_user_id = state_entry.get("link_user_id")
+    platform = state_entry.get("platform", "")
 
     redirect_uri = str(request.base_url) + "api/auth/google/callback"
     async with httpx.AsyncClient(timeout=15) as client:
@@ -1407,7 +1455,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         await db_update_user_fields(link_user_id, google_id=google_id, google_email=email)
         _audit("google_link", user_id=link_user_id, google_email=email)
         token = await db_create_session(link_user_id)
-        return RedirectResponse(f"/app.html#token={token}&google_linked=1")
+        return _oauth_success_redirect(platform, token, "google_linked=1")
 
     user = await db_get_user_by_google_id(google_id)
     if not user:
@@ -1422,7 +1470,165 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
         _audit("google_register", user_id=user["id"], google_email=email)
 
     token = await db_create_session(user["id"])
-    return RedirectResponse(f"/app.html#token={token}")
+    return _oauth_success_redirect(platform, token)
+
+
+# ---------- Apple 登录 / 关联(Sign in with Apple) ----------
+# 结构跟上面的 Google 登录基本对称，区别有两个：
+# 1. Apple 的 client_secret 不是固定字符串，是每次现算一个短期 JWT(见 _apple_client_secret)。
+# 2. 因为请求了 name/email scope，Apple 规定回调必须用 response_mode=form_post(POST 表单)，
+#    不能像 Google 那样简单地 GET 带 query string 回调。
+
+_apple_jwks_client = PyJWKClient("https://appleid.apple.com/auth/keys")
+
+
+def _apple_client_secret() -> str:
+    if not (APPLE_TEAM_ID and APPLE_SERVICES_ID and APPLE_KEY_ID and APPLE_PRIVATE_KEY):
+        raise HTTPException(
+            500,
+            "This deployment hasn't configured Sign in with Apple "
+            "(missing APPLE_TEAM_ID/APPLE_SERVICES_ID/APPLE_KEY_ID/APPLE_PRIVATE_KEY)",
+        )
+    now = datetime.now(timezone.utc)
+    private_key = APPLE_PRIVATE_KEY.replace("\\n", "\n")
+    return jwt.encode(
+        {
+            "iss": APPLE_TEAM_ID,
+            "iat": now,
+            "exp": now + timedelta(minutes=30),
+            "aud": "https://appleid.apple.com",
+            "sub": APPLE_SERVICES_ID,
+        },
+        private_key,
+        algorithm="ES256",
+        headers={"kid": APPLE_KEY_ID},
+    )
+
+
+@app.post("/api/auth/apple/link-init")
+@limiter.limit("10/minute")
+async def apple_link_init(request: Request, user: dict = Depends(get_current_user)):
+    _cleanup_stale(_pending_link_nonces)
+    nonce = secrets.token_urlsafe(24)
+    _pending_link_nonces[nonce] = {"ts": datetime.now(timezone.utc), "user_id": user["id"]}
+    return {"nonce": nonce}
+
+
+@app.get("/api/auth/apple/login")
+async def apple_login(request: Request, link_nonce: str = "", platform: str = ""):
+    if not APPLE_SERVICES_ID:
+        raise HTTPException(500, "This deployment hasn't configured Sign in with Apple (missing APPLE_SERVICES_ID)")
+
+    link_user_id = None
+    if link_nonce:
+        entry = _pending_link_nonces.pop(link_nonce, None)
+        if not entry:
+            raise HTTPException(400, "This link request has expired, go back to Settings and try again")
+        link_user_id = entry["user_id"]
+
+    state = _new_oauth_state(link_user_id=link_user_id, platform=platform)
+    redirect_uri = str(request.base_url) + "api/auth/apple/callback"
+    params = {
+        "client_id": APPLE_SERVICES_ID,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "response_mode": "form_post",
+        "scope": "name email",
+        "state": state,
+    }
+    return RedirectResponse("https://appleid.apple.com/auth/authorize?" + urlencode(params))
+
+
+@app.post("/api/auth/apple/callback")
+async def apple_callback(
+    request: Request,
+    code: str = Form(""),
+    state: str = Form(""),
+    error: str = Form(""),
+    user: str = Form(""),  # 只有账号第一次授权这个 App 的时候 Apple 才会带这个字段(JSON 字符串，含姓名)
+):
+    if error:
+        raise HTTPException(400, f"Sign in with Apple failed: {error}")
+    if not state or state not in _pending_oauth_states:
+        raise HTTPException(400, "Sign-in session expired, click \"Sign in with Apple\" again")
+    state_entry = _pending_oauth_states.pop(state)
+    link_user_id = state_entry.get("link_user_id")
+    platform = state_entry.get("platform", "")
+
+    redirect_uri = str(request.base_url) + "api/auth/apple/callback"
+    client_secret = _apple_client_secret()
+    async with httpx.AsyncClient(timeout=15) as client:
+        token_resp = await client.post(
+            "https://appleid.apple.com/auth/token",
+            data={
+                "code": code,
+                "client_id": APPLE_SERVICES_ID,
+                "client_secret": client_secret,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+        )
+    if token_resp.status_code != 200:
+        raise HTTPException(400, f"Failed to exchange Apple login token: {token_resp.text}")
+    id_token = token_resp.json().get("id_token", "")
+    if not id_token:
+        raise HTTPException(400, "Apple didn't return an id_token")
+
+    # id_token 是 Apple 签发的 JWT，用 Apple 公开的 JWKS 验证签名，而不是直接信任内容——
+    # 这一步确认 token 确实是 Apple 签的，没被中间篡改。
+    try:
+        signing_key = _apple_jwks_client.get_signing_key_from_jwt(id_token)
+        claims = jwt.decode(
+            id_token, signing_key.key, algorithms=["RS256"],
+            audience=APPLE_SERVICES_ID, issuer="https://appleid.apple.com",
+        )
+    except jwt.InvalidTokenError as exc:
+        raise HTTPException(400, f"Couldn't verify Apple account info: {exc}")
+
+    apple_id = claims.get("sub", "")
+    email = claims.get("email", "")
+    if not apple_id:
+        raise HTTPException(400, "Apple account info is missing a user ID")
+
+    # 姓名只在第一次授权时随 `user` 表单字段带过来一次，之后 Apple 不会再重复给，
+    # 拿不到就退化成邮箱、再退化成一个占位名字(跟 Google 那边的兜底逻辑一致)。
+    name = ""
+    if user:
+        try:
+            name_obj = json.loads(user).get("name") or {}
+            name = " ".join(filter(None, [name_obj.get("firstName"), name_obj.get("lastName")])).strip()
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    name = name or email or "Apple user"
+
+    if link_user_id:
+        # 关联流程，跟 Google 那边同样的逻辑：见上面 google_callback 里的中文注释。
+        target = await db_get_user_by_id(link_user_id)
+        if not target:
+            raise HTTPException(400, "The account you're linking no longer exists, sign in again and retry")
+        existing_owner = await db_get_user_by_apple_id(apple_id)
+        if existing_owner and existing_owner["id"] != link_user_id:
+            await db_update_user_fields(existing_owner["id"], apple_id=None, apple_email=None)
+            _audit("apple_unlink", user_id=existing_owner["id"], apple_email=email)
+        await db_update_user_fields(link_user_id, apple_id=apple_id, apple_email=email)
+        _audit("apple_link", user_id=link_user_id, apple_email=email)
+        token = await db_create_session(link_user_id)
+        return _oauth_success_redirect(platform, token, "apple_linked=1")
+
+    existing_user = await db_get_user_by_apple_id(apple_id)
+    if not existing_user:
+        user_count = await db_count_users()
+        existing_user = await db_create_user(
+            id="u_" + uuid.uuid4().hex[:10],
+            name=name,
+            apple_id=apple_id,
+            apple_email=email,
+            is_owner=(user_count == 0),
+        )
+        _audit("apple_register", user_id=existing_user["id"], apple_email=email)
+
+    token = await db_create_session(existing_user["id"])
+    return _oauth_success_redirect(platform, token)
 
 
 # ---------- 文档管理(粘贴文本 / 网址导入 / PDF·DOCX 上传，最终都存成统一的文字文档) ----------
@@ -2694,6 +2900,8 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "has_password": bool(user.get("password_hash")),
         "has_google": bool(user.get("google_id")),
         "google_email": user.get("google_email") or "",
+        "has_apple": bool(user.get("apple_id")),
+        "apple_email": user.get("apple_email") or "",
         "email": user.get("email") or "",
         "ai_provider": user.get("ai_provider", "deepseek"),
         "ai_key_status": {
