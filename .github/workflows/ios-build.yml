@@ -1,0 +1,60 @@
+name: iOS build check
+
+# 这个仓库所在的开发环境没有 Mac，写 iOS 原生代码只能靠语法/逻辑检查，从没真正编译过。
+# 这个 workflow 用 GitHub 提供的云端 macOS runner，在每次改动 mobile/ 或 frontend/ 时
+# 真正跑一次 `xcodebuild`(模拟器目标，不需要签名证书)，验证 Capacitor 配置、Info.plist、
+# 插件注册这些东西编译能不能通过。不做签名、不装真机/模拟器、不跑交互测试——那些需要
+# Apple Developer 账号和人工操作，CI 做不到。
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "mobile/**"
+      - "frontend/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "frontend/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Capacitor deps
+        run: npm ci
+
+      - name: Sync www + iOS project
+        run: npm run sync:ios
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Resolve Swift package dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project ios/App/App.xcodeproj \
+            -scheme App
+
+      - name: Build for iOS Simulator (no code signing)
+        run: |
+          xcodebuild build \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
