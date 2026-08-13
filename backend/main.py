@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import hashlib
 import hmac
 import io
@@ -12,6 +13,10 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 
+from appstoreserverlibrary.api_client import AppStoreServerAPIClient, APIException
+from appstoreserverlibrary.models.Environment import Environment as AppleEnvironment
+from appstoreserverlibrary.models.Status import Status as AppleSubscriptionStatus
+from appstoreserverlibrary.signed_data_verifier import SignedDataVerifier, VerificationException
 import asyncpg
 import feedparser
 from cryptography.fernet import Fernet, InvalidToken
@@ -74,6 +79,28 @@ APPLE_PRIVATE_KEY = os.environ.get("APPLE_PRIVATE_KEY", "")
 # 那样会跳到系统浏览器里的网页版，而不是跳回原生 App。原生登录时前端会带上
 # ?platform=ios，回调成功后改成跳这个自定义 URL scheme，原生壳监听 appUrlOpen 接住。
 NATIVE_APP_URL_SCHEME = "com.contextia.app"
+
+# Apple 内购(StoreKit)：iOS Pro 订阅解锁"不用自己填 AI Key"——订阅有效期内直接用站长的
+# HOUSE_AI_API_KEY，不受免费试用 10 次额度和月度预算的限制(见 resolve_ai_credentials)。
+# 用 Apple 官方的 app-store-server-library 校验交易/查订阅状态，不接第三方内购 SaaS，
+# 跟这个项目一贯的自托管风格一致。
+#
+# APPLE_IAP_KEY_ID / APPLE_IAP_ISSUER_ID / APPLE_IAP_PRIVATE_KEY 是 App Store Connect 里
+# 单独生成的 "In-App Purchase Key"，跟 Sign in with Apple 那个 key 是两回事。
+APPLE_BUNDLE_ID = "com.contextia.app"
+APPLE_IAP_KEY_ID = os.environ.get("APPLE_IAP_KEY_ID", "")
+APPLE_IAP_ISSUER_ID = os.environ.get("APPLE_IAP_ISSUER_ID", "")
+APPLE_IAP_PRIVATE_KEY = os.environ.get("APPLE_IAP_PRIVATE_KEY", "")
+# App 首次在 App Store Connect 建好之后才会有这个数字 ID，验证 Production 环境的收据要用到；
+# 沙盒测试不需要，账号/App 还没建好之前留空不影响开发。
+APPLE_APP_APPLE_ID = os.environ.get("APPLE_APP_APPLE_ID", "")
+# Pro 订阅商品在 App Store Connect 里配置时用的 Product ID，要跟这里保持一致。
+APPLE_PRO_PRODUCT_ID = os.environ.get("APPLE_PRO_PRODUCT_ID", "com.contextia.app.pro.monthly")
+# Apple 的根证书(.cer)，用来验证 App Store 返回的签名数据确实是 Apple 签的、没被篡改。
+# 去 https://www.apple.com/certificateauthority/ 下载 "Apple Root CA - G3 Root"，转成
+# base64(一行，比如 `base64 -i AppleRootCA-G3.cer | tr -d '\n'`)后填进来；
+# 多个证书用逗号分开。
+APPLE_IAP_ROOT_CERTS_BASE64 = os.environ.get("APPLE_IAP_ROOT_CERTS_BASE64", "")
 
 TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
@@ -228,6 +255,23 @@ CREATE TABLE IF NOT EXISTS house_usage (
     calls INTEGER NOT NULL DEFAULT 0,
     cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0
 );
+-- iOS Pro 订阅状态：一个用户最多一条(够用——不支持同一账号绑多个 Apple 订阅)。
+-- original_transaction_id 是同一次订阅(含续费)从始至终不变的标识，App Store Server
+-- Notifications webhook 靠它找到该更新哪一行(webhook 不知道是哪个 user_id，
+-- 只能通过用户之前用 /api/iap/sync 建立过的这个关联反查)。
+CREATE TABLE IF NOT EXISTS entitlements (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    source TEXT NOT NULL DEFAULT 'ios_iap',
+    product_id TEXT NOT NULL,
+    original_transaction_id TEXT NOT NULL,
+    latest_transaction_id TEXT,
+    status TEXT NOT NULL,
+    environment TEXT NOT NULL DEFAULT 'Production',
+    expires_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS entitlements_original_transaction_id_idx
+    ON entitlements (original_transaction_id);
 CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -836,6 +880,52 @@ async def db_record_house_usage(month: str, cost: float):
 async def db_increment_house_calls_used(user_id: str):
     pool = await get_pool()
     await pool.execute("UPDATE users SET house_calls_used = house_calls_used + 1 WHERE id=$1", user_id)
+
+
+async def db_get_entitlement(user_id: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow("SELECT * FROM entitlements WHERE user_id=$1", user_id)
+    return dict(row) if row else None
+
+
+async def db_has_active_entitlement(user_id: str) -> bool:
+    ent = await db_get_entitlement(user_id)
+    if not ent or ent["status"] != "active":
+        return False
+    if ent["expires_at"] and ent["expires_at"] < datetime.now(timezone.utc):
+        return False
+    return True
+
+
+async def db_upsert_entitlement_by_user(
+    user_id: str, product_id: str, original_transaction_id: str, latest_transaction_id: Optional[str],
+    status: str, environment: str, expires_at: Optional[datetime],
+):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO entitlements (user_id, product_id, original_transaction_id, latest_transaction_id,
+                                      status, environment, expires_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,now())
+           ON CONFLICT (user_id) DO UPDATE SET
+             product_id=$2, original_transaction_id=$3, latest_transaction_id=$4,
+             status=$5, environment=$6, expires_at=$7, updated_at=now()""",
+        user_id, product_id, original_transaction_id, latest_transaction_id, status, environment, expires_at,
+    )
+
+
+async def db_update_entitlement_by_original_transaction(
+    original_transaction_id: str, latest_transaction_id: Optional[str], status: str, expires_at: Optional[datetime],
+):
+    # App Store Server Notifications webhook 用——这时候不知道是哪个 user_id，只能靠
+    # original_transaction_id 找到之前 /api/iap/sync 建立的那一行去更新。如果这个
+    # original_transaction_id 从来没被同步关联过任何账号(比如用户还没打开过 App 走一遍
+    # 同步)，这里就什么都不做——等用户下次打开 App 走 /api/iap/sync 会重新建立关联。
+    pool = await get_pool()
+    await pool.execute(
+        """UPDATE entitlements SET latest_transaction_id=$2, status=$3, expires_at=$4, updated_at=now()
+           WHERE original_transaction_id=$1""",
+        original_transaction_id, latest_transaction_id, status, expires_at,
+    )
 
 
 async def db_delete_user(user_id: str):
@@ -1631,6 +1721,189 @@ async def apple_callback(
     return _oauth_success_redirect(platform, token)
 
 
+# ---------- Apple 内购(StoreKit) ----------
+# 用 Apple 官方的 app-store-server-library 校验订阅状态，不接第三方内购 SaaS。
+# 两条路径都会走到这里：
+#   1. App 内买完之后，前端主动调 /api/iap/sync 把 transaction id 发过来同步一次
+#   2. Apple 的 App Store Server Notifications V2 webhook 在续费/取消/退款时主动推给
+#      /api/iap/notifications，不用等用户再打开 App
+# 两条路径最终都落到同一张 entitlements 表。
+
+
+def _apple_iap_configured() -> bool:
+    return bool(APPLE_IAP_KEY_ID and APPLE_IAP_ISSUER_ID and APPLE_IAP_PRIVATE_KEY and APPLE_IAP_ROOT_CERTS_BASE64)
+
+
+_apple_iap_api_clients: dict = {}  # AppleEnvironment -> AppStoreServerAPIClient，懒加载缓存
+_apple_iap_verifiers: dict = {}  # AppleEnvironment -> SignedDataVerifier
+
+
+def _apple_iap_signing_key() -> bytes:
+    return APPLE_IAP_PRIVATE_KEY.replace("\\n", "\n").encode()
+
+
+def _apple_iap_root_certs() -> list:
+    return [base64.b64decode(c.strip()) for c in APPLE_IAP_ROOT_CERTS_BASE64.split(",") if c.strip()]
+
+
+def _apple_iap_api_client(environment: AppleEnvironment) -> AppStoreServerAPIClient:
+    if environment not in _apple_iap_api_clients:
+        _apple_iap_api_clients[environment] = AppStoreServerAPIClient(
+            _apple_iap_signing_key(), APPLE_IAP_KEY_ID, APPLE_IAP_ISSUER_ID, APPLE_BUNDLE_ID, environment,
+        )
+    return _apple_iap_api_clients[environment]
+
+
+def _apple_iap_verifier(environment: AppleEnvironment) -> SignedDataVerifier:
+    if environment not in _apple_iap_verifiers:
+        app_apple_id = int(APPLE_APP_APPLE_ID) if APPLE_APP_APPLE_ID else None
+        _apple_iap_verifiers[environment] = SignedDataVerifier(
+            _apple_iap_root_certs(), True, environment, APPLE_BUNDLE_ID, app_apple_id,
+        )
+    return _apple_iap_verifiers[environment]
+
+
+def _map_apple_status(status: Optional[AppleSubscriptionStatus]) -> str:
+    # BILLING_GRACE_PERIOD(续费扣款失败、Apple 给的宽限期)按 Apple 的建议照常提供服务，
+    # 归到 active 里；BILLING_RETRY(宽限期也过了，还在重试扣款)不算 active。
+    if status in (AppleSubscriptionStatus.ACTIVE, AppleSubscriptionStatus.BILLING_GRACE_PERIOD):
+        return "active"
+    if status == AppleSubscriptionStatus.REVOKED:
+        return "revoked"
+    if status == AppleSubscriptionStatus.BILLING_RETRY:
+        return "billing_retry"
+    return "expired"
+
+
+async def _fetch_subscription_status(transaction_id: str):
+    # 先按 Production 查；TestFlight/沙盒测试产生的 transaction id 在生产环境查不到，
+    # Apple 会返回 404，这时候退回 Sandbox 再查一次——这是 Apple 官方文档推荐的处理方式，
+    # 不需要客户端自己告诉后端"这是沙盒交易"。
+    try:
+        resp = _apple_iap_api_client(AppleEnvironment.PRODUCTION).get_all_subscription_statuses(transaction_id)
+        return resp, AppleEnvironment.PRODUCTION
+    except APIException as exc:
+        if exc.http_status_code != 404:
+            raise
+    resp = _apple_iap_api_client(AppleEnvironment.SANDBOX).get_all_subscription_statuses(transaction_id)
+    return resp, AppleEnvironment.SANDBOX
+
+
+async def _entitlement_response(user_id: str) -> dict:
+    ent = await db_get_entitlement(user_id)
+    return {
+        "is_pro": await db_has_active_entitlement(user_id),
+        "product_id": ent["product_id"] if ent else None,
+        "status": ent["status"] if ent else None,
+        "expires_at": ent["expires_at"].isoformat() if ent and ent["expires_at"] else None,
+    }
+
+
+@app.get("/api/entitlement")
+async def get_entitlement(user: dict = Depends(get_current_user)):
+    return await _entitlement_response(user["id"])
+
+
+class IAPSyncRequest(BaseModel):
+    transaction_id: str
+
+
+@app.post("/api/iap/sync")
+@limiter.limit("20/minute")
+async def iap_sync(request: Request, req: IAPSyncRequest, user: dict = Depends(get_current_user)):
+    if not _apple_iap_configured():
+        raise HTTPException(500, "This deployment hasn't configured Apple in-app purchases")
+
+    try:
+        status_resp, environment = await _fetch_subscription_status(req.transaction_id)
+    except APIException as exc:
+        raise HTTPException(400, f"Couldn't verify purchase with Apple: {exc.error_message or exc.http_status_code}")
+
+    # 拿到的是这个用户所有订阅群组的状态，只挑我们自己这个 Pro 商品那一条(同一个订阅群组
+    # 里只会有一条最新记录，理论上不会有多条同时匹配)。
+    verifier = _apple_iap_verifier(environment)
+    matched = None
+    for group in status_resp.data or []:
+        for txn in group.lastTransactions or []:
+            if not txn.signedTransactionInfo:
+                continue
+            try:
+                payload = verifier.verify_and_decode_signed_transaction(txn.signedTransactionInfo)
+            except VerificationException:
+                continue
+            if payload.productId == APPLE_PRO_PRODUCT_ID:
+                matched = (txn, payload)
+                break
+        if matched:
+            break
+
+    if not matched:
+        raise HTTPException(400, "No matching subscription found for this transaction")
+
+    txn, payload = matched
+    expires_at = (
+        datetime.fromtimestamp(payload.expiresDate / 1000, tz=timezone.utc) if payload.expiresDate else None
+    )
+    status = _map_apple_status(txn.status)
+    await db_upsert_entitlement_by_user(
+        user_id=user["id"],
+        product_id=payload.productId,
+        original_transaction_id=txn.originalTransactionId,
+        latest_transaction_id=payload.transactionId,
+        status=status,
+        environment=environment.value,
+        expires_at=expires_at,
+    )
+    _audit("iap_sync", user_id=user["id"], product_id=payload.productId, status=status)
+    return await _entitlement_response(user["id"])
+
+
+class IAPNotificationBody(BaseModel):
+    signedPayload: str
+
+
+@app.post("/api/iap/notifications")
+async def iap_notifications(body: IAPNotificationBody):
+    # 这个接口没有账号认证——是 Apple 服务器直接调用的 webhook，安全性靠验证
+    # signedPayload 的签名(SignedDataVerifier 会顺着证书链一路验到 Apple 的根证书)，
+    # 不是靠登录态。要在 App Store Connect 里把这个接口的完整 URL 配成
+    # "App Store Server Notifications V2" 的地址。
+    if not _apple_iap_configured():
+        raise HTTPException(500, "This deployment hasn't configured Apple in-app purchases")
+
+    payload = None
+    for environment in (AppleEnvironment.PRODUCTION, AppleEnvironment.SANDBOX):
+        try:
+            payload = _apple_iap_verifier(environment).verify_and_decode_notification(body.signedPayload)
+            break
+        except VerificationException:
+            continue
+    if payload is None:
+        raise HTTPException(400, "Couldn't verify notification signature")
+
+    data = payload.data
+    if not data or not data.signedTransactionInfo or not data.status:
+        return {"ok": True}  # 摘要类/不带交易状态的通知，没什么好同步的
+
+    txn_environment = data.environment or AppleEnvironment.PRODUCTION
+    txn_payload = _apple_iap_verifier(txn_environment).verify_and_decode_signed_transaction(data.signedTransactionInfo)
+    if not txn_payload.originalTransactionId:
+        return {"ok": True}
+
+    expires_at = (
+        datetime.fromtimestamp(txn_payload.expiresDate / 1000, tz=timezone.utc) if txn_payload.expiresDate else None
+    )
+    status = _map_apple_status(data.status)
+    await db_update_entitlement_by_original_transaction(
+        original_transaction_id=txn_payload.originalTransactionId,
+        latest_transaction_id=txn_payload.transactionId,
+        status=status,
+        expires_at=expires_at,
+    )
+    _audit("iap_notification", original_transaction_id=txn_payload.originalTransactionId, status=status)
+    return {"ok": True}
+
+
 # ---------- 文档管理(粘贴文本 / 网址导入 / PDF·DOCX 上传，最终都存成统一的文字文档) ----------
 
 # 学习语言自动检测：只按 Unicode 字符区间做粗略判断，不依赖任何第三方语言检测库。
@@ -2166,30 +2439,36 @@ async def call_ai(prompt: str, provider: str, api_key: str, user_id: str, json_m
 
 
 async def resolve_ai_credentials(user: dict):
-    """决定这次调用实际用谁的 key：优先用用户自己配置的；没配的话，如果还有公共
-    体验额度(账户没用满 10 次、当月公共预算没超)，就用站长的公共 key。
-    返回 (provider, api_key, using_house, blocked_reason)。api_key 为空时，
+    """决定这次调用实际用谁的 key：优先用用户自己配置的；没配的话，iOS Pro 订阅用户
+    直接用站长的公共 key(不受额度/预算限制)；否则看公共体验额度(账户没用满 10 次、
+    当月公共预算没超)，够的话也用站长的公共 key。
+    返回 (provider, api_key, house_reason, blocked_reason)。house_reason 是 None(用的是
+    用户自己的 key) / "trial"(公共体验额度) / "pro"(iOS Pro 订阅)。api_key 为空时，
     blocked_reason 是 "no_key" / "user_limit" / "global_budget" 之一，方便上层给出准确的提示。"""
     provider = user.get("ai_provider", "deepseek")
     own_key = user.get("ai_api_keys", {}).get(provider, "")
     if own_key:
-        return provider, own_key, False, None
+        return provider, own_key, None, None
 
     if not HOUSE_AI_API_KEY:
-        return provider, "", False, "no_key"
+        return provider, "", None, "no_key"
+
+    if await db_has_active_entitlement(user["id"]):
+        return HOUSE_AI_PROVIDER, HOUSE_AI_API_KEY, "pro", None
+
     if user.get("house_calls_used", 0) >= HOUSE_FREE_CALLS_PER_USER:
-        return provider, "", False, "user_limit"
+        return provider, "", None, "user_limit"
 
     month_key = datetime.now().strftime("%Y-%m")
     house_usage = await db_get_house_usage(month_key)
     if house_usage["cost_usd"] >= HOUSE_MONTHLY_BUDGET_USD:
-        return provider, "", False, "global_budget"
+        return provider, "", None, "global_budget"
 
-    return HOUSE_AI_PROVIDER, HOUSE_AI_API_KEY, True, None
+    return HOUSE_AI_PROVIDER, HOUSE_AI_API_KEY, "trial", None
 
 
 async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> str:
-    provider, api_key, using_house, blocked_reason = await resolve_ai_credentials(user)
+    provider, api_key, house_reason, blocked_reason = await resolve_ai_credentials(user)
     if not api_key:
         if blocked_reason == "user_limit":
             raise HTTPException(
@@ -2199,17 +2478,19 @@ async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> 
             raise HTTPException(400, "The shared free trial budget is used up for this month — add your own AI key in Settings to keep going")
         raise HTTPException(400, "No AI API key configured yet — add one in Settings")
 
-    relay_base_url = "" if using_house else (user.get("ai_relay_base_url") or "")
-    relay_model = "" if using_house else (user.get("ai_relay_model") or "")
+    relay_base_url = "" if house_reason else (user.get("ai_relay_base_url") or "")
+    relay_model = "" if house_reason else (user.get("ai_relay_model") or "")
     text, cost = await call_ai(
         prompt, provider, api_key, user["id"], json_mode=json_mode,
         relay_base_url=relay_base_url, relay_model=relay_model,
     )
 
-    if using_house:
+    if house_reason == "trial":
         await db_increment_house_calls_used(user["id"])
         month_key = datetime.now().strftime("%Y-%m")
         await db_record_house_usage(month_key, cost)
+    # house_reason == "pro"：Pro 订阅用户走站长 key，但不计入体验额度/体验月度预算——
+    # 这两个是为免费试用设计的，不该被付费订阅的用量占用。
 
     return text
 

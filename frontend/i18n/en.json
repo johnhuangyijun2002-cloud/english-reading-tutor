@@ -385,7 +385,15 @@
     "alreadyJoined": "You're already on the waitlist",
     "supportLabel": "Already love Contextia?",
     "supportHint": "If it's been useful, you can support development directly — completely optional, no extra features unlocked.",
-    "supportCta": "Support the project"
+    "supportCta": "Support the project",
+    "iapLabel": "Contextia Pro",
+    "iapSubscribe": "Subscribe",
+    "iapRestore": "Restore Purchases",
+    "iapRestoring": "Restoring purchases...",
+    "iapLoading": "Loading...",
+    "iapActiveStatus": "You're subscribed to Contextia Pro — unlimited AI lookups, no API key needed.",
+    "iapProductUnavailable": "Couldn't load the subscription — try again in a moment",
+    "iapPurchaseFailed": "Purchase failed: {message}"
   },
   "navTour": {
     "recommend": "AI recommends articles matched to your level — a good place to start.",

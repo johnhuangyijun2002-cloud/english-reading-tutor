@@ -385,7 +385,15 @@
     "alreadyJoined": "你已经在等待名单上了",
     "supportLabel": "已经觉得这个工具有用了？",
     "supportHint": "如果这个工具对你有帮助，可以直接支持一下开发——完全自愿，不会因此解锁任何额外功能。",
-    "supportCta": "支持这个项目"
+    "supportCta": "支持这个项目",
+    "iapLabel": "Contextia Pro",
+    "iapSubscribe": "订阅",
+    "iapRestore": "恢复购买",
+    "iapRestoring": "正在恢复购买...",
+    "iapLoading": "加载中...",
+    "iapActiveStatus": "你已经订阅 Contextia Pro——无限量 AI 解析，不需要自己的 API Key。",
+    "iapProductUnavailable": "订阅信息加载失败，稍后再试",
+    "iapPurchaseFailed": "购买失败：{message}"
   },
   "navTour": {
     "recommend": "AI 会按你的水平推荐文章，适合当作起点。",
