@@ -1665,8 +1665,8 @@ btnAddArticle.addEventListener("click", () => {
 // 出于版权顾虑，「AI 推荐」的"读这篇"不再自动抓正文，改成跳转到源网站
 // + 引导用户自己复制正文回来粘贴，这个函数就是那座桥。
 function openPasteFromExternal(pick) {
-  window.open(pick.url, "_blank", "noopener");
   alert(t("paste.fromExternalHint"));
+  window.open(pick.url, "_blank", "noopener");
   activePasteTab = "paste";
   pasteTabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === "paste"));
   document.querySelectorAll(".pasteTabContent").forEach((content) => {
