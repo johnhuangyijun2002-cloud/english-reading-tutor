@@ -396,5 +396,11 @@
     "next": "Next",
     "done": "Got it",
     "skip": "Skip"
+  },
+  "offline": {
+    "banner": "Offline — showing content from the last time you were online"
+  },
+  "notifications": {
+    "reviewDue": "You have {count} words due for review"
   }
 }

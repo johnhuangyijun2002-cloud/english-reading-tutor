@@ -396,5 +396,11 @@
     "next": "下一个",
     "done": "知道了",
     "skip": "跳过"
+  },
+  "offline": {
+    "banner": "离线中——显示的是上次联网时同步的内容"
+  },
+  "notifications": {
+    "reviewDue": "你有 {count} 个单词待复习"
   }
 }

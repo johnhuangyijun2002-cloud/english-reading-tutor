@@ -396,5 +396,11 @@
     "next": "다음",
     "done": "확인했어요",
     "skip": "건너뛰기"
+  },
+  "offline": {
+    "banner": "오프라인 — 마지막으로 온라인이었을 때의 콘텐츠를 표시하고 있어요"
+  },
+  "notifications": {
+    "reviewDue": "복습할 단어가 {count}개 있어요"
   }
 }

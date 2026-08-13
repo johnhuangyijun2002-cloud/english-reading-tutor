@@ -26,6 +26,139 @@ function startOAuthFlow(loginPath) {
   }
 }
 
+// ---------- 离线缓存(原生壳专用) ----------
+// 网页版本身就要联网才能打开，不需要这套；原生壳里网络断了也该能看已经存过的文章/生词/
+// 句子笔记，所以每次读接口成功都顺手写一份到设备本地文件(@capacitor/filesystem)，
+// 下次同样的读请求失败(网络断了、后端暂时挂了)时退回读这份本地缓存。
+const OFFLINE_CACHE_DIR = "offline-cache";
+const offlineBanner = document.getElementById("offlineBanner");
+
+function setOfflineBanner(active) {
+  if (offlineBanner) offlineBanner.classList.toggle("hidden", !active);
+}
+
+async function offlineCacheWrite(key, data) {
+  if (!isNativeApp()) return;
+  try {
+    await window.Capacitor.Plugins.Filesystem.writeFile({
+      path: `${OFFLINE_CACHE_DIR}/${key}.json`,
+      data: JSON.stringify(data),
+      directory: "DATA",
+      encoding: "utf8",
+      recursive: true,
+    });
+  } catch (err) {
+    // 写缓存失败(比如设备存储满了)不影响正常使用，安静忽略
+  }
+}
+
+async function offlineCacheRead(key) {
+  if (!isNativeApp()) return null;
+  try {
+    const result = await window.Capacitor.Plugins.Filesystem.readFile({
+      path: `${OFFLINE_CACHE_DIR}/${key}.json`,
+      directory: "DATA",
+      encoding: "utf8",
+    });
+    return JSON.parse(result.data);
+  } catch (err) {
+    return null; // 还没缓存过，或者缓存文件读不出来——当没有缓存处理
+  }
+}
+
+// 统一的"读数据，拿不到就退回上次缓存"包装：网络请求失败、或者后端返回错误状态，
+// 只要本地有上次成功缓存过的内容，都退回显示那份缓存(并标记离线横幅)，而不是直接报错。
+async function fetchJsonWithOfflineCache(path, cacheKey) {
+  try {
+    const res = await apiFetch(path);
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    const data = await res.json();
+    offlineCacheWrite(cacheKey, data);
+    setOfflineBanner(false);
+    return data;
+  } catch (err) {
+    const cached = await offlineCacheRead(cacheKey);
+    if (cached !== null) {
+      setOfflineBanner(true);
+      return cached;
+    }
+    throw err;
+  }
+}
+
+async function getVocabAndNotes() {
+  try {
+    const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
+    if (!vocabRes.ok || !notesRes.ok) throw new Error("couldn't load vocab/sentence notes");
+    const vocab = await vocabRes.json();
+    const notes = await notesRes.json();
+    offlineCacheWrite("vocab", vocab);
+    offlineCacheWrite("sentence_notes", notes);
+    setOfflineBanner(false);
+    return { vocab, notes };
+  } catch (err) {
+    const [cachedVocab, cachedNotes] = await Promise.all([
+      offlineCacheRead("vocab"),
+      offlineCacheRead("sentence_notes"),
+    ]);
+    if (cachedVocab !== null && cachedNotes !== null) {
+      setOfflineBanner(true);
+      return { vocab: cachedVocab, notes: cachedNotes };
+    }
+    throw err;
+  }
+}
+
+// ---------- 推送通知(本地通知，原生壳专用) ----------
+// 用 @capacitor/local-notifications 在设备本地预约通知，提醒"有 N 个单词待复习"——
+// 跟间隔重复复习功能直接挂钩，不需要 APNs 推送证书，也不需要后端另外搭一套推送队列。
+// 每次 App 打开时，用当前的待复习总数重新预约未来几天每天一条提醒(先撤销旧的预约，
+// 避免数字过期)。已知局限：这是"预约"出来的通知，不是服务端主动推送——如果用户连续
+// 超过 REVIEW_REMINDER_DAYS 天不打开 App，预约会用完，得下次打开才重新续上；预约的
+// 这几天里数字也是打开 App 那一刻的快照，中途复习掉一些也不会实时更新通知里的数字。
+// 真正做到"无论多久不开都能收到实时提醒"需要服务端 APNs 推送，工作量大很多，等后面
+// 有需要再做。
+const REVIEW_REMINDER_DAYS = 7;
+const REVIEW_REMINDER_HOUR = 10; // 每天提醒的本地时间(24 小时制)
+const REVIEW_REMINDER_ID_BASE = 9000;
+
+async function scheduleReviewReminders() {
+  if (!isNativeApp()) return;
+  const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+  if (!LocalNotifications) return;
+  try {
+    let perm = await LocalNotifications.checkPermissions();
+    if (perm.display !== "granted") {
+      perm = await LocalNotifications.requestPermissions();
+    }
+    if (perm.display !== "granted") return;
+
+    await LocalNotifications.cancel({
+      notifications: Array.from({ length: REVIEW_REMINDER_DAYS }, (_, i) => ({ id: REVIEW_REMINDER_ID_BASE + i })),
+    });
+
+    const res = await apiFetch("/api/review/due-counts");
+    const counts = res.ok ? await res.json() : {};
+    const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    if (total <= 0) return;
+
+    const notifications = Array.from({ length: REVIEW_REMINDER_DAYS }, (_, i) => {
+      const at = new Date();
+      at.setDate(at.getDate() + i + 1);
+      at.setHours(REVIEW_REMINDER_HOUR, 0, 0, 0);
+      return {
+        id: REVIEW_REMINDER_ID_BASE + i,
+        title: "Contextia",
+        body: t("notifications.reviewDue", { count: total }),
+        schedule: { at },
+      };
+    });
+    await LocalNotifications.schedule({ notifications });
+  } catch (err) {
+    // 通知预约失败(比如用户拒绝了权限)不影响正常使用，安静忽略
+  }
+}
+
 // ---------- 图标(全站禁用 emoji，统一用 lucide 线条图标) ----------
 // 见 DESIGN_GUIDELINES.md：UI 里任何地方需要图标/图形提示，一律从这里取，不能直接写 emoji 字符。
 const ICON_PATHS = {
@@ -525,8 +658,7 @@ function resetTurnstile() {
 // ---------- 文档列表 / 加载 ----------
 
 async function refreshDocuments(selectId) {
-  const res = await apiFetch("/api/documents");
-  allDocs = await res.json();
+  allDocs = await fetchJsonWithOfflineCache("/api/documents", "documents");
   docSelect.innerHTML = "";
   allDocs.forEach((d) => {
     const opt = document.createElement("option");
@@ -992,8 +1124,7 @@ btnProJoinWaitlist.addEventListener("click", async () => {
 // ---------- 已学生词高亮 ----------
 
 async function loadKnownWords() {
-  const res = await apiFetch("/api/vocab");
-  const vocab = await res.json();
+  const { vocab } = await getVocabAndNotes();
   knownWordsMap = new Map();
   vocab.forEach((v) => {
     const key = (v.word || "").trim().toLowerCase();
@@ -2085,9 +2216,7 @@ function showNoDocumentState() {
 async function renderHistoryForDoc(docName) {
   annotationList.innerHTML = "";
 
-  const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
-  const vocab = await vocabRes.json();
-  const notes = await notesRes.json();
+  const { vocab, notes } = await getVocabAndNotes();
 
   const combined = [
     ...vocab.map((v) => ({ ...v, mode: "word" })),
@@ -2548,9 +2677,7 @@ function endReviewSession(completed) {
 btnReviewExit.addEventListener("click", () => endReviewSession(false));
 
 async function loadSearchData() {
-  const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
-  const vocab = await vocabRes.json();
-  const notes = await notesRes.json();
+  const { vocab, notes } = await getVocabAndNotes();
   searchDataCache = [
     ...vocab.map((v) => ({ ...v, mode: "word" })),
     ...notes.map((n) => ({ ...n, mode: "passage" })),
@@ -2825,9 +2952,9 @@ btnPrint.addEventListener("click", async () => {
   const originalLabel = btnPrint.textContent;
   btnPrint.textContent = t("print.preparing");
   try {
-    const [vocabRes, notesRes] = await Promise.all([apiFetch("/api/vocab"), apiFetch("/api/sentence_notes")]);
-    const vocab = (await vocabRes.json()).filter((v) => v.source_doc === currentDocName);
-    const notes = (await notesRes.json()).filter((n) => n.source_doc === currentDocName);
+    const { vocab: allVocab, notes: allNotes } = await getVocabAndNotes();
+    const vocab = allVocab.filter((v) => v.source_doc === currentDocName);
+    const notes = allNotes.filter((n) => n.source_doc === currentDocName);
     buildPrintArea(vocab, notes);
     window.print();
   } catch (err) {
@@ -3355,6 +3482,7 @@ async function initApp() {
   refreshDocuments();
   loadUsage();
   loadStats();
+  scheduleReviewReminders();
 }
 
 async function enterApp(token, me) {
