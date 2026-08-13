@@ -33,9 +33,13 @@
 - 设置里能修改密码、改用户名；用 Google 登录建的账号本来没有密码，这里显示的是"设置密码"，设置完之后这个账号也能用用户名密码登录了
 - 新用户第一次进阅读器主界面，导航栏会依次高亮几个图标（AI 推荐/母语新闻/复习/统计/设置）配一句话说明是干什么的，点一次 Skip 或走完就不会再弹（存在浏览器 `localStorage` 里）
 - **站长专属统计页面**：只有主账号导航栏能看到「Site Stats」，展示全站总用户/文章/生词数，以及近 14 天每日新增注册、每日活跃用户的柱状图，用来看发布之后有没有真实效果；后端也做了服务端校验，非主账号直接调接口会被拒绝（403）
-- **「升级到 Pro」入口**（变现第一阶段，只做验证付费意愿，还没有真实付费功能）：导航栏有个入口，能登记邮箱到等待名单，站长配置了 `STRIPE_SUPPORT_LINK_URL`（Stripe Payment Link）的话还会显示一个完全自愿、不解锁任何功能的支持入口；产品本身依旧完全免费、BYOK 不变
+- **「升级到 Pro」入口**（网页版还是变现验证阶段，没有真实付费墙）：导航栏有个入口，能登记邮箱到等待名单，站长配置了 `STRIPE_SUPPORT_LINK_URL`（Stripe Payment Link）的话还会显示一个完全自愿、不解锁任何功能的支持入口；产品本身依旧完全免费、BYOK 不变。**iOS App 不一样**——Pro 订阅是真的付费功能，通过 Apple 内购解锁"不用自己填 AI Key、无限量用站长的 AI"，详见 `mobile/README.md`
 
 后续阶段计划：照片 OCR 导入。
+
+## iOS App(上架 App Store)
+
+`mobile/` 目录是把这个网页应用用 [Capacitor](https://capacitorjs.com/) 包一层原生壳，目标是上架 App Store。包含 Sign in with Apple、本地推送通知（复习提醒）、离线缓存、Apple 内购（StoreKit）这几块，全部代码已经写完并且有 CI(`.github/workflows/ios-build.yml`) 用云端 Mac 验证过能编译通过。**当前进度、卡在哪、接下来按什么顺序做——都写在 [`mobile/README.md`](mobile/README.md) 最上面的"上架进度"一节**，新开一个会话直接看那一节就有完整上下文，不需要翻聊天记录。
 
 ## 部署到 Railway(推荐,给朋友用的正式部署方式)
 
@@ -140,6 +144,8 @@ frontend/         静态前端，无构建工具
   privacy.html    隐私政策(Google OAuth 审核需要)
   terms.html      服务条款
 apps_script/      Google Sheets 的 Apps Script 代码，需要手动部署一次(见上文)
+mobile/           iOS App(Capacitor 套壳)，上架 App Store 用；进度和接下来要做什么见 mobile/README.md 最上面那节
+.github/workflows/ios-build.yml  用云端 Mac 编译验证 mobile/ios 工程的 CI
 DESIGN_GUIDELINES.md  UI 设计约定(比如"禁止用 emoji 当图标")，改前端界面之前先看一眼
 .env.example      环境变量模板，复制成 backend/.env(本地) 或填进部署平台的环境变量面板(线上)
 Dockerfile        Railway 等平台的容器构建文件

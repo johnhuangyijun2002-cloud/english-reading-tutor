@@ -2,6 +2,36 @@
 
 用 [Capacitor](https://capacitorjs.com/) 把 `../frontend` 包一层原生壳，不改前端 UI，目标是上架 App Store。
 
+## 上架进度 / 接下来要做什么
+
+这一节是自包含的——新开一个会话、不看聊天记录，只看这一节也能接着往下做。
+
+**代码层面已经写完、而且被 CI(`.github/workflows/ios-build.yml`，用云端 Mac 真编译过)验证过能编译通过的**：
+
+- [x] Capacitor iOS 原生壳(CocoaPods 集成，不是 SPM，原因见下面"为什么是 CocoaPods 不是 SPM")
+- [x] Sign in with Apple(后端 OAuth 接口 + 前端登录按钮 + 原生壳里系统浏览器 + deep link 跳转)
+- [x] 本地推送通知(复习提醒"你有 N 个单词待复习")
+- [x] 离线缓存(没网络时显示已存的文章/生词)
+- [x] Apple 内购 StoreKit(iOS Pro 订阅解锁"不用自己填 AI Key，无限量用站长的 AI")
+- [x] 账号自助注销(网页版设置页已经做好，iOS 复用同一套网页 UI，不用额外做)
+
+App Store 4.2 条款(不能是纯网页套壳)要求的"实质性原生功能"、内购保留付费能力这些，代码层面已经**全部写完**，没有遗留的功能缺口。
+
+**当前卡住的，全部是外部依赖/需要人工操作的事，不是代码问题**：
+
+1. **Apple Developer Program 账号还没正式激活**(申请中/等审核中)。批下来之前，Sign in with Apple、Apple 内购这些没法真实联调——代码本身没问题，等的是 Apple 那边的审核结果。
+2. **`APPLE_IAP_ROOT_CERTS_BASE64` 这个环境变量还没填**——需要去 <https://www.apple.com/certificateauthority/> 下载 "Apple Root CA - G3 Root"，转成 base64，填进 Railway 的环境变量面板。**这一步不需要开发者账号，现在就能做**；AI agent 做不了是因为这个开发环境的网络策略挡了 `apple.com`。
+3. **这个开发环境是 Linux 容器，没有 Mac/Xcode**，所以做不了：真机/模拟器运行、代码签名、生成 `.ipa`、App Store Connect 里的商品配置、上传审核。这些必须在真实 Mac(或 Codemagic / Ionic Appflow 之类的云端 Mac 构建服务)上完成。
+
+**账号批下来、且有 Mac 可用之后，按这个顺序做**(每一步对应的代码位置/细节在下面对应的小节里)：
+
+1. 去 Apple Developer 后台配 Sign in with Apple 的 Services ID + 私钥，填 `APPLE_TEAM_ID` / `APPLE_SERVICES_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY`（步骤见根目录 `.env.example`，对应代码见下面"Sign in with Apple"一节）
+2. 去 App Store Connect 生成 In-App Purchase Key、建 Pro 自动续费订阅商品，填 `APPLE_IAP_KEY_ID` / `APPLE_IAP_ISSUER_ID` / `APPLE_IAP_PRIVATE_KEY` / `APPLE_APP_APPLE_ID` / `APPLE_PRO_PRODUCT_ID`（步骤见根目录 `.env.example`，对应代码见下面"Apple 内购(StoreKit)"一节的"App Store Connect 里要配置的东西"）
+3. `cd mobile && npm install && npm run sync:ios && cd ios/App && pod install`，然后用 Xcode 打开 `App.xcworkspace`(注意不是 `.xcodeproj`)
+4. Xcode 里给 App 的 Target 加上 "In-App Purchase" capability(Signing & Capabilities 面板)
+5. 真机/模拟器上跑起来，实测：Google/Apple 登录、通知权限弹窗、飞行模式下的离线缓存、StoreKit 沙盒购买流程
+6. 提交 App Store 审核
+
 ## 目录说明
 
 - `capacitor.config.json` — appId `com.contextia.app`，appName `Contextia`，`webDir` 指向 `www/`
