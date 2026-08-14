@@ -394,7 +394,10 @@
     "iapLoading": "Loading...",
     "iapActiveStatus": "You're subscribed to Contextia Pro — unlimited AI lookups, no API key needed.",
     "iapProductUnavailable": "Couldn't load the subscription — try again in a moment",
-    "iapPurchaseFailed": "Purchase failed: {message}"
+    "iapPurchaseFailed": "Purchase failed: {message}",
+    "iapDisclosure": "{price}/month, auto-renewing. Charged to your Apple ID at confirmation of purchase. Manage or cancel anytime in Settings → [your name] → Subscriptions, at least 24 hours before renewal.",
+    "iapDisclosureNoPrice": "Auto-renewing monthly subscription. Charged to your Apple ID at confirmation of purchase. Manage or cancel anytime in Settings → [your name] → Subscriptions, at least 24 hours before renewal.",
+    "iapAgreePrefix": "By subscribing you agree to the "
   },
   "navTour": {
     "recommend": "AI recommends articles matched to your level — a good place to start.",

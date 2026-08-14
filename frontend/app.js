@@ -225,10 +225,26 @@ function updateIapPanel() {
   if (currentEntitlement && currentEntitlement.is_pro) {
     iapProStatus.textContent = t("pro.iapActiveStatus");
     btnIapSubscribe.classList.add("hidden");
+    if (iapProDisclosure) iapProDisclosure.textContent = "";
   } else {
     iapProStatus.textContent = iapStoreReady ? "" : t("pro.iapLoading");
     btnIapSubscribe.classList.remove("hidden");
     btnIapSubscribe.disabled = !iapStoreReady;
+    if (iapProDisclosure) {
+      const price = iapStoreReady ? getIapPriceString() : null;
+      iapProDisclosure.textContent = price ? t("pro.iapDisclosure", { price }) : t("pro.iapDisclosureNoPrice");
+    }
+  }
+}
+
+// Apple 3.1.2 要求订阅价格/周期/自动续费信息要在购买按钮旁边展示，不能只写在 ToS 页面里
+function getIapPriceString() {
+  try {
+    const { store } = window.CdvPurchase;
+    const product = store.get(IAP_PRODUCT_ID);
+    return (product && product.pricing && product.pricing.price) || null;
+  } catch (err) {
+    return null;
   }
 }
 
@@ -529,6 +545,7 @@ const proSupportBlock = document.getElementById("proSupportBlock");
 const btnProSupport = document.getElementById("btnProSupport");
 const iapProBlock = document.getElementById("iapProBlock");
 const iapProStatus = document.getElementById("iapProStatus");
+const iapProDisclosure = document.getElementById("iapProDisclosure");
 const btnIapSubscribe = document.getElementById("btnIapSubscribe");
 const btnIapRestore = document.getElementById("btnIapRestore");
 const btnProClose = document.getElementById("btnProClose");
