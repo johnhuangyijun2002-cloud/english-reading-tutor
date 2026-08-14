@@ -14,6 +14,7 @@
 - [x] 离线缓存(没网络时显示已存的文章/生词)
 - [x] Apple 内购 StoreKit(iOS Pro 订阅解锁"不用自己填 AI Key，无限量用站长的 AI")
 - [x] 账号自助注销(网页版设置页已经做好，iOS 复用同一套网页 UI，不用额外做)
+- [x] 隐私政策 & 服务条款已经按 App Store 3.1.2/5.1.1 条款要求补全(Sign in with Apple、内购数据处理、订阅价格/周期/自动续费/退款条款、购买按钮旁边的实时价格披露)，细节见下面"隐私政策 & 服务条款"一节
 
 App Store 4.2 条款(不能是纯网页套壳)要求的"实质性原生功能"、内购保留付费能力这些，代码层面已经**全部写完**，没有遗留的功能缺口。
 
@@ -28,6 +29,8 @@ App Store 4.2 条款(不能是纯网页套壳)要求的"实质性原生功能"�
 **当前卡住的，就剩这一件事**：
 
 - **这个开发环境是 Linux 容器，没有 Mac/Xcode**，所以做不了：真机/模拟器运行、代码签名、生成 `.ipa`、Xcode 里加 In-App Purchase capability、上传审核。这些必须在真实 Mac(或 Codemagic / Ionic Appflow 之类的云端 Mac 构建服务)上完成。账号和后端这两块的配置已经不再是阻塞了。
+
+**现在就能做，不用等 Mac**：App Store Connect 里配 Privacy Policy URL、App Privacy 问卷、订阅商品的本地化名称/描述——这几步是后台点点点，跟 Xcode 无关，见下面"隐私政策 & 服务条款"一节的清单。
 
 **有 Mac 可用之后，按这个顺序做**：
 
@@ -173,6 +176,32 @@ curl -X POST https://contextia.up.railway.app/api/iap/sync \
 - 如果报"没找到这笔交易"（`No matching subscription found` 或 404）→ 说明 Apple 已经认可了签名，凭据本身是对的，只是这笔交易不存在（预期结果，因为 ID 是瞎填的）
 
 真正的购买流程还是要走 App Store Connect 的 Sandbox 测试账号，只能在真机/模拟器上测，等有 Mac 才能做。这个开发环境里能做、也做了的是：**后端这块的 JWT 签名、证书链校验、订阅状态映射逻辑，用自己生成的假证书链跑通过一次完整的验证流程**(构造一个假的 root CA + 假的 leaf 证书签一个假的订阅交易 JWS，喂给 `SignedDataVerifier`，确认能正确解出 `productId`/`originalTransactionId`，并且证书链对不上时会正确拒绝)——验证到了 Apple 官方库对证书链的最后一步会检查一个只有真实 Apple 签发的证书才有的专属标记(`1.2.840.113635.100.6.11.1`)，这一步没法用假证书绕过，只能等有真实 Apple 收据/沙盒测试账号的时候才能验证，符合预期(这本来就是防伪造的检查点)。
+
+## 隐私政策 & 服务条款（App Store 审核 3.1.2 / 5.1.1 条款要求）
+
+Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖到 iOS 特有的数据处理（Sign in with Apple、StoreKit 订阅），以及订阅的价格/周期/自动续费信息有没有在**购买按钮附近**明确展示，不能只写在一个单独的条款页面里。这两块代码都已经做完：
+
+**代码里已经做完的**（`frontend/privacy.html`、`frontend/terms.html`、`frontend/app.html`、`frontend/app.js`、`i18n/*.json`）：
+
+- `privacy.html` 加了：Sign in with Apple 作为登录方式之一、iOS 内购的数据处理说明（付款信息完全由 Apple 处理，我们只拿到订阅状态收据，不经手银行卡信息）、本地通知不上传任何数据的说明、iOS 离线缓存的说明
+- `terms.html` 加了一整段"Contextia Pro subscription (iOS app)"，按 Apple 3.1.2 要求写全了：订阅名称/时长/价格说明、扣款和自动续费规则、怎么取消（走 Apple ID 账户设置，不是找我们）、退款走 Apple 的政策
+- `app.html` 的订阅面板（`iapProBlock`）里，"订阅"按钮旁边现在会展示价格 + 自动续费提示 + 服务条款/隐私政策链接（`app.js` 的 `getIapPriceString()` 会读 StoreKit 返回的当地货币真实价格，不是写死的数字）——这是 Apple 审核时人工会去点的地方，不是随便找个角落放个链接就行
+- 登录页（`app.html` 里 `login.legalPrefix` 那一行）本来就有条款/隐私链接，Apple/Google/Apple 三种登录方式共用，不用改
+- 三个语言（en/zh/ko）的文案都补了
+
+**接下来需要你在 App Store Connect 后台手动配置的**（代码管不到，必须人工操作）：
+
+1. **App 信息 → Privacy Policy URL**：必填项，填 `https://contextia.up.railway.app/privacy.html`（如果之后换域名，记得同步改这里）
+2. **App 信息 → License Agreement（EULA）**：默认用 Apple 提供的标准 EULA 就够了，不用额外操作；如果想用自己的条款覆盖默认的，才需要选 Custom 并把 `terms.html` 的内容贴进去
+3. **App Privacy（隐私"营养标签"问卷）**：App Store Connect 里这个 App 的 App Privacy 页面要如实勾选实际收集的数据类型，得跟 `privacy.html` 写的对得上，大致是：
+   - Contact Info（邮箱，Google/Apple 登录时可能拿到，关联身份）
+   - Identifiers（用户 ID / Apple 登录返回的唯一标识）
+   - User Content（上传的文章、生词、笔记）
+   - Purchases（订阅状态，用来解锁 Pro）
+   - Usage Data（AI 调用次数/用量统计）
+   这几类目前都不用于广告追踪，App Tracking Transparency (ATT) 弹窗那一步应该不需要触发
+4. **订阅商品的本地化信息**：App Store Connect → 该订阅 → App Store 本地化，填显示名称（比如 "Contextia Pro"）和描述文字——这个是订阅商品自己的元数据，跟代码里 `APPLE_PRO_PRODUCT_ID` 对应的那个 Product ID 是两回事，之前只建了商品本身，这步经常漏
+5. 部署后花一分钟实际打开 `https://contextia.up.railway.app/privacy.html` 和 `/terms.html`，确认链接没写错、内容渲染正常——审核员会真的点进去看
 
 ## 已知待办（还没做的）
 
