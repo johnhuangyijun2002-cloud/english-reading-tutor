@@ -1860,6 +1860,12 @@ recommendLevelSelect.addEventListener("change", async () => {
   loadRecommendations(true);
 });
 
+// Chrome/Edge 在鼠标悬停/聚焦一个原生 <select> 时，滚轮会直接把选中项往上/下滚一格，
+// 触发一次真实的 change 事件——这个面板的下拉框正好在打开面板后鼠标常停留的位置，
+// 用户只是想滚动看列表，就误触发了一次"升级"并且被上面的 change 监听器存进了后端。
+// 阻止这个下拉框上的滚轮默认行为，选级别只能靠点开下拉菜单选，不会再被误触发。
+recommendLevelSelect.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
+
 async function loadRecommendations(refresh) {
   recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.loading")}</p>`;
   btnRecommendRefresh.disabled = true;

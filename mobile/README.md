@@ -28,17 +28,30 @@ App Store 4.2 条款(不能是纯网页套壳)要求的"实质性原生功能"�
 
 **当前卡住的，就剩这一件事**：
 
-- **这个开发环境是 Linux 容器，没有 Mac/Xcode**，所以做不了：真机/模拟器运行、代码签名、生成 `.ipa`、Xcode 里加 In-App Purchase capability、上传审核。这些必须在真实 Mac(或 Codemagic / Ionic Appflow 之类的云端 Mac 构建服务)上完成。账号和后端这两块的配置已经不再是阻塞了。
+- **这个开发环境是 Linux 容器，没有 Mac/Xcode**，所以做不了：真机/模拟器运行、代码签名、生成 `.ipa`、上传审核。账号和后端这两块的配置已经不再是阻塞了。
 
 **现在就能做，不用等 Mac**：App Store Connect 里配 Privacy Policy URL、App Privacy 问卷、订阅商品的本地化名称/描述——这几步是后台点点点，跟 Xcode 无关，见下面"隐私政策 & 服务条款"一节的清单。
 
-**有 Mac 可用之后，按这个顺序做**：
+**关于"In-App Purchase capability"这一步——之前以为必须在 Xcode 里点，查证后发现大概率不需要**：In-App Purchase 没有专属的 entitlement key，只要 App 用的是正式注册的 App ID(不是通配符 `*` 那种)，内购能力就是默认可用的——`com.contextia.app` 已经是正式注册的 App ID。Xcode 那个 capability 开关主要是链接 `StoreKit.framework`，而这个已经通过 `capacitor-plugin-cdv-purchase` 这个 CocoaPods 依赖间接链进来了。等有 Xcode 的时候顺手看一眼 Signing & Capabilities 有没有就行，大概率不需要额外操作，不是一个真正卡流程的步骤。
+
+**关于 CI**：`.github/workflows/ios-build.yml` 已经把 runner 从 `macos-14` 升到了 `macos-26`（默认带 Xcode 26.6）——苹果从 2026 年 4 月 28 日起要求提交审核必须用 Xcode 26 以上编译，旧 runner 的 Xcode 版本达不到，不管接下来走哪条路都得先解决这个。
+
+**测试/上架不一定非要自己有 Mac，两条路都行**：
+
+**方案 A（推荐，全程不用碰 Xcode）**：用云端构建服务把签名后的包直接传上 TestFlight，之后所有测试都在自己的 iPhone 上用 TestFlight App 完成——Sign in with Apple、StoreKit 沙盒购买、推送通知、离线模式，都是真机上测，比模拟器更接近真实上架效果。可选的云端构建服务：
+  - **[Capgo Cloud Build](https://capgo.app/)**——专门为 Capacitor 项目做的云端构建，跟这个项目的技术栈最贴合
+  - **EAS Build**（`expo.dev`）——官方文档写的是"不管用不用 Expo/React Native 都能构建任意原生项目"，所以理论上能用，但它主要是给 Expo/React Native 项目优化的，用在 Capacitor 项目上要自己配 `eas.json` 指到现有的 `ios/` 目录，网上抱着 Expo 目的去用的人不算多，遇到坑不一定好搜
+  - **Codemagic / Ionic Appflow**——之前就提过，Ionic Appflow 是 Capacitor 官方团队自己做的云端构建服务，对 Capacitor 项目的支持是最"原生"的
+  - 也可以直接扩展现在这个仓库里已经跑通的 `.github/workflows/ios-build.yml`——加上签名证书(存成 GitHub Secrets)和 `xcodebuild -exportArchive`/fastlane 上传 TestFlight 的步骤，不用引入新服务，缺点是这部分要自己搭一次，比较花时间。
+
+**方案 B（想要交互式调试的时候用）**：按小时租云端 Mac(比如 MacinCloud)，在 Xcode 模拟器里跑，前面详细步骤见上一轮对话/等下一次问我要。这个更适合"改了代码想马上肉眼看效果"的开发阶段，方案 A 更适合"测试成品、准备提交"的阶段。
+
+**不管走哪条路，大致顺序是**：
 
 1. （可选，但推荐）先用 curl 测一下 Apple 内购凭据对不对，见下面"Apple 内购(StoreKit)"一节
-2. `cd mobile && npm install && npm run sync:ios && cd ios/App && pod install`，然后用 Xcode 打开 `App.xcworkspace`(注意不是 `.xcodeproj`)
-3. Xcode 里给 App 的 Target 加上 "In-App Purchase" capability(Signing & Capabilities 面板)
-4. 真机/模拟器上跑起来，实测：Google/Apple 登录、通知权限弹窗、飞行模式下的离线缓存、StoreKit 沙盒购买流程（沙盒购买要先在 App Store Connect → 用户和访问 → 沙盒 建一个测试用的 Apple ID）
-5. 提交 App Store 审核
+2. 方案 A：配置好云端构建服务，触发一次构建并上传 TestFlight，然后在自己 iPhone 上装 TestFlight App 测；方案 B：`cd mobile && npm install && npm run sync:ios && cd ios/App && pod install`，用 Xcode 打开 `App.xcworkspace`(不是 `.xcodeproj`)，模拟器里跑
+3. 实测：Google/Apple 登录、通知权限弹窗、离线缓存、StoreKit 购买流程（真机走 TestFlight 自带的沙盒购买；模拟器可以用 Xcode 15+ 的 StoreKit Testing 本地配置文件，但测不到咱们自己后端 `/api/iap/sync` 的真实签名校验，这块要测真的得走 App Store Connect → 用户和访问 → 沙盒 建的测试 Apple ID）
+4. 提交 App Store 审核
 
 ## 目录说明
 
@@ -74,6 +87,8 @@ npm run open:ios                   # 需要 Mac，用 Xcode 打开 App.xcworkspa
 Capacitor CLI 默认给新项目用 SPM(Swift Package Manager)集成，一开始这个项目也是这么生成的。但 GitHub Actions CI(见下面的"iOS 编译 CI"一节)第一次真正跑 `xcodebuild` 就发现编译不过：`@capacitor/local-notifications` 等官方插件的 Swift 源码用到的 `CAPPluginCall.getArray<T>(_:_:)` 之类的泛型 API，在 SPM 那条分发路径（`capacitor-swift-pm` 仓库，发布的是预编译的二进制 xcframework）里对不上号——换过几个 Capacitor 核心库版本都是同样的报错，说明不是版本没对齐，是 SPM 这条分发路径本身跟这批插件当前的源码不兼容。
 
 CocoaPods 走的是另一条路：`Podfile` 里 `pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'` 直接编译 npm 包 `ios/` 目录下的完整源码（插件也是同样的模式，各自指向自己在 `node_modules` 里的路径），不经过任何预编译的二进制中间层，天然不会有"源码和二进制对不上"这类问题。所以把 `ios/` 整个重新生成成了 CocoaPods 版本。
+
+**留意一下**：Capacitor 官方计划把 CocoaPods 上的库维护到 2026 年 12 月 2 日，之后的重心会全部转向 SPM。现在(2026-08)用 CocoaPods 还没问题，但如果上架这件事拖过年底，可能得回头重新试一次 SPM 这条路径（说不定到时候插件源码和 SPM 分发已经同步好了，最初踩的那个坑不一定还在）。
 
 ## Sign in with Apple（配置完成，网页版已经端到端测试成功）
 
