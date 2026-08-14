@@ -56,16 +56,17 @@
   <div class="legalDoc">
     <a class="legalBack" href="/app.html">&larr; Back to app</a>
     <h1>Privacy Policy</h1>
-    <p class="legalMeta">Last updated: 2026-08-04</p>
+    <p class="legalMeta">Last updated: 2026-08-14</p>
 
-    <p>Contextia ("the tool") is a language-learning reading tool, built and run by an independent solo developer. This page explains what data we collect, how it's used, and what you can do about it.</p>
+    <p>Contextia ("the tool") is a language-learning reading tool, built and run by an independent solo developer. This page explains what data we collect, how it's used, and what you can do about it. It applies to both the website and the iOS app.</p>
 
     <h2>What data we collect</h2>
     <ul>
-      <li>Account info: your username and password (the password is stored encrypted — we can't see it in plain text either), or your Google account ID and email if you sign in with Google</li>
+      <li>Account info: your username and password (the password is stored encrypted — we can't see it in plain text either), your Google account ID and email if you sign in with Google, or your Apple ID's unique identifier and (if you choose to share it) your email if you sign in with Apple</li>
       <li>Any AI provider API key you enter yourself (stored encrypted)</li>
       <li>Articles you upload, paste, or import, and the vocabulary/sentence notes you save</li>
       <li>Your AI feature call count and estimated cost, so you can see your own usage</li>
+      <li>On iOS, if you subscribe to Contextia Pro: a subscription status record (product ID, transaction ID, expiration date, active/expired/billing-retry status) that Apple sends us so we can unlock Pro features on your account. See "In-app purchases (iOS)" below for what we do and don't receive.</li>
     </ul>
 
     <h2>How your data is used</h2>
@@ -75,11 +76,18 @@
       <li>Outside of those two cases, your data is not shared with any other third party, and is not used for advertising or any purpose unrelated to the tool.</li>
     </ul>
 
+    <h2>In-app purchases (iOS)</h2>
+    <p>Contextia Pro, purchased through the iOS app, is an auto-renewing subscription sold and billed entirely by Apple through your Apple ID. We never see or store your payment method, card number, or any other billing details — that information stays with Apple. All we receive from Apple is a signed subscription receipt containing the product ID, transaction ID, and expiration/status of your subscription, which we use only to unlock Pro features on your account. Managing or canceling your subscription is done through your Apple ID account settings, not through us.</p>
+
+    <h2>Notifications (iOS)</h2>
+    <p>If you allow notifications, the iOS app schedules local reminders on your device (e.g. "you have N words due for review") based on data already on your device. These are scheduled entirely on-device — nothing about your notification content or schedule is sent to us or to Apple's push servers.</p>
+
     <h2>Data storage and security</h2>
     <ul>
       <li>Account passwords are stored salted and hashed; AI keys are stored encrypted — neither is stored in plain text</li>
       <li>Data is stored in a Postgres database hosted on Supabase</li>
       <li>Login sessions automatically expire after 30 days and require signing in again</li>
+      <li>On iOS, a small amount of data (your saved vocabulary and reading history) is cached locally on your device so recently-viewed data is still available offline; this cache lives only on your device and follows the same account-deletion rules as your server-side data</li>
     </ul>
 
     <h2>Your rights</h2>
