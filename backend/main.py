@@ -1450,10 +1450,16 @@ def _oauth_success_redirect(platform: str, token: str, extra_hash_params: str = 
     # 网页版整页跳回 /app.html，靠 URL fragment 里的 token 完成登录(见 app.js 里解析
     # location.hash 那段)。原生壳里不能这么跳——那样是跳进系统浏览器里的网页版，不是
     # 跳回 App，所以改跳一个自定义 URL scheme，原生壳里 App 插件的 appUrlOpen 监听器接住。
+    #
+    # status_code 必须显式指定成 303：Apple 的回调是 POST 过来的(response_mode=form_post)，
+    # RedirectResponse 不传 status_code 时默认是 307，307 会让浏览器带着原来的 POST 方法
+    # 重新请求这里跳转的目标地址——而 /app.html 只认 GET，于是变成 405 Method Not Allowed。
+    # 303 是标准的 "Post/Redirect/Get" 做法，明确告诉浏览器改用 GET 去拿跳转结果。
+    # Google 回调走的是 GET，同样用 303 不受影响(GET 跳转后还是 GET)。
     suffix = f"&{extra_hash_params}" if extra_hash_params else ""
     if platform == "ios":
-        return RedirectResponse(f"{NATIVE_APP_URL_SCHEME}://oauth-callback#token={token}{suffix}")
-    return RedirectResponse(f"/app.html#token={token}{suffix}")
+        return RedirectResponse(f"{NATIVE_APP_URL_SCHEME}://oauth-callback#token={token}{suffix}", status_code=303)
+    return RedirectResponse(f"/app.html#token={token}{suffix}", status_code=303)
 
 
 @app.post("/api/auth/google/link-init")
