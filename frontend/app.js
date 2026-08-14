@@ -1700,9 +1700,17 @@ btnAddArticle.addEventListener("click", () => {
 
 // 出于版权顾虑，「AI 推荐」的"读这篇"不再自动抓正文，改成跳转到源网站
 // + 引导用户自己复制正文回来粘贴，这个函数就是那座桥。
+// 原生壳里用 App 内嵌浏览器(跟 startOAuthFlow 登录用的是同一个 @capacitor/browser 插件，
+// iOS 底层是 SFSafariViewController)打开源文章，点"完成"直接回到这个粘贴面板，不用切 App；
+// 网页版还是开系统新标签页。
 function openPasteFromExternal(pick) {
   alert(t("paste.fromExternalHint"));
-  window.open(pick.url, "_blank", "noopener");
+  const browser = isNativeApp() && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+  if (browser) {
+    browser.open({ url: pick.url });
+  } else {
+    window.open(pick.url, "_blank", "noopener");
+  }
   activePasteTab = "paste";
   pasteTabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === "paste"));
   document.querySelectorAll(".pasteTabContent").forEach((content) => {
