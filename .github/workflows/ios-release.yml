@@ -1,0 +1,115 @@
+name: iOS release to TestFlight
+
+# 方案 A：不用租/买 Mac 也能测试和上架——这个 workflow 把签过名的 .ipa 直接传上
+# TestFlight，之后所有测试(登录、内购沙盒购买、通知、离线模式)都在自己的 iPhone 上用
+# TestFlight App 完成。签名证书/密钥全程只存在这个仓库自己的 GitHub Secrets 里，不经过
+# 任何第三方托管服务——跟这个项目一直坚持的自建思路一致(比如内购验证自己接 Apple API
+# 而不是用 RevenueCat)。
+#
+# 手动触发(不跟着每次 push 自动跑)，因为每次触发都会真的产生一个新的 TestFlight 构建版本号，
+# 不应该每次改代码就自动打一个——想发新版本的时候去 Actions 页面手动点 "Run workflow"。
+#
+# 首次使用前必须在仓库 Settings → Secrets and variables → Actions 里配置好下面这些 secret，
+# 详细的生成步骤见 mobile/README.md "方案 A：云端签名 + TestFlight" 一节：
+#   IOS_DIST_CERT_P12_BASE64       Apple Distribution 证书(.p12)的 base64
+#   IOS_DIST_CERT_PASSWORD         导出 .p12 时设的密码
+#   IOS_PROVISIONING_PROFILE_BASE64  App Store 分发描述文件(.mobileprovision)的 base64
+#   IOS_CI_KEYCHAIN_PASSWORD       随便起一个密码，只是给 CI 临时钥匙串用，不用记
+#   ASC_API_KEY_ID                 App Store Connect API Key 的 Key ID
+#   ASC_API_ISSUER_ID              App Store Connect API 的 Issuer ID
+#   ASC_API_KEY_BASE64             App Store Connect API Key(.p8)的 base64
+#
+# 这套流程没法在没有 Mac/没有真实 Apple 凭据的环境里预先跑通测试，第一次触发大概率要
+# 跟着实际报错再调一两轮——这是没法避免的，先把框架搭好。
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  release:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Capacitor deps
+        run: npm ci
+
+      - name: Sync www + iOS project
+        run: npm run sync:ios
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install CocoaPods dependencies
+        run: pod install
+        working-directory: mobile/ios/App
+
+      # 标准的"手动导入证书+描述文件"模式(GitHub 官方文档的推荐做法)，不用 fastlane match，
+      # 不用把任何私钥存进仓库——证书和描述文件解码后只存在这次 CI 运行的临时目录里，运行
+      # 结束(不管成不成功)runner 本身就会被销毁。
+      - name: Install signing certificate and provisioning profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.IOS_CI_KEYCHAIN_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/dist_certificate.p12
+          PP_PATH=$RUNNER_TEMP/dist_profile.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/ios-release.keychain-db
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          mkdir -p ~/Library/MobileDevice/"Provisioning Profiles"
+          cp "$PP_PATH" ~/Library/MobileDevice/"Provisioning Profiles"/
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -destination "generic/platform=iOS" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="Contextia AppStore" \
+            DEVELOPMENT_TEAM=6G7ZJV58R2
+
+      - name: Export .ipa
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export"
+
+      # 用 App Store Connect API Key 认证上传，不用交互式登录密码，也不用一次性验证码，
+      # 适合 CI 这种没有人在场的场景。altool 找 .p8 靠固定的文件名+目录约定，不是靠传路径参数。
+      - name: Upload to TestFlight
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+        run: |
+          mkdir -p ~/private_keys
+          echo -n "$ASC_API_KEY_BASE64" | base64 --decode -o ~/private_keys/AuthKey_${ASC_API_KEY_ID}.p8
+          xcrun altool --upload-app \
+            -f "$RUNNER_TEMP/export"/*.ipa \
+            -t ios \
+            --apiKey "$ASC_API_KEY_ID" \
+            --apiIssuer "$ASC_API_ISSUER_ID"

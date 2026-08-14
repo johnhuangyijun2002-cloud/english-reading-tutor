@@ -36,22 +36,16 @@ App Store 4.2 条款(不能是纯网页套壳)要求的"实质性原生功能"�
 
 **关于 CI**：`.github/workflows/ios-build.yml` 已经把 runner 从 `macos-14` 升到了 `macos-26`（默认带 Xcode 26.6）——苹果从 2026 年 4 月 28 日起要求提交审核必须用 Xcode 26 以上编译，旧 runner 的 Xcode 版本达不到，不管接下来走哪条路都得先解决这个。
 
-**测试/上架不一定非要自己有 Mac，两条路都行**：
+**测试/上架不一定非要自己有 Mac——已经决定走方案 A**：扩展现有 GitHub Actions CI，把签名后的包直接传上 TestFlight，之后所有测试都在自己的 iPhone 上用 TestFlight App 完成，全程不用租 Mac、不用碰 Xcode。选这个而不是 Capgo/EAS/Ionic Appflow 这些第三方云构建服务，是因为签名证书/密钥能一直只放在这个仓库自己的 GitHub Secrets 里，不用交给任何第三方托管——跟这个项目一直坚持的自建思路一致。代码已经写好在 `.github/workflows/ios-release.yml` + `mobile/ios/ExportOptions.plist`，具体怎么配置、怎么触发，见下面新增的"方案 A：云端签名 + 上传 TestFlight"一节。
 
-**方案 A（推荐，全程不用碰 Xcode）**：用云端构建服务把签名后的包直接传上 TestFlight，之后所有测试都在自己的 iPhone 上用 TestFlight App 完成——Sign in with Apple、StoreKit 沙盒购买、推送通知、离线模式，都是真机上测，比模拟器更接近真实上架效果。可选的云端构建服务：
-  - **[Capgo Cloud Build](https://capgo.app/)**——专门为 Capacitor 项目做的云端构建，跟这个项目的技术栈最贴合
-  - **EAS Build**（`expo.dev`）——官方文档写的是"不管用不用 Expo/React Native 都能构建任意原生项目"，所以理论上能用，但它主要是给 Expo/React Native 项目优化的，用在 Capacitor 项目上要自己配 `eas.json` 指到现有的 `ios/` 目录，网上抱着 Expo 目的去用的人不算多，遇到坑不一定好搜
-  - **Codemagic / Ionic Appflow**——之前就提过，Ionic Appflow 是 Capacitor 官方团队自己做的云端构建服务，对 Capacitor 项目的支持是最"原生"的
-  - 也可以直接扩展现在这个仓库里已经跑通的 `.github/workflows/ios-build.yml`——加上签名证书(存成 GitHub Secrets)和 `xcodebuild -exportArchive`/fastlane 上传 TestFlight 的步骤，不用引入新服务，缺点是这部分要自己搭一次，比较花时间。
+（如果之后想要"改了代码马上肉眼看效果"的交互式调试，还有个方案 B：按小时租云端 Mac 比如 MacinCloud，在 Xcode 模拟器里跑——不是当前优先级，需要的时候再问我要详细步骤。）
 
-**方案 B（想要交互式调试的时候用）**：按小时租云端 Mac(比如 MacinCloud)，在 Xcode 模拟器里跑，前面详细步骤见上一轮对话/等下一次问我要。这个更适合"改了代码想马上肉眼看效果"的开发阶段，方案 A 更适合"测试成品、准备提交"的阶段。
-
-**不管走哪条路，大致顺序是**：
+**大致顺序**：
 
 1. （可选，但推荐）先用 curl 测一下 Apple 内购凭据对不对，见下面"Apple 内购(StoreKit)"一节
-2. 方案 A：配置好云端构建服务，触发一次构建并上传 TestFlight，然后在自己 iPhone 上装 TestFlight App 测；方案 B：`cd mobile && npm install && npm run sync:ios && cd ios/App && pod install`，用 Xcode 打开 `App.xcworkspace`(不是 `.xcodeproj`)，模拟器里跑
-3. 实测：Google/Apple 登录、通知权限弹窗、离线缓存、StoreKit 购买流程（真机走 TestFlight 自带的沙盒购买；模拟器可以用 Xcode 15+ 的 StoreKit Testing 本地配置文件，但测不到咱们自己后端 `/api/iap/sync` 的真实签名校验，这块要测真的得走 App Store Connect → 用户和访问 → 沙盒 建的测试 Apple ID）
-4. 提交 App Store 审核
+2. 按"方案 A：云端签名 + 上传 TestFlight"一节配置好 GitHub Secrets，触发一次 `iOS release to TestFlight` workflow
+3. 在自己 iPhone 上装 TestFlight App，实测：Google/Apple 登录、通知权限弹窗、离线缓存、StoreKit 沙盒购买流程（这是真实沙盒购买，能测到咱们自己后端 `/api/iap/sync` 的真实签名校验，比模拟器里的 StoreKit Testing 本地文件更接近真实上架效果）
+4. 提交 App Store 审核（同一个上传上去的 build 可以直接在 App Store Connect 里提交审核，不用重新打包）
 
 ## 目录说明
 
@@ -226,11 +220,52 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
 
 `.github/workflows/ios-build.yml`：这个开发环境是 Linux 容器，没有 Mac/Xcode，写 iOS 原生代码只能靠语法/逻辑检查，没法真正编译。这个 workflow 用 GitHub 提供的云端 macOS runner，在每次改动 `mobile/` 或 `frontend/` 时真正跑一次 `pod install` + `xcodebuild`（模拟器目标，不需要签名证书），验证工程到底编译能不能过——上面那次 SPM 编译不过、换成 CocoaPods 这两轮排查，都是靠这个 CI 的真实报错定位出来的，不是靠读代码猜的。
 
-不做签名、不装真机/模拟器、不跑交互测试（登录弹窗、通知权限这些需要人工点）——那些需要 Apple Developer 账号和真机/模拟器的图形界面，CI 做不到，得在真 Mac 上做。
+不做签名、不装真机/模拟器、不跑交互测试（登录弹窗、通知权限这些需要人工点）——那些需要 Apple Developer 账号和真机/模拟器的图形界面，CI 做不到，得在真 Mac 上做，或者靠下面"方案 A"这条路绕过去。
+
+## 方案 A：云端签名 + 上传 TestFlight（不用自己有 Mac）
+
+`.github/workflows/ios-release.yml`：手动触发(Actions 页面点 "Run workflow"，不跟着每次 push 自动跑，因为每次触发都会真的产生一个新的 TestFlight 构建版本号)，在云端 macOS runner 上完整做一遍签名 + 打包 + 上传，产物直接进 TestFlight，之后所有测试都在自己的 iPhone 上用 TestFlight App 完成。`mobile/ios/ExportOptions.plist` 是配套的导出配置(团队 ID、Bundle ID、描述文件名字，都是非敏感信息，直接提交进仓库了)。
+
+**首次使用前要在 GitHub 仓库的 Settings → Secrets and variables → Actions 里配好这 7 个 secret**（这些操作全部在你自己的电脑 + Apple 的网页后台完成，私钥内容不会经过我们的对话，直接从你电脑粘贴进 GitHub 网页）：
+
+| Secret 名字 | 是什么 |
+|---|---|
+| `IOS_DIST_CERT_P12_BASE64` | Apple Distribution 证书(.p12)的 base64 |
+| `IOS_DIST_CERT_PASSWORD` | 导出 .p12 时自己设的密码 |
+| `IOS_PROVISIONING_PROFILE_BASE64` | App Store 分发描述文件(.mobileprovision)的 base64 |
+| `IOS_CI_KEYCHAIN_PASSWORD` | 随便起一个密码，只是给 CI 临时钥匙串用，不用记 |
+| `ASC_API_KEY_ID` | App Store Connect API Key 的 Key ID |
+| `ASC_API_ISSUER_ID` | App Store Connect API 的 Issuer ID |
+| `ASC_API_KEY_BASE64` | App Store Connect API Key(.p8)的 base64 |
+
+**具体怎么生成这 7 个值**（在自己电脑上用 Git Bash 跑，Windows 装了 Git 就自带，不用额外装 openssl）：
+
+1. **生成证书签名请求(CSR) + 私钥**：
+   ```bash
+   openssl genrsa -out ios_distribution.key 2048
+   openssl req -new -key ios_distribution.key -out ios_distribution.csr -subj "/emailAddress=你的邮箱, CN=你的名字, C=US"
+   ```
+2. 打开 <https://developer.apple.com/account/resources/certificates/list> → 点 "+" → 选 **"Apple Distribution"**（不是 "Apple Development"）→ 上传上一步生成的 `ios_distribution.csr` → 下载生成的 `.cer` 文件
+3. **把证书和私钥合并成 .p12**（`<密码>` 自己设一个，等下要填进 `IOS_DIST_CERT_PASSWORD`）：
+   ```bash
+   openssl x509 -in ios_distribution.cer -inform DER -out ios_distribution.pem -outform PEM
+   openssl pkcs12 -export -out ios_distribution.p12 -inkey ios_distribution.key -in ios_distribution.pem -password pass:<密码>
+   ```
+4. 打开 <https://developer.apple.com/account/resources/profiles/list> → 点 "+" → 选 **"App Store Connect"**（Distribution 类型）→ App ID 选 `com.contextia.app` → 证书选第 2 步生成的那个 → **名字必须精确填 `Contextia AppStore`**（要跟 `ExportOptions.plist` 和 workflow 里写的字符串完全一致）→ 下载 `.mobileprovision` 文件
+5. 打开 App Store Connect → 用户和访问 → 集成(Integrations) → App Store Connect API → 生成一个新 Key，角色选 **"App Manager"**（这是专门给 CI 自动上传用的新 key，跟之前配置内购用的那个 Key 是两码事）→ 下载 `.p8`（**只能下载这一次**，下崩了就得重新生成）→ 记下 Key ID 和 Issuer ID
+6. **把三个二进制文件转成 base64**：
+   ```bash
+   base64 -w0 ios_distribution.p12 > cert_base64.txt
+   base64 -w0 dist_profile.mobileprovision > profile_base64.txt
+   base64 -w0 AuthKey_XXXXXXXXXX.p8 > apikey_base64.txt
+   ```
+7. 把上面 7 个值依次填进 GitHub 仓库的 Secrets 页面（`.txt` 文件里的内容整段复制粘贴即可）
+
+**配完之后怎么触发**：GitHub 仓库 → Actions 标签 → 左边选 "iOS release to TestFlight" → 右边 "Run workflow" 按钮。第一次跑大概率会报错（没法在没有真实 Apple 凭据的环境里预先跑通测试过），把报错贴给我，跟着实际情况调一两轮。跑成功之后，几分钟内这个 build 就会出现在 App Store Connect 的 TestFlight 标签下，同时你自己的 Apple 账号(内部测试员，不用额外加白名单)手机上装 TestFlight App 就能装到最新版本。
 
 ## App Store 4.2 与真机构建的现实限制
 
 这个开发环境是 Linux 容器，没有 Mac/Xcode，所以：
 
-- 能做：生成/维护 Capacitor 配置和 `ios/` 工程骨架、写前端联调代码（API_BASE 等）、写后端新接口（Apple 登录回调、StoreKit 收据校验等）、靠 CI 验证工程编译能不能过
-- 不能做：真机/模拟器运行、代码签名、生成 `.ipa`、上传 App Store Connect、任何需要人工点击的交互测试 —— 这些步骤需要在实际 Mac（或 Codemagic / Ionic Appflow 之类的云端 Mac 构建服务）上完成
+- 能做：生成/维护 Capacitor 配置和 `ios/` 工程骨架、写前端联调代码（API_BASE 等）、写后端新接口（Apple 登录回调、StoreKit 收据校验等）、靠 CI 验证工程编译能不能过、写好"方案 A"那一整套云端签名+上传 TestFlight 的自动化(`ios-release.yml`)
+- 不能做：任何需要人工点击图形界面的交互测试(登录弹窗、通知权限这些)——这些必须在真机/模拟器上肉眼操作，真机走 TestFlight(方案 A)，模拟器要租 Mac(方案 B)
