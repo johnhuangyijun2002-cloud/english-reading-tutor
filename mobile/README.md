@@ -17,20 +17,25 @@
 
 App Store 4.2 条款(不能是纯网页套壳)要求的"实质性原生功能"、内购保留付费能力这些，代码层面已经**全部写完**，没有遗留的功能缺口。
 
-**当前卡住的，全部是外部依赖/需要人工操作的事，不是代码问题**：
+**Apple Developer 账号已经激活，账号/后台相关的配置已经做完**：
 
-1. **Apple Developer Program 账号还没正式激活**(申请中/等审核中)。批下来之前，Sign in with Apple、Apple 内购这些没法真实联调——代码本身没问题，等的是 Apple 那边的审核结果。
-2. **`APPLE_IAP_ROOT_CERTS_BASE64` 这个环境变量还没填**——需要去 <https://www.apple.com/certificateauthority/> 下载 "Apple Root CA - G3 Root"，转成 base64，填进 Railway 的环境变量面板。**这一步不需要开发者账号，现在就能做**；AI agent 做不了是因为这个开发环境的网络策略挡了 `apple.com`。
-3. **这个开发环境是 Linux 容器，没有 Mac/Xcode**，所以做不了：真机/模拟器运行、代码签名、生成 `.ipa`、App Store Connect 里的商品配置、上传审核。这些必须在真实 Mac(或 Codemagic / Ionic Appflow 之类的云端 Mac 构建服务)上完成。
+- [x] **Apple Developer Program 账号已激活**（个人身份，Team ID `6G7ZJV58R2`）
+- [x] **Sign in with Apple 配置完 + 已经端到端测试成功**（网页版实测走通了 Apple 登录关联）。用到的标识：App ID `com.contextia.app`、Services ID `com.contextia.app.signin`、Key ID `ZS94X297U5`。四个环境变量（`APPLE_TEAM_ID`/`APPLE_SERVICES_ID`/`APPLE_KEY_ID`/`APPLE_PRIVATE_KEY`）已经填进 Railway。
+  - 中途修过一个真实 bug：Apple 回调是 POST，后端跳转默认用的 307 会让浏览器带着 POST 方法重新请求 `/app.html`（只认 GET），报 405——改成显式 303（Post/Redirect/Get 标准做法）解决了，见 `_oauth_success_redirect`。
+- [x] **Apple 内购(StoreKit)服务端配置也填完了**：App Store Connect 里建好了 App(Apple ID `6801417907`)、生成了 In-App Purchase Key(Key ID `3F58RKYX7Q`，Issuer ID `3c38958f-02b5-4602-a679-13b5a85f4a4c`)、建好了 Pro 订阅商品(Product ID `com.contextia.app.pro.monthly`)、配好了 App Store Server Notifications 的 webhook 地址。六个环境变量（`APPLE_IAP_KEY_ID`/`APPLE_IAP_ISSUER_ID`/`APPLE_IAP_PRIVATE_KEY`/`APPLE_APP_APPLE_ID`/`APPLE_PRO_PRODUCT_ID`/`APPLE_IAP_ROOT_CERTS_BASE64`）已经填进 Railway。
+  - **这块配置本身对不对还没最终验证**——推荐先用下面"Apple 内购(StoreKit)"一节里"怎么测"提到的 curl 命令测一次（拿假 transaction_id 调 `/api/iap/sync`，能自己判断凭据有效还是失败），不用等 Xcode 才发现配错了。
 
-**账号批下来、且有 Mac 可用之后，按这个顺序做**(每一步对应的代码位置/细节在下面对应的小节里)：
+**当前卡住的，就剩这一件事**：
 
-1. 去 Apple Developer 后台配 Sign in with Apple 的 Services ID + 私钥，填 `APPLE_TEAM_ID` / `APPLE_SERVICES_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY`（步骤见根目录 `.env.example`，对应代码见下面"Sign in with Apple"一节）
-2. 去 App Store Connect 生成 In-App Purchase Key、建 Pro 自动续费订阅商品，填 `APPLE_IAP_KEY_ID` / `APPLE_IAP_ISSUER_ID` / `APPLE_IAP_PRIVATE_KEY` / `APPLE_APP_APPLE_ID` / `APPLE_PRO_PRODUCT_ID`（步骤见根目录 `.env.example`，对应代码见下面"Apple 内购(StoreKit)"一节的"App Store Connect 里要配置的东西"）
-3. `cd mobile && npm install && npm run sync:ios && cd ios/App && pod install`，然后用 Xcode 打开 `App.xcworkspace`(注意不是 `.xcodeproj`)
-4. Xcode 里给 App 的 Target 加上 "In-App Purchase" capability(Signing & Capabilities 面板)
-5. 真机/模拟器上跑起来，实测：Google/Apple 登录、通知权限弹窗、飞行模式下的离线缓存、StoreKit 沙盒购买流程
-6. 提交 App Store 审核
+- **这个开发环境是 Linux 容器，没有 Mac/Xcode**，所以做不了：真机/模拟器运行、代码签名、生成 `.ipa`、Xcode 里加 In-App Purchase capability、上传审核。这些必须在真实 Mac(或 Codemagic / Ionic Appflow 之类的云端 Mac 构建服务)上完成。账号和后端这两块的配置已经不再是阻塞了。
+
+**有 Mac 可用之后，按这个顺序做**：
+
+1. （可选，但推荐）先用 curl 测一下 Apple 内购凭据对不对，见下面"Apple 内购(StoreKit)"一节
+2. `cd mobile && npm install && npm run sync:ios && cd ios/App && pod install`，然后用 Xcode 打开 `App.xcworkspace`(注意不是 `.xcodeproj`)
+3. Xcode 里给 App 的 Target 加上 "In-App Purchase" capability(Signing & Capabilities 面板)
+4. 真机/模拟器上跑起来，实测：Google/Apple 登录、通知权限弹窗、飞行模式下的离线缓存、StoreKit 沙盒购买流程（沙盒购买要先在 App Store Connect → 用户和访问 → 沙盒 建一个测试用的 Apple ID）
+5. 提交 App Store 审核
 
 ## 目录说明
 
@@ -67,16 +72,18 @@ Capacitor CLI 默认给新项目用 SPM(Swift Package Manager)集成，一开始
 
 CocoaPods 走的是另一条路：`Podfile` 里 `pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'` 直接编译 npm 包 `ios/` 目录下的完整源码（插件也是同样的模式，各自指向自己在 `node_modules` 里的路径），不经过任何预编译的二进制中间层，天然不会有"源码和二进制对不上"这类问题。所以把 `ios/` 整个重新生成成了 CocoaPods 版本。
 
-## Sign in with Apple（已完成代码，等 Apple Developer 账号批下来才能真正联调）
+## Sign in with Apple（配置完成，网页版已经端到端测试成功）
 
 跟 Google 登录走的是同一套服务端 OAuth 结构，代码在 `backend/main.py` 的 `# ---------- Apple 登录 / 关联 ----------` 那一段：
 
 - `GET /api/auth/apple/login` — 跳转到 `appleid.apple.com` 授权页
 - `POST /api/auth/apple/callback` — Apple 用 `response_mode=form_post` 把 `code` 回传（不是 GET query string），换 token、验证 `id_token` 签名(用 Apple 的 JWKS)、建号或登录
 - `client_secret` 不是固定字符串，是每次现算的一个 ES256 JWT，用 Apple 后台生成的 `.p8` 私钥签（见 `_apple_client_secret`）
-- 需要的环境变量：`APPLE_TEAM_ID` / `APPLE_SERVICES_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY`，配置步骤和获取位置见根目录 `.env.example` 里的注释。账号还没批下来之前，这几个变量不填，`/api/auth/apple/login` 会返回清晰的 500 "未配置" 错误，不影响其他功能。
+- 需要的环境变量：`APPLE_TEAM_ID` / `APPLE_SERVICES_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY`，配置步骤和获取位置见根目录 `.env.example` 里的注释。**这几个已经配好、部署到 Railway 了**。
 
-**账号批下来之后怎么测（不需要 Xcode/Mac）**：这是标准的网页 OAuth 跳转流程，配好上面四个环境变量、部署到 Railway 后，直接打开网页版 `/app.html`，点登录框里的 "Sign in with Apple" 按钮，用你自己的 Apple ID 走一遍，跟测 Google 登录一样，在普通浏览器里就能验证后端逻辑对不对。原生 App 壳里的集成效果（系统浏览器打开 + deep link 跳回 App）要在真机/模拟器里才能测，见下一节。
+**已经测过、真实走通了**：网页版 `/app.html` 点 "Sign in with Apple"，走一遍 Apple 登录授权，成功关联/登录。中途踩过一个坑：Apple 的回调是 `POST`（`response_mode=form_post`），后端登录成功后跳转 `/app.html` 用的 `RedirectResponse` 没显式指定状态码，默认是 `307`——307 会让浏览器带着原来的 `POST` 方法重新请求跳转目标，而 `/app.html` 只支持 `GET`，于是报 `405 Method Not Allowed`。Google 登录因为回调本身就是 `GET`，从来没踩到这个坑。修法：`_oauth_success_redirect()` 显式传 `status_code=303`（标准的 Post/Redirect/Get 模式，不管原请求是什么方法，跳转后都强制用 GET）。
+
+原生 App 壳里的集成效果（系统浏览器打开 + deep link 跳回 App）还没测——这个要在真机/模拟器里才能测，见下一节。
 
 ## 原生壳里的 OAuth 跳转方式（Google + Apple 共用）
 
@@ -94,7 +101,7 @@ CocoaPods 走的是另一条路：`Podfile` 里 `pod 'Capacitor', :path => '../.
 用的是**本地通知**（`@capacitor/local-notifications`），不是服务端 APNs 推送——不需要 APNs 推送证书、不需要后端另外搭推送队列，现在就能测（真机/模拟器即可，不需要付费 Apple Developer 账号）。代码在 `app.js` 的 `# ---------- 推送通知 ----------` 那一段：
 
 - `scheduleReviewReminders()`：App 每次打开（`initApp()` 里调用）都会先请求通知权限（`LocalNotifications.checkPermissions`/`requestPermissions`），再读一次 `/api/review/due-counts` 算出待复习总数，撤销之前预约的提醒，重新预约未来 7 天、每天上午 10 点一条"你有 N 个单词待复习"
-- **已知局限**：这是"预约"出来的通知，不是服务端主动推送。如果用户连续超过 7 天不打开 App，预约会用完，得下次打开才重新续上；预约的这几天里数字也是打开 App 那一刻的快照，不会随着中途复习而实时更新。真正做到"无论多久不开都能收到实时提醒"需要服务端 APNs 推送（存 push token、后端定时任务、调 APNs 接口），工作量明显更大，等 Apple Developer 账号批下来、有需要再做
+- **已知局限**：这是"预约"出来的通知，不是服务端主动推送。如果用户连续超过 7 天不打开 App，预约会用完，得下次打开才重新续上；预约的这几天里数字也是打开 App 那一刻的快照，不会随着中途复习而实时更新。真正做到"无论多久不开都能收到实时提醒"需要服务端 APNs 推送（存 push token、后端定时任务、调 APNs 接口），工作量明显更大，有需要再做
 - 通知文案在 `i18n/*.json` 的 `notifications.reviewDue`
 
 **怎么测**：真机或 Xcode 模拟器上跑起来，登录后允许通知权限，把系统时间往后调（或者把 `REVIEW_REMINDER_HOUR`/`REVIEW_REMINDER_DAYS` 临时改小方便测），看通知中心有没有出现"你有 N 个单词待复习"。这个跟 Apple Developer 付费账号无关，只需要能跑起 iOS 模拟器的 Mac。
@@ -125,9 +132,17 @@ CocoaPods 走的是另一条路：`Podfile` 里 `pod 'Capacitor', :path => '../.
 
 ### 需要的环境变量
 
-`APPLE_IAP_KEY_ID` / `APPLE_IAP_ISSUER_ID` / `APPLE_IAP_PRIVATE_KEY` / `APPLE_APP_APPLE_ID` / `APPLE_PRO_PRODUCT_ID` / `APPLE_IAP_ROOT_CERTS_BASE64`，配置步骤见根目录 `.env.example` 里的详细注释。没配置的话 `/api/iap/sync`、`/api/iap/notifications` 会返回清晰的 500"未配置"错误，不影响其他功能。
+`APPLE_IAP_KEY_ID` / `APPLE_IAP_ISSUER_ID` / `APPLE_IAP_PRIVATE_KEY` / `APPLE_APP_APPLE_ID` / `APPLE_PRO_PRODUCT_ID` / `APPLE_IAP_ROOT_CERTS_BASE64`，配置步骤见根目录 `.env.example` 里的详细注释。**这六个已经配好、部署到 Railway 了**：
 
-**`APPLE_IAP_ROOT_CERTS_BASE64` 这一步我没法替你做**：需要去 <https://www.apple.com/certificateauthority/> 下载 Apple 的根证书——这个域名在我这个开发环境的网络策略里被挡了(沙箱只放行白名单域名，`apple.com` 不在里面)，我没法帮你下载，需要你自己下载、转 base64、填进环境变量。这一步不需要 Apple Developer 账号，任何人都能下载。
+- `APPLE_IAP_KEY_ID` = `3F58RKYX7Q`
+- `APPLE_IAP_ISSUER_ID` = `3c38958f-02b5-4602-a679-13b5a85f4a4c`
+- `APPLE_APP_APPLE_ID` = `6801417907`
+- `APPLE_PRO_PRODUCT_ID` = `com.contextia.app.pro.monthly`（App Store Connect 里建的订阅商品 Product ID 也是这个，两边保持一致）
+- `APPLE_IAP_PRIVATE_KEY` / `APPLE_IAP_ROOT_CERTS_BASE64` 是私钥/证书内容，不记录在这里，已经直接填进 Railway
+
+`APPLE_IAP_ROOT_CERTS_BASE64` 用的是 "Apple Root CA - G3 Root"（<https://www.apple.com/certificateauthority/> 下载），已经用 `openssl x509` 验证过是真实有效的 Apple 根证书（Subject/Issuer 都是 `Apple Root CA - G3`，SHA-256 指纹 `63:34:3A:BF:B8:9A:6A:03:EB:B5:7E:9B:3F:5F:A7:BE:7C:4F:5C:75:6F:30:17:B3:A8:C4:88:C3:65:3E:91:79`，跟 Apple 官方公布的一致）。
+
+App Store Connect → App 信息 → App Store Server Notifications 的 Production/Sandbox URL 也已经配成 `https://contextia.up.railway.app/api/iap/notifications`。
 
 ### 前端(`app.js` 的 `# ---------- Apple 内购(StoreKit，原生壳专用) ----------` 一段)
 
@@ -137,15 +152,27 @@ CocoaPods 走的是另一条路：`Podfile` 里 `pod 'Capacitor', :path => '../.
 - 这个插件的 JS 运行时(`store.js`，约 500KB，未压缩)不是通过构建工具引入的——项目没有构建工具。`mobile/scripts/build-www.mjs` 在打包时把它从 `node_modules/capacitor-plugin-cdv-purchase/www/` 原样拷贝进 `www/vendor/cdv-purchase/`，`app.js` 用 `loadScriptOnce()` 动态加载，**只有原生壳会请求这两个文件，网页版完全不受影响**(不会拷进网页版部署，也不会有网页版加载这两个文件的代码路径)
 - 复用了网页版已有的"升级到 Pro"面板(`proPanelOverlay`)：原生壳里打开这个面板，等待名单/自愿支持那两块会隐藏，换成订阅按钮 + 恢复购买按钮(苹果审核不允许同一个面板里原生 App 既有真内购、又有指向站外支付的链接)
 
-### App Store Connect 里要配置的东西(等账号批下来、有 Mac 才能做)
+### App Store Connect 里要配置的东西
 
-1. 建一个自动续费订阅商品，Product ID 填 `APPLE_PRO_PRODUCT_ID` 那个值(默认 `com.contextia.app.pro.monthly`)
-2. Xcode 里给 App 的 Target 加上 "In-App Purchase" capability(Signing & Capabilities 里加，这个我没法帮你在文件层面配好，需要人在 Xcode 里点一下)
-3. 部署后端、拿到域名后，回 App Store Connect 把 App Store Server Notifications 的 Production/Sandbox URL 都填成 `https://你的域名/api/iap/notifications`
+1. ~~建一个自动续费订阅商品~~ ✅ 已建好，Product ID `com.contextia.app.pro.monthly`
+2. **Xcode 里给 App 的 Target 加上 "In-App Purchase" capability**（Signing & Capabilities 里加）—— 唯一还没做的一步，只能在 Xcode 里点，等有 Mac 再做
+3. ~~配 App Store Server Notifications 的 Production/Sandbox URL~~ ✅ 已经配成 `https://contextia.up.railway.app/api/iap/notifications`
 
 ### 怎么测
 
-真正的购买流程要走 App Store Connect 的 Sandbox 测试账号，只能在真机/模拟器上、账号批下来之后测。这个环境里能做、也做了的是：**后端这块的 JWT 签名、证书链校验、订阅状态映射逻辑，我用自己生成的假证书链跑通过一次完整的验证流程**(构造一个假的 root CA + 假的 leaf 证书签一个假的订阅交易 JWS，喂给 `SignedDataVerifier`，确认能正确解出 `productId`/`originalTransactionId`，并且证书链对不上时会正确拒绝)——验证到了 Apple 官方库对证书链的最后一步会检查一个只有真实 Apple 签发的证书才有的专属标记(`1.2.840.113635.100.6.11.1`)，这一步没法用假证书绕过，只能等有真实 Apple 收据/沙盒测试账号的时候才能验证，符合预期(这本来就是防伪造的检查点)。
+**不需要 Xcode/Mac 就能先验证凭据本身对不对**：登录网页版拿到 `authToken`（浏览器开发者工具 → Application → Local Storage），拿一个假的 `transaction_id` 调一次 `/api/iap/sync`：
+
+```bash
+curl -X POST https://contextia.up.railway.app/api/iap/sync \
+  -H "Authorization: Bearer <你的 authToken>" \
+  -H "Content-Type: application/json" \
+  -d '{"transaction_id": "123456789"}'
+```
+
+- 如果报"认证失败"之类的错 → Key ID / Issuer ID / 私钥这三个有问题
+- 如果报"没找到这笔交易"（`No matching subscription found` 或 404）→ 说明 Apple 已经认可了签名，凭据本身是对的，只是这笔交易不存在（预期结果，因为 ID 是瞎填的）
+
+真正的购买流程还是要走 App Store Connect 的 Sandbox 测试账号，只能在真机/模拟器上测，等有 Mac 才能做。这个开发环境里能做、也做了的是：**后端这块的 JWT 签名、证书链校验、订阅状态映射逻辑，用自己生成的假证书链跑通过一次完整的验证流程**(构造一个假的 root CA + 假的 leaf 证书签一个假的订阅交易 JWS，喂给 `SignedDataVerifier`，确认能正确解出 `productId`/`originalTransactionId`，并且证书链对不上时会正确拒绝)——验证到了 Apple 官方库对证书链的最后一步会检查一个只有真实 Apple 签发的证书才有的专属标记(`1.2.840.113635.100.6.11.1`)，这一步没法用假证书绕过，只能等有真实 Apple 收据/沙盒测试账号的时候才能验证，符合预期(这本来就是防伪造的检查点)。
 
 ## 已知待办（还没做的）
 
