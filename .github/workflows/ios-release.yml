@@ -85,7 +85,8 @@ jobs:
             -scheme App \
             -configuration Release \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            -destination "generic/platform=iOS"
+            -destination "generic/platform=iOS" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}"
 
       - name: Export .ipa
         run: |

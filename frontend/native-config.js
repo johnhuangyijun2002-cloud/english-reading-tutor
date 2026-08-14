@@ -5,7 +5,7 @@
 //
 // 部署到 Railway 后，把下面这行换成实际域名，然后在 mobile/ 目录跑一次
 // `npm run sync:ios` 把新地址同步进 iOS 工程。
-const CONTEXTIA_PRODUCTION_API_BASE = "https://REPLACE_WITH_YOUR_RAILWAY_DOMAIN.up.railway.app";
+const CONTEXTIA_PRODUCTION_API_BASE = "https://contextia.up.railway.app";
 
 window.CONTEXTIA_API_BASE =
   window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
