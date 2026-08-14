@@ -36,15 +36,15 @@ App Store 4.2 条款(不能是纯网页套壳)要求的"实质性原生功能"�
 
 **关于 CI**：`.github/workflows/ios-build.yml` 已经把 runner 从 `macos-14` 升到了 `macos-26`（默认带 Xcode 26.6）——苹果从 2026 年 4 月 28 日起要求提交审核必须用 Xcode 26 以上编译，旧 runner 的 Xcode 版本达不到，不管接下来走哪条路都得先解决这个。
 
-**测试/上架不一定非要自己有 Mac——已经决定走方案 A**：扩展现有 GitHub Actions CI，把签名后的包直接传上 TestFlight，之后所有测试都在自己的 iPhone 上用 TestFlight App 完成，全程不用租 Mac、不用碰 Xcode。选这个而不是 Capgo/EAS/Ionic Appflow 这些第三方云构建服务，是因为签名证书/密钥能一直只放在这个仓库自己的 GitHub Secrets 里，不用交给任何第三方托管——跟这个项目一直坚持的自建思路一致。代码已经写好在 `.github/workflows/ios-release.yml` + `mobile/ios/ExportOptions.plist`，具体怎么配置、怎么触发，见下面新增的"方案 A：云端签名 + 上传 TestFlight"一节。
+**测试/上架不一定非要自己有 Mac——方案 A 已经跑通了**：`iOS release to TestFlight` workflow 手动触发成功过（2026-08-14，run #3），签名、打包、上传 TestFlight 全流程验证通过，第一个 build 已经在 TestFlight 里了。扩展现有 GitHub Actions CI，把签名后的包直接传上 TestFlight，之后所有测试都在自己的 iPhone 上用 TestFlight App 完成，全程不用租 Mac、不用碰 Xcode。选这个而不是 Capgo/EAS/Ionic Appflow 这些第三方云构建服务，是因为签名证书/密钥能一直只放在这个仓库自己的 GitHub Secrets 里，不用交给任何第三方托管——跟这个项目一直坚持的自建思路一致。代码在 `.github/workflows/ios-release.yml` + `mobile/ios/ExportOptions.plist`，配置细节见下面"方案 A：云端签名 + 上传 TestFlight"一节。
 
 （如果之后想要"改了代码马上肉眼看效果"的交互式调试，还有个方案 B：按小时租云端 Mac 比如 MacinCloud，在 Xcode 模拟器里跑——不是当前优先级，需要的时候再问我要详细步骤。）
 
 **大致顺序**：
 
-1. （可选，但推荐）先用 curl 测一下 Apple 内购凭据对不对，见下面"Apple 内购(StoreKit)"一节
-2. 按"方案 A：云端签名 + 上传 TestFlight"一节配置好 GitHub Secrets，触发一次 `iOS release to TestFlight` workflow
-3. 在自己 iPhone 上装 TestFlight App，实测：Google/Apple 登录、通知权限弹窗、离线缓存、StoreKit 沙盒购买流程（这是真实沙盒购买，能测到咱们自己后端 `/api/iap/sync` 的真实签名校验，比模拟器里的 StoreKit Testing 本地文件更接近真实上架效果）
+1. ~~先用 curl 测一下 Apple 内购凭据对不对~~ ✅ 已经通过实际构建间接验证了，凭据没问题
+2. ~~按"方案 A：云端签名 + 上传 TestFlight"一节配置好 GitHub Secrets，触发一次 `iOS release to TestFlight` workflow~~ ✅ 已完成，跑通了
+3. **现在要做的**：在自己 iPhone 上装 TestFlight App，实测：Google/Apple 登录、通知权限弹窗、离线缓存、StoreKit 沙盒购买流程（这是真实沙盒购买，能测到咱们自己后端 `/api/iap/sync` 的真实签名校验，比模拟器里的 StoreKit Testing 本地文件更接近真实上架效果）
 4. 提交 App Store 审核（同一个上传上去的 build 可以直接在 App Store Connect 里提交审核，不用重新打包）
 
 ## 目录说明
@@ -222,9 +222,13 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
 
 不做签名、不装真机/模拟器、不跑交互测试（登录弹窗、通知权限这些需要人工点）——那些需要 Apple Developer 账号和真机/模拟器的图形界面，CI 做不到，得在真 Mac 上做，或者靠下面"方案 A"这条路绕过去。
 
-## 方案 A：云端签名 + 上传 TestFlight（不用自己有 Mac）
+## 方案 A：云端签名 + 上传 TestFlight（不用自己有 Mac，已验证跑通）
 
 `.github/workflows/ios-release.yml`：手动触发(Actions 页面点 "Run workflow"，不跟着每次 push 自动跑，因为每次触发都会真的产生一个新的 TestFlight 构建版本号)，在云端 macOS runner 上完整做一遍签名 + 打包 + 上传，产物直接进 TestFlight，之后所有测试都在自己的 iPhone 上用 TestFlight App 完成。`mobile/ios/ExportOptions.plist` 是配套的导出配置(团队 ID、Bundle ID、描述文件名字，都是非敏感信息，直接提交进仓库了)。
+
+**2026-08-14 第一次真实跑通，中途修过两个坑，记录一下方便以后排查同类问题**：
+1. 证书导入报"密码不对"（`SecKeychainItemImport: The user name or passphrase you entered is not correct.`）——`.p12` 密码里如果有 `$`、`"` 这类 shell 特殊字符，在命令行里传递时容易被误解析，导致实际写进 `.p12` 的密码跟你以为设的不一样。换成纯字母数字的密码后解决。
+2. Archive 报一堆"X does not support provisioning profiles"（`CapacitorFilesystem`/`CapacitorBrowser`等）——根因是 `xcodebuild archive` 命令行传的 `CODE_SIGN_STYLE=Manual` 之类的参数会应用到整个构建里的所有 target，包括 CocoaPods 生成的那些framework/library target，而这些 target 本来就不该配置独立的签名证书。修法是把手动签名配置写死进 `App.xcodeproj/project.pbxproj` 里 App 这个 target 自己的 Release 配置，不再通过命令行全局传参。
 
 **首次使用前要在 GitHub 仓库的 Settings → Secrets and variables → Actions 里配好这 7 个 secret**（这些操作全部在你自己的电脑 + Apple 的网页后台完成，私钥内容不会经过我们的对话，直接从你电脑粘贴进 GitHub 网页）：
 
@@ -243,7 +247,7 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
 1. **生成证书签名请求(CSR) + 私钥**：
    ```bash
    openssl genrsa -out ios_distribution.key 2048
-   openssl req -new -key ios_distribution.key -out ios_distribution.csr -subj "/emailAddress=你的邮箱, CN=你的名字, C=US"
+   openssl req -new -key ios_distribution.key -out ios_distribution.csr -subj "/emailAddress=你的邮箱/CN=你的名字/C=US"
    ```
 2. 打开 <https://developer.apple.com/account/resources/certificates/list> → 点 "+" → 选 **"Apple Distribution"**（不是 "Apple Development"）→ 上传上一步生成的 `ios_distribution.csr` → 下载生成的 `.cer` 文件
 3. **把证书和私钥合并成 .p12**（`<密码>` 自己设一个，等下要填进 `IOS_DIST_CERT_PASSWORD`）：
@@ -261,7 +265,7 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
    ```
 7. 把上面 7 个值依次填进 GitHub 仓库的 Secrets 页面（`.txt` 文件里的内容整段复制粘贴即可）
 
-**配完之后怎么触发**：GitHub 仓库 → Actions 标签 → 左边选 "iOS release to TestFlight" → 右边 "Run workflow" 按钮。第一次跑大概率会报错（没法在没有真实 Apple 凭据的环境里预先跑通测试过），把报错贴给我，跟着实际情况调一两轮。跑成功之后，几分钟内这个 build 就会出现在 App Store Connect 的 TestFlight 标签下，同时你自己的 Apple 账号(内部测试员，不用额外加白名单)手机上装 TestFlight App 就能装到最新版本。
+**怎么触发**：GitHub 仓库 → Actions 标签 → 左边选 "iOS release to TestFlight" → 右边 "Run workflow" 按钮，分支选 `master`。**注意**：如果某次运行失败了，重新触发要点 "Run workflow" 发起一次全新的运行，不要点失败运行页面里的"Re-run failed jobs"——那个是重跑同一个 commit 的旧代码，改了代码/配置之后不会生效。跑成功之后，几分钟内这个 build 就会出现在 App Store Connect 的 TestFlight 标签下，同时你自己的 Apple 账号(内部测试员，不用额外加白名单)手机上装 TestFlight App 就能装到最新版本。
 
 ## App Store 4.2 与真机构建的现实限制
 
