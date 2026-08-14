@@ -85,11 +85,7 @@ jobs:
             -scheme App \
             -configuration Release \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            -destination "generic/platform=iOS" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="Contextia AppStore" \
-            DEVELOPMENT_TEAM=6G7ZJV58R2
+            -destination "generic/platform=iOS"
 
       - name: Export .ipa
         run: |
