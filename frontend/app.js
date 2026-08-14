@@ -1969,20 +1969,12 @@ function renderNativeNews(items) {
 
     const readBtn = card.querySelector(".btn-primary");
     readBtn.textContent = t("recommend.readThis");
-    readBtn.addEventListener("click", async () => {
-      readBtn.disabled = true;
-      readBtn.textContent = t("recommend.fetching");
-      try {
-        const doc = await fetchUrlAsDocument(item.url, getLastLearningLanguage());
-        await refreshDocuments(doc.id);
-        nativeNewsPanelOverlay.classList.add("hidden");
-        const immersionOnBtn = document.querySelector('.immersionToggle button[data-value="on"]');
-        if (immersionOnBtn && !immersionOnBtn.classList.contains("active")) immersionOnBtn.click();
-      } catch (err) {
-        alert(t("paste.fetchFailed", { message: err.message }));
-        readBtn.disabled = false;
-        readBtn.textContent = t("recommend.readThis");
-      }
+    // 不在站内抓正文——理由跟 renderRecommendations() 里的 AI Picks 一样：这是 App 自己
+    // 从 RSS 源挑出来推荐给用户的，不是用户自己选的链接，直接抓全文存库版权风险更高。
+    // 点"读这篇"改成跳转到源网站 + 引导用户自己复制正文回来粘贴。
+    readBtn.addEventListener("click", () => {
+      nativeNewsPanelOverlay.classList.add("hidden");
+      openPasteFromExternal(item);
     });
 
     nativeNewsList.appendChild(card);
