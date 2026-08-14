@@ -1054,6 +1054,25 @@ document.addEventListener("click", (e) => {
   }
 });
 
+// ---------- "更多"收纳菜单 ----------
+
+const btnNavMore = document.getElementById("btnNavMore");
+const navMoreMenu = document.getElementById("navMoreMenu");
+
+btnNavMore.addEventListener("click", () => {
+  navMoreMenu.classList.toggle("hidden");
+});
+
+document.addEventListener("click", (e) => {
+  if (!navMoreMenu.contains(e.target) && !btnNavMore.contains(e.target)) {
+    navMoreMenu.classList.add("hidden");
+  }
+});
+
+navMoreMenu.addEventListener("click", (e) => {
+  if (e.target.closest(".navMoreItem")) navMoreMenu.classList.add("hidden");
+});
+
 // ---------- API 用量统计 ----------
 
 async function loadUsage() {
@@ -3523,10 +3542,8 @@ btnLogout.addEventListener("click", async () => {
 const NAV_TOUR_SEEN_KEY = "navTourSeen";
 const NAV_TOUR_STEPS = [
   { target: "btnRecommend", textKey: "navTour.recommend" },
-  { target: "btnNativeNews", textKey: "navTour.nativeNews" },
-  { target: "navReview", textKey: "navTour.review" },
-  { target: "btnStats", textKey: "navTour.stats" },
-  { target: "btnAccountSettings", textKey: "navTour.settings" },
+  { target: "btnDocManager", textKey: "navTour.docManager" },
+  { target: "btnNavMore", textKey: "navTour.more" },
 ];
 let navTourIndex = 0;
 const navTourTooltip = document.getElementById("navTourTooltip");

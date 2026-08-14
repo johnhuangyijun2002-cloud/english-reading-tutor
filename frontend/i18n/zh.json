@@ -30,7 +30,8 @@
     "nativeNews": "母语新闻",
     "stats": "学习统计",
     "adminStats": "站长统计",
-    "upgradePro": "升级到 Pro"
+    "upgradePro": "升级到 Pro",
+    "more": "更多"
   },
   "docManager": {
     "title": "文章管理",
@@ -398,10 +399,8 @@
   },
   "navTour": {
     "recommend": "AI 会按你的水平推荐文章，适合当作起点。",
-    "nativeNews": "自动抓取母语新闻，用于沉浸模式。",
-    "review": "间隔重复复习会在你快忘记之前把生词带回来。",
-    "stats": "在这里看你的连续打卡天数和复习正确率。",
-    "settings": "在这里配置 AI Key、水平设置和沉浸模式。",
+    "docManager": "你导入过的所有文章都在这里管理。",
+    "more": "母语新闻、复习、统计、设置都收在这里。",
     "next": "下一个",
     "done": "知道了",
     "skip": "跳过"
