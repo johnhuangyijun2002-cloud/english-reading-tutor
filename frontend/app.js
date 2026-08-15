@@ -205,6 +205,21 @@ async function initIAP() {
       window.Capacitor.registerPlugin("PurchasePlugin");
     }
     await loadScriptOnce("vendor/cdv-purchase/store.js");
+    // store.js 自己会在脚本顶层探测 window.cordova 存不存在——Capacitor 的原生桥接脚本
+    // (native-bridge.js)一律会执行 `win.cordova = win.cordova || {}`，所以这个探测在
+    // 原生壳里永远为真，store.js 因此会把自己的初始化(把 CdvPurchase.store 这个单例挂到
+    // window 上)包在 setTimeout(fn, 0) 里推迟到下一个事件循环 tick 才做，而不是脚本一执行完
+    // 就同步做好。我们这边 await loadScriptOnce() 一 resolve 就立刻同步去读 window.CdvPurchase
+    // .store，正好抢在它初始化完成前，读到的是 undefined——用同样的"让出一个 tick"的办法排在
+    // 它后面执行，等它先跑完。
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (!window.CdvPurchase || !window.CdvPurchase.store) {
+      throw new Error(
+        `CdvPurchase not ready after init (CdvPurchase=${typeof window.CdvPurchase}, store=${
+          window.CdvPurchase ? typeof window.CdvPurchase.store : "n/a"
+        })`
+      );
+    }
     const { store, ProductType, Platform } = window.CdvPurchase;
     store.register([{ id: IAP_PRODUCT_ID, type: ProductType.PAID_SUBSCRIPTION, platform: Platform.APPLE_APPSTORE }]);
     store.when().approved(async (transaction) => {
