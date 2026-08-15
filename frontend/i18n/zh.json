@@ -395,6 +395,7 @@
     "iapLoading": "加载中...",
     "iapActiveStatus": "你已经订阅 Contextia Pro——无限量 AI 解析，不需要自己的 API Key。",
     "iapProductUnavailable": "订阅信息加载失败，稍后再试",
+    "iapInitFailed": "连接 App Store 失败：{message}",
     "iapPurchaseFailed": "购买失败：{message}",
     "iapDisclosure": "{price}/月，自动续费。确认购买后从你的 Apple ID 扣款。可随时在 设置 → [你的姓名] → 订阅 中管理或取消，需在续费前至少 24 小时操作。",
     "iapDisclosureNoPrice": "按月自动续费订阅。确认购买后从你的 Apple ID 扣款。可随时在 设置 → [你的姓名] → 订阅 中管理或取消，需在续费前至少 24 小时操作。",

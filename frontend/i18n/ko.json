@@ -395,6 +395,7 @@
     "iapLoading": "불러오는 중...",
     "iapActiveStatus": "Contextia Pro를 구독 중이에요 — API 키 없이 무제한 AI 조회를 사용할 수 있어요.",
     "iapProductUnavailable": "구독 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요",
+    "iapInitFailed": "App Store 연결 실패: {message}",
     "iapPurchaseFailed": "구매 실패: {message}",
     "iapDisclosure": "월 {price}, 자동 갱신됩니다. 구매 확인 시 Apple ID로 결제돼요. 설정 → [내 이름] → 구독 에서 언제든 관리하거나 취소할 수 있어요(갱신 최소 24시간 전에).",
     "iapDisclosureNoPrice": "월 자동 갱신 구독이에요. 구매 확인 시 Apple ID로 결제돼요. 설정 → [내 이름] → 구독 에서 언제든 관리하거나 취소할 수 있어요(갱신 최소 24시간 전에).",

@@ -167,6 +167,7 @@ async function scheduleReviewReminders() {
 // www/vendor/cdv-purchase/，只有原生壳会用到，动态加载，网页版永远不会加载/请求这两个文件。
 const IAP_PRODUCT_ID = "com.contextia.app.pro.monthly";
 let iapStoreReady = false;
+let iapInitError = null;
 let currentEntitlement = null;
 
 function loadScriptOnce(src) {
@@ -206,8 +207,11 @@ async function initIAP() {
     await store.initialize([Platform.APPLE_APPSTORE]);
     iapStoreReady = true;
   } catch (err) {
-    // StoreKit 初始化失败(比如插件没装好、模拟器不支持内购)不影响正常使用，安静忽略
+    // StoreKit 初始化失败(比如插件没装好、模拟器不支持内购)不影响正常使用，安静忽略——
+    // 但把错误记下来显示在订阅面板里，不然远程排查的时候完全看不到手机上到底报了什么错。
+    iapInitError = err;
   }
+  updateIapPanel();
 }
 
 async function loadEntitlement() {
@@ -227,7 +231,13 @@ function updateIapPanel() {
     btnIapSubscribe.classList.add("hidden");
     if (iapProDisclosure) iapProDisclosure.textContent = "";
   } else {
-    iapProStatus.textContent = iapStoreReady ? "" : t("pro.iapLoading");
+    if (iapStoreReady) {
+      iapProStatus.textContent = "";
+    } else if (iapInitError) {
+      iapProStatus.textContent = t("pro.iapInitFailed", { message: iapInitError.message || String(iapInitError) });
+    } else {
+      iapProStatus.textContent = t("pro.iapLoading");
+    }
     btnIapSubscribe.classList.remove("hidden");
     btnIapSubscribe.disabled = !iapStoreReady;
     if (iapProDisclosure) {
