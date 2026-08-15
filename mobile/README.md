@@ -40,12 +40,20 @@ App Store 4.2 条款(不能是纯网页套壳)要求的"实质性原生功能"�
 
 （如果之后想要"改了代码马上肉眼看效果"的交互式调试，还有个方案 B：按小时租云端 Mac 比如 MacinCloud，在 Xcode 模拟器里跑——不是当前优先级，需要的时候再问我要详细步骤。）
 
-**大致顺序**：
+**真机测试进度（2026-08-15）**：
 
-1. ~~先用 curl 测一下 Apple 内购凭据对不对~~ ✅ 已经通过实际构建间接验证了，凭据没问题
-2. ~~按"方案 A：云端签名 + 上传 TestFlight"一节配置好 GitHub Secrets，触发一次 `iOS release to TestFlight` workflow~~ ✅ 已完成，跑通了
-3. **现在要做的**：在自己 iPhone 上装 TestFlight App，实测：Google/Apple 登录、通知权限弹窗、离线缓存、StoreKit 沙盒购买流程（这是真实沙盒购买，能测到咱们自己后端 `/api/iap/sync` 的真实签名校验，比模拟器里的 StoreKit Testing 本地文件更接近真实上架效果）
-4. 提交 App Store 审核（同一个上传上去的 build 可以直接在 App Store Connect 里提交审核，不用重新打包）
+- [x] 用户名密码注册/登录——一开始因为 `native-config.js` 的后端地址还是占位符，全部联网操作都 404，修好后正常
+- [x] 服务条款/隐私政策链接——原生壳里之前是站内相对路径，点了没反应，改成绝对地址后正常
+- [x] StoreKit 面板能正常初始化、显示价格、"订阅"按钮可点——中途连续修了两个真实 bug：① 内购插件没有走 npm 包正常的 `registerPlugin` 流程（这个项目没构建工具，是手动加载插件的 www/ 源文件），要手动补一次 `Capacitor.registerPlugin`；② 插件自己的初始化代码探测到 `window.cordova`(Capacitor 原生桥接脚本自带的) 存在，会把初始化推迟到下一个事件循环 tick，我们的代码读早了一个 tick，要多等一下
+- [ ] **StoreKit 购买流程走到底**——卡在苹果的规则上，不是代码问题：App Store Connect 明确提示"首个订阅群组必须随新 App 版本一起提交"，沙盒环境在真正提交审核之前拿不到商品报价。**这一步的验证被迫推迟到提交审核之后**
+- [ ] Google 登录——还没实测
+- [ ] Apple 登录（原生壳里系统浏览器 + deep link 那条路径）——还没实测，网页版走通过，但原生壳这条路径没验证过
+- [ ] 通知权限弹窗——还没实测
+- [ ] 离线缓存（飞行模式下看已存内容）——还没实测
+
+**App Store Connect 后台还需要确认/完成的**（见下面"隐私政策 & 服务条款"一节的完整清单）：Privacy Policy URL、App Privacy 隐私问卷、订阅商品的本地化显示名称——这几项之前列过，还没有逐条跟你确认是否已经填完。
+
+**提交审核**：按你的要求先不做，等你想清楚再说。真要提交的时候需要准备：App 截图（不同尺寸机型）、宣传文字、关键词、分类、年龄分级，这些我没法替你准备（需要真机截图），到时候再一起梳理。
 
 ## 目录说明
 
@@ -167,8 +175,9 @@ App Store Connect → App 信息 → App Store Server Notifications 的 Producti
 ### App Store Connect 里要配置的东西
 
 1. ~~建一个自动续费订阅商品~~ ✅ 已建好，Product ID `com.contextia.app.pro.monthly`
-2. **Xcode 里给 App 的 Target 加上 "In-App Purchase" capability**（Signing & Capabilities 里加）—— 唯一还没做的一步，只能在 Xcode 里点，等有 Mac 再做
+2. ~~Xcode 里给 App 的 Target 加上 "In-App Purchase" capability~~ 查证后发现不需要（没有专属 entitlement，App ID 已经是正式注册的，StoreKit 已经通过内购插件的 pod 间接链接了），详见下面"方案 A"一节的说明
 3. ~~配 App Store Server Notifications 的 Production/Sandbox URL~~ ✅ 已经配成 `https://contextia.up.railway.app/api/iap/notifications`
+4. **首个订阅必须随 App 首个版本一起提交审核，之前才发现这个规则**——App Store Connect 的 Contextia Pro 订阅页面明确提示"首个订阅群组必须随新 App 版本一起提交"，这意味着 StoreKit 沙盒测试里"拉取商品报价"这一步，在真正提交审核之前测不通（会报"订阅信息加载失败"）。这不是代码或配置问题，代码这边已经验证到"能正确弹出购买面板、价格展示逻辑都对"这一步为止，购买流程的最后一段只能等提交审核之后才能继续验证。
 
 ### 怎么测
 
