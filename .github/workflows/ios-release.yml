@@ -110,3 +110,19 @@ jobs:
             -t ios \
             --apiKey "$ASC_API_KEY_ID" \
             --apiIssuer "$ASC_API_ISSUER_ID"
+
+      # 每个新 build 都要单独回答一次"是否使用加密"的合规性问题，答不了这个 build 就不会
+      # 出现在可测试列表里，之前一直是手动点，容易忘。这一步用 App Store Connect API 自动
+      # 答成"否/标准 HTTPS 豁免"，跟之前手动选的答案一致。等 Apple 处理完 build 最多等 15
+      # 分钟，超时或出错都不让整个 job 失败——大不了退回手动点一次，不影响 build 已经传成功。
+      - name: Auto-answer export compliance
+        continue-on-error: true
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_APP_ID: "6801417907"
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          gem install jwt --no-document
+          export ASC_KEY_PATH=~/private_keys/AuthKey_${ASC_API_KEY_ID}.p8
+          ruby scripts/answer-export-compliance.rb
