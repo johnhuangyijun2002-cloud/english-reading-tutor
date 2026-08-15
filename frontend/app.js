@@ -26,6 +26,16 @@ function startOAuthFlow(loginPath) {
   }
 }
 
+// 登录页和订阅面板里的服务条款/隐私政策链接写的是站内相对路径(/terms.html)——网页版没问题，
+// 原生壳里页面本身是打包进 App 的本地文件，相对路径解析出来是个 capacitor://localhost/... 这样
+// 的本地地址，系统根本没有能处理这个 scheme 的方式，点了跟没点一样，没有任何反应。
+// 原生壳里改写成指向真实生产域名的绝对地址。
+function fixLegalLinksForNative() {
+  if (!isNativeApp()) return;
+  document.querySelectorAll('a[href="/terms.html"]').forEach((a) => (a.href = API_BASE + "/terms.html"));
+  document.querySelectorAll('a[href="/privacy.html"]').forEach((a) => (a.href = API_BASE + "/privacy.html"));
+}
+
 // ---------- 离线缓存(原生壳专用) ----------
 // 网页版本身就要联网才能打开，不需要这套；原生壳里网络断了也该能看已经存过的文章/生词/
 // 句子笔记，所以每次读接口成功都顺手写一份到设备本地文件(@capacitor/filesystem)，
@@ -185,6 +195,15 @@ async function initIAP() {
   if (!isNativeApp()) return;
   try {
     await loadScriptOnce("vendor/cdv-purchase/capacitor-plugin.js");
+    // capacitor-plugin.js 只设置了一个标记(window.CdvPurchaseCapacitor)，真正把这个插件的
+    // 原生方法注册进 Capacitor 桥(window.Capacitor.Plugins.PurchasePlugin)这一步，官方是靠
+    // npm 包的 dist/index.js 里 `import { registerPlugin } from '@capacitor/core'` 做的——
+    // 这个项目没有构建工具，走不了那条 import 路径，所以要用 Capacitor 运行时已经全局暴露的
+    // 同一个函数(window.Capacitor.registerPlugin)手动补上这一步，不然原生桥永远连不上，
+    // store.register() 会在拿到一个没初始化好的 store 单例上调用，直接报错。
+    if (window.Capacitor && window.Capacitor.registerPlugin) {
+      window.Capacitor.registerPlugin("PurchasePlugin");
+    }
     await loadScriptOnce("vendor/cdv-purchase/store.js");
     const { store, ProductType, Platform } = window.CdvPurchase;
     store.register([{ id: IAP_PRODUCT_ID, type: ProductType.PAID_SUBSCRIPTION, platform: Platform.APPLE_APPSTORE }]);
@@ -3810,6 +3829,7 @@ btnLinkApple.addEventListener("click", async () => {
 
 (async () => {
   await loadI18n(currentUiLanguage);
+  fixLegalLinksForNative();
 
   // 密码找回邮件里的链接带着 ?reset_token=...，不管当前设备有没有登录态，
   // 都优先弹这个设新密码的表单，不能直接把人送进正在登录的账号里。
