@@ -225,6 +225,13 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
 
 1. **账号自助注销** — 已经在网页版做好了（设置页），iOS 端复用同一套网页 UI，不用额外做。
 
+2. **iOS 原生 Share Extension（2026-08-15 调研过，暂停了，不是优先级）**：系统分享面板一键导入文章，省去"跳转浏览器 + 手动复制粘贴"这几步。调研结论：
+   - **新建 Xcode target 这件事不需要 Mac**——`xcodeproj`(CocoaPods 底层用的同一个 Ruby 库，纯 Ruby，这个 Linux 环境能直接装能用)可以脚本化地给 `.xcodeproj` 加一个 App Extension target，不用 Xcode 图形界面
+   - **真正卡住的是"Extension 抓到的分享内容，怎么传回主 App 的网页层"这一步**：Extension 进程和主 App 进程是分开的，得靠 App Group 共享的 UserDefaults 中转。原生代码往网页里注入 JS 的话有时序问题(冷启动时原生代码可能跑得比网页加载完还快)；想走"自定义 Capacitor 插件"更规范的路子，又发现 Capacitor 的插件自动注册机制依赖 `cap sync` 生成的清单，手写的插件不在里面，还得另外解决注册问题
+   - 这些原生代码在这个开发环境里**完全没法编译验证**，只能靠推上去之后 CI/TestFlight 报错来排查，参考 StoreKit 那几个 bug 的排查节奏(来回四五轮才修完)，这个大概率轮次更多、更慢
+   - Apple Developer 后台该注册的东西已经注册好了：App ID `com.contextia.app.ShareExtension`(带 App Groups capability)、App Group `group.com.contextia.app`(主 App 的 App ID 也已经关联上)——真要捡起来做，这步不用重做
+   - 结论：技术上不需要 Mac，但没有 Mac 的话每一轮试错成本很高(推代码→等 CI→等 Apple 处理 build→装机测试→报错反馈，一轮至少十几分钟)；有 Mac 现场调试会快很多。等有 Mac 可用、或者觉得这个功能值得投入再捡起来。
+
 ## iOS 编译 CI
 
 `.github/workflows/ios-build.yml`：这个开发环境是 Linux 容器，没有 Mac/Xcode，写 iOS 原生代码只能靠语法/逻辑检查，没法真正编译。这个 workflow 用 GitHub 提供的云端 macOS runner，在每次改动 `mobile/` 或 `frontend/` 时真正跑一次 `pod install` + `xcodebuild`（模拟器目标，不需要签名证书），验证工程到底编译能不能过——上面那次 SPM 编译不过、换成 CocoaPods 这两轮排查，都是靠这个 CI 的真实报错定位出来的，不是靠读代码猜的。
