@@ -202,20 +202,23 @@ curl -X POST https://contextia.up.railway.app/api/iap/sync \
 运营一个带广告变现的 App、收取广告收入），跟广告平台/收款方注册在哪个国家、收款账户是个人还是
 公司都无关，换成中国的广告联盟也一样绕不开。这件事没解决之前不会真的产生广告收入。
 
-但为了熟悉整个接入流程、提前把技术风险摸清楚，把 AdMob 的技术集成先走通了一遍——**全程用 Google
-官方公开的测试 App ID / 测试广告位 ID，不关联任何真实 AdMob 账号，不会有真实广告展示，也不会产生
-任何真实收入**：
+但为了熟悉整个接入流程、提前把技术风险摸清楚，把 AdMob 的技术集成先走通了一遍——**广告位请求
+全程走 Google 官方公开的测试广告位 ID，不会有真实广告展示，也不会产生任何真实收入**：
 
 - `mobile/package.json` 加了 `@capacitor-community/admob` 依赖（对齐 Capacitor 8），`npx cap sync ios`
   跑过一次，`ios/App/Podfile` 已经自动生成了 `CapacitorCommunityAdmob` 这条 pod
-- `mobile/ios/App/App/Info.plist` 加了 `GADApplicationIdentifier`（Google 官方测试 App ID）、
-  `NSUserTrackingUsageDescription`、`SKAdNetworkItems`（现在只放了 Google 自己那一条
-  `cstr6suwn9.skadnetwork`，够测试用；生产环境需要去
+- 用户已经用自己的 Google 账号注册了真实 AdMob 账号，并创建了 App + 一个 Banner 广告单元。
+  `mobile/ios/App/App/Info.plist` 的 `GADApplicationIdentifier` 现在是这个**真实 App ID**
+  （`ca-app-pub-7356124481466705~7289853108`），`frontend/ads.js` 的
+  `PRODUCTION_BANNER_AD_UNIT_ID` 是这个**真实广告单元 ID**（`ca-app-pub-7356124481466705/6674096817`）
+  ——这两个值本身不涉及金钱往来，注册/接入不会触发签证问题；`SKAdNetworkItems` 现在只放了 Google
+  自己那一条 `cstr6suwn9.skadnetwork`，够测试用（生产环境需要去
   [Google 官方文档](https://developers.google.com/admob/ios/quick-start) 现查当前完整列表，这个列表
   会随时间变化，不能抄旧的——这次没能直接访问 developers.google.com 核对完整清单，抄的是
   Apple 官方 SKAdNetwork ID 仓库的一个子集，生产环境上线前务必重新核对）
-- `frontend/ads.js` — `window.ContextiaAds`（`init`/`showBanner`/`hideBanner`），现在 `ADS_ENABLED = true`
-  但 `USE_TEST_ADS = true`，调用的是 Google 公开的测试广告位 ID。启动时会调用一次 `init()`
+- `frontend/ads.js` — `window.ContextiaAds`（`init`/`showBanner`/`hideBanner`），`ADS_ENABLED = true`
+  且 `USE_TEST_ADS` 仍然是 `true`——**真实广告单元 ID 已经存进代码了，但当前逻辑不会用到它**，
+  实际请求走的是 `TEST_BANNER_AD_UNIT_ID`（Google 公开测试广告位）。启动时会调用一次 `init()`
   （`app.js` 顶部启动 IIFE 里，紧跟 `fixLegalLinksForNative()`），原生壳里初始化成功后紧接着调用
   `showBanner()`，正常情况下下次装 TestFlight 新 build 后应该能在屏幕底部看到一条"Test Ad"字样的
   横幅——出现这条就说明整个技术链路（CocoaPods 依赖、原生插件注册、ATT 授权弹窗、AdMob SDK 初始化、
@@ -233,13 +236,11 @@ AppLovin (MAX)、Unity Ads/LevelPlay、Meta Audience Network、Pangle——AdMob
 韩国区收款方是登记过的韩国税务主体）不是一回事；但这只是说 Google 自己的收款政策没有这个门槛，
 不代表签证问题就解决了——两者是独立的两件事。
 
-**真要上线产生真实收入的时候还需要做的事**：
+**真要上线产生真实收入的时候还需要做的事**（App ID / 广告单元 ID 已经是真的了，不用再做）：
 1. 确认签证/身份问题已经解决（换签证、有合法工作许可、或者找到确实合规的收入安排方式）
-2. 注册真实 AdMob 账号，创建真实 App + 广告单元，拿到真实 ID
-3. `frontend/ads.js` 里 `USE_TEST_ADS` 改成 `false`，`PRODUCTION_BANNER_AD_UNIT_ID` 填真实值
-4. `Info.plist` 的 `GADApplicationIdentifier` 换成真实 App ID，`SKAdNetworkItems` 换成 Google 文档
-   当前的完整列表
-5. App Store Connect 的 App Privacy 问卷要更新（声明用了广告/追踪相关的数据收集），重新提审
+2. `frontend/ads.js` 里 `USE_TEST_ADS` 改成 `false`
+3. `Info.plist` 的 `SKAdNetworkItems` 换成 Google 文档当前的完整列表
+4. App Store Connect 的 App Privacy 问卷要更新（声明用了广告/追踪相关的数据收集），重新提审
 
 ## 隐私政策 & 服务条款（App Store 审核 3.1.2 / 5.1.1 条款要求）
 
