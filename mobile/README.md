@@ -279,6 +279,15 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
    - Apple Developer 后台该注册的东西已经注册好了：App ID `com.contextia.app.ShareExtension`(带 App Groups capability)、App Group `group.com.contextia.app`(主 App 的 App ID 也已经关联上)——真要捡起来做，这步不用重做
    - 结论：技术上不需要 Mac，但没有 Mac 的话每一轮试错成本很高(推代码→等 CI→等 Apple 处理 build→装机测试→报错反馈，一轮至少十几分钟)；有 Mac 现场调试会快很多。等有 Mac 可用、或者觉得这个功能值得投入再捡起来。
 
+3. **隐私政策 & 服务条款要补上 AdMob 的披露（2026-08-19 发现，还没改）**：`frontend/privacy.html`
+   第 76 行现在写的是"数据不会分享给其他第三方，也不会用于广告"——这句话现在不准确了，即便
+   `USE_TEST_ADS` 还是 `true`，AdMob SDK 已经真实打包进 App、真实弹 ATT 弹窗、真实向 Google 广告
+   服务器发请求，涉及设备标识符相关的数据处理，跟这句承诺矛盾。需要：
+   - 改写/删掉这句"不用于广告"的承诺，加一节披露用了 Google AdMob，说明收集哪些数据、用途
+   - 顺带看一下 `terms.html` 要不要同步提一句
+   - App Store Connect 的 App Privacy 问卷也要同步更新（声明用了广告/追踪 SDK），`ADS_ENABLED`
+     章节里已经提过这条，这里是具体要改的文件位置
+
 ## iOS 编译 CI
 
 `.github/workflows/ios-build.yml`：这个开发环境是 Linux 容器，没有 Mac/Xcode，写 iOS 原生代码只能靠语法/逻辑检查，没法真正编译。这个 workflow 用 GitHub 提供的云端 macOS runner，在每次改动 `mobile/` 或 `frontend/` 时真正跑一次 `pod install` + `xcodebuild`（模拟器目标，不需要签名证书），验证工程到底编译能不能过——上面那次 SPM 编译不过、换成 CocoaPods 这两轮排查，都是靠这个 CI 的真实报错定位出来的，不是靠读代码猜的。
