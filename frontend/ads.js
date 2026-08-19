@@ -1,21 +1,24 @@
-// 广告变现——现在处于"走通技术流程"阶段，不是真正上线：ADS_ENABLED 打开了，AdMob 账号和
-// App ID(见下面 Info.plist 里的 GADApplicationIdentifier)也是真的，但 USE_TEST_ADS 还是
-// true，广告位请求走的是 Google 官方公开的测试广告位 ID，不是下面 PRODUCTION_BANNER_AD_UNIT_ID
-// 那个真实广告位。不会有真实广告展示，也不会产生任何真实收入。
+// 广告变现——技术流程已经走通过一遍(SDK 接入、ATT 授权弹窗、原生 banner 展示，全用测试
+// 广告位验证过)，AdMob 账号和 App ID/广告单元 ID(见下面 Info.plist 里的
+// GADApplicationIdentifier、PRODUCTION_BANNER_AD_UNIT_ID)也是真的，但现在 ADS_ENABLED
+// 关掉了——iOS 免费版要正式提交 App Store 审核，这个 build 面向的是真实用户，不是自己测试，
+// 让每个真实用户平白多看一次"允许追踪吗"的系统弹窗、却拿不到任何真实广告/功能上的好处，
+// 没有意义。关掉之后 AdMob 完全不会被初始化，不弹 ATT 弹窗，也不发任何请求——跟
+// frontend/privacy.html 里"数据不用于广告"这句话保持一致，不用为了这个单独去改隐私政策。
 //
-// 之所以先这么接，是因为广告收入目前卡在用户的韩国签证问题上(D-2 留学签证原则上不能从事
-// 营利性活动，见 mobile/README.md"广告变现"一节)，这个问题没解决之前不会真的上线广告；
-// 但技术流程(SDK 接入、ATT 授权弹窗、原生 banner 展示)可以先走通、先熟悉，AdMob 账号/App/
-// 广告单元也可以先注册好、放着备用——这些步骤本身不涉及金钱往来，不会触发签证问题。
+// 之所以先这么接但不上线，是因为广告收入目前卡在用户的韩国签证问题上(D-2 留学签证原则上
+// 不能从事营利性活动，见 mobile/README.md"广告变现"一节)。
 //
 // 真正上线时要做的事：
 //   1. 确认签证/身份问题解决
-//   2. 把 USE_TEST_ADS 改成 false（App ID 和广告单元 ID 已经是真的了，不用再改）
+//   2. 把 ADS_ENABLED 和 USE_TEST_ADS 都改成对应的值(ADS_ENABLED=true 打开整个功能，
+//      USE_TEST_ADS=false 才会真正请求 PRODUCTION_BANNER_AD_UNIT_ID)
 //   3. mobile/ios/App/App/Info.plist 里的 SKAdNetworkItems 换成 Google 文档当前的完整列表
 //      (现在只放了 Google 自己那一条，够测试用，不够生产用)
-//   4. App Store Connect 的 App Privacy 问卷更新，声明用了广告/追踪 SDK，重新提审
+//   4. frontend/privacy.html 补上 AdMob 披露(见 mobile/README.md"已知待办"第 3 条)，
+//      App Store Connect 的 App Privacy 问卷同步更新，重新提审
 
-const ADS_ENABLED = true;
+const ADS_ENABLED = false;
 const USE_TEST_ADS = true;
 
 // Google 官方文档公开的测试专用广告位 ID，任何开发者都能直接用：
