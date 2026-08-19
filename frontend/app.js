@@ -1241,13 +1241,18 @@ adminStatsPanelOverlay.addEventListener("click", (e) => {
 
 // ---------- 升级到 Pro（邮箱登记 + 自愿支持）----------
 
+// 这次 iOS 提交先不把订阅商品加进审核(韩国税务/事业者登陆证问题还没解决，见 mobile/README.md)，
+// 所以原生壳暂时也跟网页版一样显示等待名单，不展示 IAP 订阅按钮——订阅相关代码都还留着，
+// 以后能开通付费了，把这个改回 true 就行，不用重新开发。
+const IAP_SUBMISSION_ENABLED = false;
+
 async function openProPanel() {
   proPanelOverlay.classList.remove("hidden");
 
   // 原生壳里有真的 Apple 内购可以买，网页版还没有真付费功能——两边显示不同的面板内容：
   // 原生显示订阅按钮，网页版显示等待名单/自愿支持(iOS App 不能同时展示外部付费入口，
   // 苹果审核会拒，所以原生这边直接不渲染等待名单/支持链接那两块)。
-  if (isNativeApp()) {
+  if (isNativeApp() && IAP_SUBMISSION_ENABLED) {
     proWaitlistBlock.classList.add("hidden");
     proSupportBlock.classList.add("hidden");
     iapProBlock.classList.remove("hidden");
@@ -1270,7 +1275,9 @@ async function openProPanel() {
         btnProJoinWaitlist.disabled = true;
         proWaitlistStatus.textContent = t("pro.alreadyJoined");
       }
-      if (data.support_link) {
+      // 自愿支持链接指向站外付费，iOS App 内展示会违反 Apple 审核指南 3.1.1
+      // (不能引导到外部支付)，所以原生壳里(不管 IAP_SUBMISSION_ENABLED 是否开着)都不显示这块。
+      if (data.support_link && !isNativeApp()) {
         proSupportBlock.classList.remove("hidden");
         btnProSupport.href = data.support_link;
       }
