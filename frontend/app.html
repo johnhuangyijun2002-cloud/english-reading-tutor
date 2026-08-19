@@ -661,6 +661,8 @@
         </div>
       </div>
     </div>
+    <!-- 广告变现预留位置，见 frontend/ads.js —— ADS_ENABLED 为 false 时这里始终是空的，不占布局空间 -->
+    <div id="adBannerSlot" class="hidden"></div>
     <div id="sidebar">
       <div class="sidebarHeader">
         <h2 data-i18n="sidebar.history">History</h2>
@@ -694,6 +696,7 @@
   <div id="printArea"></div>
 
   <script src="native-config.js"></script>
+  <script src="ads.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

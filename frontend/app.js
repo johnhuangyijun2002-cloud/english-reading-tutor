@@ -3852,6 +3852,7 @@ btnLinkApple.addEventListener("click", async () => {
 (async () => {
   await loadI18n(currentUiLanguage);
   fixLegalLinksForNative();
+  if (window.ContextiaAds) window.ContextiaAds.init();
 
   // 密码找回邮件里的链接带着 ?reset_token=...，不管当前设备有没有登录态，
   // 都优先弹这个设新密码的表单，不能直接把人送进正在登录的账号里。
