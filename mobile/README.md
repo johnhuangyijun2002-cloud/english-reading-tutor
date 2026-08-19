@@ -195,37 +195,51 @@ curl -X POST https://contextia.up.railway.app/api/iap/sync \
 
 真正的购买流程还是要走 App Store Connect 的 Sandbox 测试账号，只能在真机/模拟器上测，等有 Mac 才能做。这个开发环境里能做、也做了的是：**后端这块的 JWT 签名、证书链校验、订阅状态映射逻辑，用自己生成的假证书链跑通过一次完整的验证流程**(构造一个假的 root CA + 假的 leaf 证书签一个假的订阅交易 JWS，喂给 `SignedDataVerifier`，确认能正确解出 `productId`/`originalTransactionId`，并且证书链对不上时会正确拒绝)——验证到了 Apple 官方库对证书链的最后一步会检查一个只有真实 Apple 签发的证书才有的专属标记(`1.2.840.113635.100.6.11.1`)，这一步没法用假证书绕过，只能等有真实 Apple 收据/沙盒测试账号的时候才能验证，符合预期(这本来就是防伪造的检查点)。
 
-## 广告变现（预留接口，暂未接入，2026-08-19）
+## 广告变现（技术流程已走通，测试模式，尚未真正上线，2026-08-19）
 
-除了订阅制的 Contextia Pro，广告是另一条潜在的变现路径，但目前还没接——不是技术问题，是身份问题：
-用户是韩国的 D-2 留学签证，原则上不能从事营利性活动，这个限制看的是"活动"本身（持续运营一个带
-广告变现的 App、收取广告收入），跟广告平台/收款方注册在哪个国家、收款账户是个人还是公司都无关，
-换成中国的广告联盟也一样绕不开。这件事没解决之前不会真的接广告，但代码里先留好接口，免得以后想接
-的时候要临时改一堆调用方代码。
+除了订阅制的 Contextia Pro，广告是另一条潜在的变现路径。目前**还没有真正上线**——不是技术问题，
+是身份问题：用户是韩国的 D-2 留学签证，原则上不能从事营利性活动，这个限制看的是"活动"本身（持续
+运营一个带广告变现的 App、收取广告收入），跟广告平台/收款方注册在哪个国家、收款账户是个人还是
+公司都无关，换成中国的广告联盟也一样绕不开。这件事没解决之前不会真的产生广告收入。
 
-- `frontend/ads.js` — 统一的调用入口，`ADS_ENABLED` 常量控制开关，现在是 `false`，所有方法都是空
-  实现。跟 `frontend/app.js` 里 `IAP_SUBMISSION_ENABLED` 那个开关是同一个模式（先把接口留好，等
-  条件成熟了再翻开关，不用重新设计）
-- `app.html` 里 `#adBannerSlot` 是预留的横幅广告容器，`ADS_ENABLED` 为 `false` 时一直是空的、不
-  占布局空间
-- 启动时会调用一次 `window.ContextiaAds.init()`（在 `app.js` 顶部启动的 IIFE 里，紧跟着
-  `fixLegalLinksForNative()`），目前是空操作
+但为了熟悉整个接入流程、提前把技术风险摸清楚，把 AdMob 的技术集成先走通了一遍——**全程用 Google
+官方公开的测试 App ID / 测试广告位 ID，不关联任何真实 AdMob 账号，不会有真实广告展示，也不会产生
+任何真实收入**：
 
-**候选广告网络**（技术选型层面的调研，不代表已决定接哪个）：Google AdMob、AppLovin (MAX)、
-Unity Ads/LevelPlay、Meta Audience Network、Pangle——AdMob 收款本身允许直接付款给个人（账户类型
-选"个人"，不需要公司/사업자등록证），这跟 Apple 的 Paid Apps Agreement（明确要求韩国区收款方是
-登记过的韩国税务主体）不是一回事；但这只是说 Google 自己的收款政策没有这个门槛，不代表签证问题
-就解决了——两者是独立的两件事，见上面这段。
+- `mobile/package.json` 加了 `@capacitor-community/admob` 依赖（对齐 Capacitor 8），`npx cap sync ios`
+  跑过一次，`ios/App/Podfile` 已经自动生成了 `CapacitorCommunityAdmob` 这条 pod
+- `mobile/ios/App/App/Info.plist` 加了 `GADApplicationIdentifier`（Google 官方测试 App ID）、
+  `NSUserTrackingUsageDescription`、`SKAdNetworkItems`（现在只放了 Google 自己那一条
+  `cstr6suwn9.skadnetwork`，够测试用；生产环境需要去
+  [Google 官方文档](https://developers.google.com/admob/ios/quick-start) 现查当前完整列表，这个列表
+  会随时间变化，不能抄旧的——这次没能直接访问 developers.google.com 核对完整清单，抄的是
+  Apple 官方 SKAdNetwork ID 仓库的一个子集，生产环境上线前务必重新核对）
+- `frontend/ads.js` — `window.ContextiaAds`（`init`/`showBanner`/`hideBanner`），现在 `ADS_ENABLED = true`
+  但 `USE_TEST_ADS = true`，调用的是 Google 公开的测试广告位 ID。启动时会调用一次 `init()`
+  （`app.js` 顶部启动 IIFE 里，紧跟 `fixLegalLinksForNative()`），原生壳里初始化成功后紧接着调用
+  `showBanner()`，正常情况下下次装 TestFlight 新 build 后应该能在屏幕底部看到一条"Test Ad"字样的
+  横幅——出现这条就说明整个技术链路（CocoaPods 依赖、原生插件注册、ATT 授权弹窗、AdMob SDK 初始化、
+  banner 展示）都通了
+- 用户会先看到一次系统级 App Tracking Transparency 授权弹窗（问"允许追踪吗"），这是 iOS 14+ 强制
+  要求，拒绝也不影响广告能不能显示，只是不能个性化投放——**这是这次改动新增的、会影响所有用户的
+  一次系统弹窗，不是只在开发者自己手机上才会出现**，如果这个 build 要提交 App Store 审核，务必想清楚
+  是否真的要带着这个弹窗提交
+- `app.html` 里 `#adBannerSlot` 是布局占位用的容器；AdMob 的 banner 实际上是叠在 WebView 上面的
+  原生视图，不是渲染进这个 DOM 节点里的，这个节点目前基本没用上
 
-**真要开启的时候需要做的事**（目前都还没做）：
+**候选广告网络**（技术选型层面的调研，不代表已经决定只接 AdMob）：Google AdMob（已验证测试流程）、
+AppLovin (MAX)、Unity Ads/LevelPlay、Meta Audience Network、Pangle——AdMob 收款本身允许直接付款给
+个人（账户类型选"个人"，不需要公司/사업자등록证），这跟 Apple 的 Paid Apps Agreement（明确要求
+韩国区收款方是登记过的韩国税务主体）不是一回事；但这只是说 Google 自己的收款政策没有这个门槛，
+不代表签证问题就解决了——两者是独立的两件事。
+
+**真要上线产生真实收入的时候还需要做的事**：
 1. 确认签证/身份问题已经解决（换签证、有合法工作许可、或者找到确实合规的收入安排方式）
-2. 选定广告网络，注册开发者账号，创建广告单元
-3. 在 `mobile/ios/App/Podfile` 加对应 CocoaPods 依赖
-4. `Info.plist` 加 `GADApplicationIdentifier` / `SKAdNetworkItems` / `NSUserTrackingUsageDescription`
-5. 实现 App Tracking Transparency 弹窗授权流程（iOS 14+ 强制要求，不弹这个广告 SDK 拿不到跨 App
-   追踪权限，也会被审核拒）
-6. App Store Connect 的 App Privacy 问卷要更新（声明用了广告/追踪相关的数据收集）
-7. 把 `ads.js` 里的空方法换成真实 SDK 调用，`ADS_ENABLED` 改成 `true`
+2. 注册真实 AdMob 账号，创建真实 App + 广告单元，拿到真实 ID
+3. `frontend/ads.js` 里 `USE_TEST_ADS` 改成 `false`，`PRODUCTION_BANNER_AD_UNIT_ID` 填真实值
+4. `Info.plist` 的 `GADApplicationIdentifier` 换成真实 App ID，`SKAdNetworkItems` 换成 Google 文档
+   当前的完整列表
+5. App Store Connect 的 App Privacy 问卷要更新（声明用了广告/追踪相关的数据收集），重新提审
 
 ## 隐私政策 & 服务条款（App Store 审核 3.1.2 / 5.1.1 条款要求）
 
