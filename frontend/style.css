@@ -1469,6 +1469,65 @@ body {
   margin: 8px 6px;
 }
 
+/* ---------- "更多"收纳菜单(生词本搜索/母语新闻/复习/统计/设置/站长统计) ---------- */
+
+.navMoreWrap {
+  position: relative;
+}
+
+#navMoreMenu {
+  position: absolute;
+  left: calc(100% + 8px);
+  bottom: 0;
+  width: 200px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--glass-border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 150;
+  animation: popIn 0.22s var(--spring-ease);
+}
+
+#navMoreMenu.hidden {
+  display: none;
+}
+
+.navMoreItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13.5px;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.navMoreItem:hover {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.navMoreItem .navIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.navMoreItem.hidden {
+  display: none;
+}
+
 /* 这两个按钮只在窄屏(见文件末尾的响应式区块)才用得上——桌面端 #sidebar 一直显示，不需要开关 */
 #btnToggleSidebar,
 #btnCloseSidebar {
@@ -2820,6 +2879,21 @@ body {
   .navDivider,
   .navItem-disabled {
     display: none;
+  }
+
+  /* .navMoreWrap 本身不是 .navItem，手动补上跟其它 nav 按钮一样的等分空间；
+     里面的 #btnNavMore 已经是 .navItem，会在这个 flex 容器内再拿到 flex:1 撑满。 */
+  .navMoreWrap {
+    flex: 1;
+    display: flex;
+  }
+
+  /* 桌面端菜单往侧栏右侧展开；手机端 #sideNav 变成贴底横条，改成往上方展开 */
+  #navMoreMenu {
+    left: auto;
+    right: 6px;
+    bottom: calc(100% + 8px);
+    top: auto;
   }
 
   #btnToggleSidebar {

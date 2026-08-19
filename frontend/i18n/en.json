@@ -30,7 +30,8 @@
     "nativeNews": "Native News",
     "stats": "Stats",
     "adminStats": "Site Stats",
-    "upgradePro": "Upgrade to Pro"
+    "upgradePro": "Upgrade to Pro",
+    "more": "More"
   },
   "docManager": {
     "title": "Manage Articles",
@@ -402,10 +403,8 @@
   },
   "navTour": {
     "recommend": "AI recommends articles matched to your level — a good place to start.",
-    "nativeNews": "Auto-fetch news in your native language for immersion mode.",
-    "review": "Spaced-repetition review brings your saved words back before you forget them.",
-    "stats": "Track your reading streak and review accuracy here.",
-    "settings": "Configure your AI key, proficiency level, and immersion mode here.",
+    "docManager": "All the articles you've imported live here.",
+    "more": "Native News, Review, Stats, and Settings are tucked in here.",
     "next": "Next",
     "done": "Got it",
     "skip": "Skip"
