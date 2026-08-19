@@ -16,7 +16,7 @@
 //   4. App Store Connect 的 App Privacy 问卷更新，声明用了广告/追踪 SDK，重新提审
 
 const ADS_ENABLED = true;
-const USE_TEST_ADS = true;
+const USE_TEST_ADS = false;
 
 // Google 官方文档公开的测试专用广告位 ID，任何开发者都能直接用：
 // https://developers.google.com/admob/ios/test-ads
