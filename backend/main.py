@@ -110,7 +110,7 @@ TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 # 完全不影响"必须自己填 key"这个原有行为。
 HOUSE_AI_PROVIDER = os.environ.get("HOUSE_AI_PROVIDER", "deepseek")
 HOUSE_AI_API_KEY = os.environ.get("HOUSE_AI_API_KEY", "")
-HOUSE_FREE_CALLS_PER_USER = 10
+HOUSE_FREE_CALLS_PER_USER = 20
 HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "5"))
 
 # 变现第一阶段：可选的自愿支持链接（Stripe Payment Link）。没配置就留空，
