@@ -1,24 +1,22 @@
-// 广告变现——技术流程已经走通过一遍(SDK 接入、ATT 授权弹窗、原生 banner 展示，全用测试
-// 广告位验证过)，AdMob 账号和 App ID/广告单元 ID(见下面 Info.plist 里的
-// GADApplicationIdentifier、PRODUCTION_BANNER_AD_UNIT_ID)也是真的，但现在 ADS_ENABLED
-// 关掉了——iOS 免费版要正式提交 App Store 审核，这个 build 面向的是真实用户，不是自己测试，
-// 让每个真实用户平白多看一次"允许追踪吗"的系统弹窗、却拿不到任何真实广告/功能上的好处，
-// 没有意义。关掉之后 AdMob 完全不会被初始化，不弹 ATT 弹窗，也不发任何请求——跟
-// frontend/privacy.html 里"数据不用于广告"这句话保持一致，不用为了这个单独去改隐私政策。
+// 广告变现——ADS_ENABLED 打开着，但 USE_TEST_ADS 也是 true，所以这次连同 App Store 正式提交
+// 一起出现的只是 Google 官方测试广告位(会显示"Test Ad"字样)，不关联真实 AdMob 账号收入、
+// 不产生任何真实收入。特意选择让测试广告跟着这次提交一起出现(而不是像之前那样先关掉)，
+// 是为了让审核员/真实用户提前看到广告位长什么样，为将来真正开放广告收入做心理预期铺垫。
 //
-// 之所以先这么接但不上线，是因为广告收入目前卡在用户的韩国签证问题上(D-2 留学签证原则上
-// 不能从事营利性活动，见 mobile/README.md"广告变现"一节)。
+// 因为这样一来 AdMob SDK 真的会初始化、真的会弹 ATT 授权弹窗、真的会向 Google 的广告服务器
+// 发请求(哪怕只是请求测试广告)，这已经构成"收集设备标识符类数据用于广告"，所以：
+//   - frontend/privacy.html 的"Advertising (iOS)"一节已经改成如实说明"广告功能已开启(测试
+//     阶段)"，不能再写"当前版本未开启广告"那种话
+//   - App Store Connect 的 App Privacy 问卷也必须同步改成"收集 Identifiers/Usage Data 用于
+//     广告"，不能再填"不用于广告"，否则会跟实际行为不符(Apple 审核指南 5.1.2)
 //
-// 真正上线时要做的事：
-//   1. 确认签证/身份问题解决
-//   2. 把 ADS_ENABLED 和 USE_TEST_ADS 都改成对应的值(ADS_ENABLED=true 打开整个功能，
-//      USE_TEST_ADS=false 才会真正请求 PRODUCTION_BANNER_AD_UNIT_ID)
+// 真正开始产生真实广告收入(而不只是测试广告位)时还要做的事：
+//   1. 确认签证/身份问题解决(见 mobile/README.md"广告变现"一节)
+//   2. 把 USE_TEST_ADS 改成 false(App ID / 真实广告单元 ID 已经是真的了，不用再改)
 //   3. mobile/ios/App/App/Info.plist 里的 SKAdNetworkItems 换成 Google 文档当前的完整列表
 //      (现在只放了 Google 自己那一条，够测试用，不够生产用)
-//   4. frontend/privacy.html 补上 AdMob 披露(见 mobile/README.md"已知待办"第 3 条)，
-//      App Store Connect 的 App Privacy 问卷同步更新，重新提审
 
-const ADS_ENABLED = false;
+const ADS_ENABLED = true;
 const USE_TEST_ADS = true;
 
 // Google 官方文档公开的测试专用广告位 ID，任何开发者都能直接用：
