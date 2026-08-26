@@ -195,15 +195,22 @@ curl -X POST https://contextia.up.railway.app/api/iap/sync \
 
 真正的购买流程还是要走 App Store Connect 的 Sandbox 测试账号，只能在真机/模拟器上测，等有 Mac 才能做。这个开发环境里能做、也做了的是：**后端这块的 JWT 签名、证书链校验、订阅状态映射逻辑，用自己生成的假证书链跑通过一次完整的验证流程**(构造一个假的 root CA + 假的 leaf 证书签一个假的订阅交易 JWS，喂给 `SignedDataVerifier`，确认能正确解出 `productId`/`originalTransactionId`，并且证书链对不上时会正确拒绝)——验证到了 Apple 官方库对证书链的最后一步会检查一个只有真实 Apple 签发的证书才有的专属标记(`1.2.840.113635.100.6.11.1`)，这一步没法用假证书绕过，只能等有真实 Apple 收据/沙盒测试账号的时候才能验证，符合预期(这本来就是防伪造的检查点)。
 
-## 广告变现（技术流程已验证过，提交 App Store 前关掉了，2026-08-19）
+## 广告变现（测试广告随这次提交一起上线，未产生真实收入，2026-08-26）
 
-除了订阅制的 Contextia Pro，广告是另一条潜在的变现路径。目前**还没有真正上线**——不是技术问题，
-是身份问题：用户是韩国的 D-2 留学签证，原则上不能从事营利性活动，这个限制看的是"活动"本身（持续
-运营一个带广告变现的 App、收取广告收入），跟广告平台/收款方注册在哪个国家、收款账户是个人还是
-公司都无关，换成中国的广告联盟也一样绕不开。这件事没解决之前不会真的产生广告收入。
+除了订阅制的 Contextia Pro，广告是另一条潜在的变现路径。**真实、能产生收入的广告目前还没有
+上线**——不是技术问题，是身份问题：用户是韩国的 D-2 留学签证，原则上不能从事营利性活动，这个
+限制看的是"活动"本身（持续运营一个带广告变现的 App、收取广告收入），跟广告平台/收款方注册在
+哪个国家、收款账户是个人还是公司都无关，换成中国的广告联盟也一样绕不开。这件事没解决之前不会
+真的产生广告收入。
 
-但为了熟悉整个接入流程、提前把技术风险摸清楚，把 AdMob 的技术集成先走通了一遍——**广告位请求
-全程走 Google 官方公开的测试广告位 ID，不会有真实广告展示，也不会产生任何真实收入**：
+但这次提交 App Store 审核的 build 里，**测试广告位是打开的**（`ADS_ENABLED = true`，
+`USE_TEST_ADS = true`）——决定是用户主动做的：提前让真实用户看到广告位长什么样，为将来真正
+开放广告收入做心理预期铺垫，广告位请求全程走 Google 官方公开的测试广告位 ID，不会有真实广告
+展示，也不会产生任何真实收入，但 ATT 授权弹窗和"Test Ad"横幅这次会真的出现在提交审核的 build
+里。因为这样一来 AdMob SDK 真的会初始化、真的会往 Google 发请求，`frontend/privacy.html` /
+`terms.html` 已经同步改成如实说明"广告功能已开启（测试阶段）"，**App Store Connect 的 App
+Privacy 问卷也要同步改成"收集 Identifiers/Usage Data 用于广告"，不能再填"不收集广告数据"**，
+否则会跟实际行为不符（Apple 审核指南 5.1.2）。
 
 - `mobile/package.json` 加了 `@capacitor-community/admob` 依赖（对齐 Capacitor 8），`npx cap sync ios`
   跑过一次，`ios/App/Podfile` 已经自动生成了 `CapacitorCommunityAdmob` 这条 pod
@@ -216,13 +223,11 @@ curl -X POST https://contextia.up.railway.app/api/iap/sync \
   [Google 官方文档](https://developers.google.com/admob/ios/quick-start) 现查当前完整列表，这个列表
   会随时间变化，不能抄旧的——这次没能直接访问 developers.google.com 核对完整清单，抄的是
   Apple 官方 SKAdNetwork ID 仓库的一个子集，生产环境上线前务必重新核对）
-- `frontend/ads.js` — `window.ContextiaAds`（`init`/`showBanner`/`hideBanner`）。测试阶段验证过
-  `ADS_ENABLED = true` + `USE_TEST_ADS = true`：TestFlight 装机后能看到系统级 App Tracking
-  Transparency 授权弹窗、屏幕底部一条"Test Ad"字样的横幅，说明整条技术链路（CocoaPods 依赖、
-  原生插件注册、ATT 授权弹窗、AdMob SDK 初始化、banner 展示）都通了。**验证完之后，正式提交
-  App Store 审核前把 `ADS_ENABLED` 改回了 `false`**——审核面向的是真实用户，让每个人平白多看
-  一次追踪授权弹窗、却拿不到任何实际的广告/功能好处，没有意义。关掉之后 AdMob 完全不会被初始化，
-  不弹 ATT 弹窗，也不发任何请求
+- `frontend/ads.js` — `window.ContextiaAds`（`init`/`showBanner`/`hideBanner`）。`ADS_ENABLED = true`
+  + `USE_TEST_ADS = true`：TestFlight/正式版装机后能看到系统级 App Tracking Transparency 授权
+  弹窗、屏幕底部一条"Test Ad"字样的横幅，说明整条技术链路（CocoaPods 依赖、原生插件注册、ATT
+  授权弹窗、AdMob SDK 初始化、banner 展示）都通了，同时也是这次提交 App Store 审核时真实用户会
+  看到的状态（用户主动决定保留，不是先关掉）
 - `app.html` 里 `#adBannerSlot` 是布局占位用的容器；AdMob 的 banner 实际上是叠在 WebView 上面的
   原生视图，不是渲染进这个 DOM 节点里的，这个节点目前基本没用上
 
@@ -232,12 +237,11 @@ AppLovin (MAX)、Unity Ads/LevelPlay、Meta Audience Network、Pangle——AdMob
 韩国区收款方是登记过的韩国税务主体）不是一回事；但这只是说 Google 自己的收款政策没有这个门槛，
 不代表签证问题就解决了——两者是独立的两件事。
 
-**真要上线产生真实收入的时候还需要做的事**（App ID / 广告单元 ID 已经是真的了，隐私政策/服务
-条款也已经提前写好了对应措辞，不用再做）：
+**真要上线产生真实收入（不只是测试广告位）的时候还需要做的事**（App ID / 广告单元 ID 已经是
+真的了，隐私政策/服务条款/App Privacy 问卷这次也已经按"有广告"的口径写好了，不用再改）：
 1. 确认签证/身份问题已经解决（换签证、有合法工作许可、或者找到确实合规的收入安排方式）
-2. `frontend/ads.js` 里 `ADS_ENABLED` 和 `USE_TEST_ADS` 都改成对应的值
+2. `frontend/ads.js` 里 `USE_TEST_ADS` 改成 `false`（`ADS_ENABLED` 已经是 `true` 了）
 3. `Info.plist` 的 `SKAdNetworkItems` 换成 Google 文档当前的完整列表
-4. App Store Connect 的 App Privacy 问卷要更新（声明用了广告/追踪相关的数据收集），重新提审
 
 ## 隐私政策 & 服务条款（App Store 审核 3.1.2 / 5.1.1 条款要求）
 
@@ -276,12 +280,20 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
    - Apple Developer 后台该注册的东西已经注册好了：App ID `com.contextia.app.ShareExtension`(带 App Groups capability)、App Group `group.com.contextia.app`(主 App 的 App ID 也已经关联上)——真要捡起来做，这步不用重做
    - 结论：技术上不需要 Mac，但没有 Mac 的话每一轮试错成本很高(推代码→等 CI→等 Apple 处理 build→装机测试→报错反馈，一轮至少十几分钟)；有 Mac 现场调试会快很多。等有 Mac 可用、或者觉得这个功能值得投入再捡起来。
 
-3. ~~隐私政策 & 服务条款要补上 AdMob 的披露~~ **已完成（2026-08-19）**：`frontend/privacy.html`
-   加了"Advertising (iOS)"一节，说明集成了 AdMob 但当前版本没有打开、不收集广告相关数据，
-   开启前会先更新这页；`terms.html`"Changes to the service"一节也同步提了一句。App Store
-   Connect 的 App Privacy 问卷目前照实填"不收集广告相关数据"即可（因为 `ADS_ENABLED` 现在是
-   `false`，这次提交审核的 build 里 AdMob 确实完全不会被初始化）——等真正打开广告功能的时候，
-   这个问卷要记得同步改。
+3. ~~隐私政策 & 服务条款要补上 AdMob 的披露~~ **已完成，2026-08-26 又更新过一次**：
+   `frontend/privacy.html` 的"Advertising (iOS)"一节、`terms.html`"Changes to the service"
+   一节，现在都改成如实说明"广告功能已开启，展示的是 Google 测试广告位、不产生真实收入"（用户
+   决定让测试广告随这次提交一起出现，不是关着提交）。**App Store Connect 的 App Privacy 问卷
+   要同步填"收集 Identifiers / Usage Data 用于第三方广告"**，不能填"不收集广告数据"——具体建议：
+   - Identifiers → Device ID：收集，不关联用户身份，用于追踪 = 是（ATT 授权同意的前提下），
+     用途选 Third-Party Advertising
+   - Usage Data → Advertising Data：收集，不关联用户身份，用于追踪 = 否，用途选
+     Third-Party Advertising / Analytics
+   - Diagnostics → Crash Data / Performance Data（可选但建议加）：收集，不关联用户身份，
+     不用于追踪，用途选 App Functionality / Analytics
+   - Location 不需要额外声明（AdMob 测试广告不主动请求定位权限）
+   等真正切换成能产生真实收入的广告（`USE_TEST_ADS` 改 `false`）时，这个问卷不用再改，因为
+   数据类型和用途跟测试广告阶段是一样的，只是广告库存变成真实的。
 
 ## iOS 编译 CI
 
