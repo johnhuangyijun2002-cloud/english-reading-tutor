@@ -33,13 +33,27 @@ function getAdMobPlugin() {
   return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
 }
 
+// App 真冷启动时，原生桥(Capacitor.Plugins)有时还没完全就绪，AdMob 插件对象这时候还
+// 挂不上去；之前 StoreKit 内购插件也踩过同一类时序坑。原来的写法是只查一次、查不到就
+// 直接放弃——结果冷启动时 ATT 弹窗经常不出现，退出登录触发 location.reload() 之后原生
+// 桥已经热了、才第一次真正弹出来。改成短暂轮询等一下，给冷启动多一点缓冲时间。
+async function waitForAdMobPlugin(timeoutMs = 3000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const plugin = getAdMobPlugin();
+    if (plugin) return plugin;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return null;
+}
+
 window.ContextiaAds = {
   enabled: ADS_ENABLED,
 
   // 启动时调用一次
   async init() {
     if (!ADS_ENABLED) return;
-    const AdMob = getAdMobPlugin();
+    const AdMob = await waitForAdMobPlugin();
     if (!AdMob) return;
     try {
       // iOS 14+ 强制要求：想用支持个性化广告的 SDK，得先弹一次系统级授权弹窗问用户
