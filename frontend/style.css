@@ -137,7 +137,7 @@ body {
 .settingsDangerZone {
   border-top: 1px solid var(--border);
   padding-top: 16px;
-  margin-top: 4px;
+  margin-top: 20px;
 }
 
 .btn:disabled {
@@ -2484,7 +2484,7 @@ body {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  padding: 24px;
+  padding: 28px 24px 36px;
   display: flex;
   flex-direction: column;
   gap: 14px;
