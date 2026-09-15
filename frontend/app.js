@@ -472,12 +472,16 @@ function apiFetch(url, opts = {}) {
 // 不能直接把 res.text() 整段塞给用户看，那样弹窗里会出现原始的 {"detail":...} 文本。
 // 这里统一解析出 detail 字段；不是 JSON（比如网关层的纯文本报错）就原样返回。
 async function apiErrorText(res) {
+  // Response 的 body 只能读一次——先统一读成文本，再尝试当 JSON 解析，不能先调
+  // res.json() 失败了再调 res.text()，那样第二次读的时候流已经被消费过，会直接
+  // 报"body stream already read"，把真正的错误信息完全盖住。
+  const text = await res.text();
   try {
-    const data = await res.json();
+    const data = JSON.parse(text);
     if (data && typeof data.detail === "string") return data.detail;
     return JSON.stringify(data);
   } catch (err) {
-    return await res.text();
+    return text;
   }
 }
 
