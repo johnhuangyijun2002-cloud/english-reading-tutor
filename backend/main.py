@@ -3005,10 +3005,17 @@ def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text or "").strip()
 
 
-def _fetch_rss_headlines(source_name: str, feed_url: str) -> list:
+async def _fetch_rss_headlines(source_name: str, feed_url: str) -> list:
     items = []
     try:
-        parsed = feedparser.parse(feed_url)
+        # feedparser.parse(url) 自己发网络请求时不认超时参数，源站慢/连不上的话会一直
+        # 卡住——七个源顺序抓的话，一个卡住就能把整个请求拖到客户端自己先超时断线
+        # (表现为原生壳里的"Load failed"，服务端这边看不到任何报错)。改成自己先用 httpx
+        # 带超时把内容抓下来，抓不到就跳过这个源，再把内容交给 feedparser 解析，
+        # feedparser 就不会再发起真正的网络请求了。
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+            res = await client.get(feed_url, headers={"User-Agent": "Mozilla/5.0"})
+        parsed = feedparser.parse(res.content)
         for entry in parsed.entries[:8]:
             title = entry.get("title", "").strip()
             url = entry.get("link", "").strip()
@@ -3025,11 +3032,15 @@ def _fetch_rss_headlines(source_name: str, feed_url: str) -> list:
     return items
 
 
-def fetch_headlines(learning_language: str) -> list:
+async def fetch_headlines(learning_language: str) -> list:
     sources = LANGUAGE_SOURCES.get(learning_language) or LANGUAGE_SOURCES[DEFAULT_RECOMMEND_LANGUAGE]
+    # 并发抓所有源，而不是一个个顺序抓——顺序抓的话总耗时是所有源耗时之和，源一多
+    # (英语有 7 个)很容易拖到客户端超时；并发抓的话总耗时约等于最慢那一个源，
+    # 每个源本身又有上面 8 秒的超时兜底，两个改动一起才真正解决"经常 Load failed"。
+    results = await asyncio.gather(*(_fetch_rss_headlines(s["name"], s["url"]) for s in sources))
     items = []
-    for source in sources:
-        items.extend(_fetch_rss_headlines(source["name"], source["url"]))
+    for r in results:
+        items.extend(r)
     return items
 
 
@@ -3078,7 +3089,7 @@ async def get_recommendations(
         if age < RECOMMEND_CACHE_SECONDS:
             return cache_entry["data"]
 
-    items = await asyncio.to_thread(fetch_headlines, lang)
+    items = await fetch_headlines(lang)
     if not items:
         source_names = dict.fromkeys(s["name"] for s in LANGUAGE_SOURCES.get(lang, []))
         raise HTTPException(502, f"{' / '.join(source_names)} is temporarily unreachable, please try again later")
@@ -3150,7 +3161,7 @@ async def get_native_news(
         if age < RECOMMEND_CACHE_SECONDS:
             return cache_entry["data"]
 
-    items = await asyncio.to_thread(fetch_headlines, native_lang)
+    items = await fetch_headlines(native_lang)
     if not items:
         source_names = dict.fromkeys(s["name"] for s in LANGUAGE_SOURCES.get(native_lang, []))
         raise HTTPException(502, f"{' / '.join(source_names)} is temporarily unreachable, please try again later")
