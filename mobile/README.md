@@ -22,7 +22,8 @@ run #16 → run #17 → 现在要提交的是 **run #18 之后**的 build，前�
 
 - run #16（commit `261eb2d`）：只隐藏了导航栏 "Upgrade to Pro"
 - run #17（commit `95d69e8`，PR #41）：删掉法律页面里的 Pro 订阅/内购段落。补充：原生壳里的条款/隐私链接其实指向 Railway 线上版（`fixLegalLinksForNative()`），这个修改随网页部署已经生效
-- **run #18**（PR #42）：新增**第三方 AI 数据共享同意弹窗**（App Review 5.1.2(i)，2025-11 新增：把用户数据发给第三方 AI 之前必须写明发给谁、发什么，并取得明确同意）。`app.js` 的 `ensureAiConsent()` 卡在 `apiFetch` 里，原生壳第一次调用 `/api/analyze`、`/api/immersion/plan`、`/api/recommendations` 前弹框；同意存 localStorage `aiConsent.v1`，拒绝不存、下次再问，拒绝时返回前端伪造的 403 走现成报错展示。网页版不弹。`privacy.html` 同步写明了发送内容和接收方（免费试用 DeepSeek / 自填 Key 的四家 / 任意 OpenAI 兼容中转地址）
+- **run #18**（PR #42）：新增**第三方 AI 数据共享同意弹窗**（App Review 5.1.2(i)，2025-11 新增：把用户数据发给第三方 AI 之前必须写明发给谁、发什么，并取得明确同意）。`app.js` 的 `ensureAiConsent()` 卡在 `apiFetch` 里，原生壳第一次调用 `AI_CONSENT_PATHS` 里列的接口前弹框；同意存 localStorage `aiConsent.v1`，拒绝不存、下次再问，拒绝时返回前端伪造的 403 走现成报错展示。网页版不弹。`privacy.html` 同步写明了发送内容和接收方（免费试用 DeepSeek / 自填 Key 的四家 / 任意 OpenAI 兼容中转地址）。**以后新增会把内容发给 AI 的接口，记得同时把路径加进 `AI_CONSENT_PATHS` 数组、`privacy.html` 那条列表句子、`i18n` 的 `aiConsent.pointWhat`，三处漏一处审核员都可能挑出来**——当前(commit 见下条)覆盖的是 `/api/analyze`、`/api/immersion/plan`、`/api/recommendations`、`/api/comprehension/quiz`
+- **阅读理解小测**（PR 待定，本次改动未触发新 build，等下次连同其他前端改动一起打包）：文章头部新增"理解小测"按钮，AI 根据文章内容出选择题，答题后立即标对错+解析，结果缓存进 `documents.quiz_json`，同一篇文章重新打开不重新计费，点"换一批"才会重新生成。顺手把法语/西班牙语/德语的生词覆盖率和高亮从 `[A-Za-z]` 换成了 `\p{Script=Latin}`（之前 très/über/está 这类带重音符号的词会被从中间切断，覆盖率和高亮都不准）
 
 提交步骤：
 
