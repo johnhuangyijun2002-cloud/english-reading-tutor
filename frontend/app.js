@@ -452,7 +452,61 @@ function populateLearningLanguageOptions() {
   populateLearningLanguageOptionsFor("learningLanguageSelect");
 }
 
-function apiFetch(url, opts = {}) {
+// ---------- 第三方 AI 数据共享同意(App Review 5.1.2(i)) ----------
+// 2025-11 起苹果要求：把用户数据发给第三方 AI 之前，必须写明发给谁、发什么，并取得明确同意。
+// 所以原生壳里第一次调用会把内容发给 AI 的接口之前，先弹同意框；同意记在本地，拒绝不记
+// (下次用 AI 功能时再问)。拒绝时直接在前端伪造一个 403 响应，复用各调用处现成的报错展示，
+// 不影响 App 其他功能。网页版不受 App Review 约束，行为不变。
+const AI_CONSENT_KEY = "aiConsent.v1";
+const AI_CONSENT_PATHS = ["/api/analyze", "/api/immersion/plan", "/api/recommendations"];
+const aiConsentOverlay = document.getElementById("aiConsentOverlay");
+let aiConsentPending = null;
+
+function hasAiConsent() {
+  try {
+    return localStorage.getItem(AI_CONSENT_KEY) === "granted";
+  } catch (err) {
+    return false;
+  }
+}
+
+function ensureAiConsent() {
+  if (!isNativeApp() || hasAiConsent()) return Promise.resolve(true);
+  // 同时触发的多个 AI 请求共用同一个弹窗
+  if (aiConsentPending) return aiConsentPending;
+  aiConsentPending = new Promise((resolve) => {
+    const allowBtn = document.getElementById("btnAiConsentAllow");
+    const declineBtn = document.getElementById("btnAiConsentDecline");
+    const finish = (granted) => {
+      allowBtn.removeEventListener("click", onAllow);
+      declineBtn.removeEventListener("click", onDecline);
+      aiConsentOverlay.classList.add("hidden");
+      aiConsentPending = null;
+      resolve(granted);
+    };
+    const onAllow = () => {
+      try {
+        localStorage.setItem(AI_CONSENT_KEY, "granted");
+      } catch (err) {
+        // 存不下就只对这次生效
+      }
+      finish(true);
+    };
+    const onDecline = () => finish(false);
+    allowBtn.addEventListener("click", onAllow);
+    declineBtn.addEventListener("click", onDecline);
+    aiConsentOverlay.classList.remove("hidden");
+  });
+  return aiConsentPending;
+}
+
+async function apiFetch(url, opts = {}) {
+  if (AI_CONSENT_PATHS.some((p) => url.startsWith(p)) && !(await ensureAiConsent())) {
+    return new Response(JSON.stringify({ detail: t("aiConsent.declined") }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   const headers = { ...(opts.headers || {}), Authorization: `Bearer ${authToken}` };
   // GET 请求默认可能被浏览器按 URL 缓存，Authorization header 不同也可能命中旧缓存，
   // 导致登出/换账号后读到别人或者已登出状态下的数据 —— 强制不缓存。
@@ -3882,9 +3936,9 @@ btnLinkApple.addEventListener("click", async () => {
 });
 
 (async () => {
+  hideProEntryForNativeIfNoIAP();
   await loadI18n(currentUiLanguage);
   fixLegalLinksForNative();
-  hideProEntryForNativeIfNoIAP();
   if (isNativeApp() && window.ContextiaAds) {
     window.ContextiaAds.init().then(() => window.ContextiaAds.showBanner());
   }

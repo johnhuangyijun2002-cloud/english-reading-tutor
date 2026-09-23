@@ -327,6 +327,23 @@
     </div>
   </div>
 
+  <div id="aiConsentOverlay" class="hidden">
+    <div id="aiConsentPanel" role="dialog" aria-modal="true" aria-labelledby="aiConsentTitle">
+      <h2 id="aiConsentTitle" data-i18n="aiConsent.title">Allow AI explanations?</h2>
+      <p class="urlHint" data-i18n="aiConsent.body"></p>
+      <ul class="aiConsentList">
+        <li data-i18n="aiConsent.pointWhat"></li>
+        <li data-i18n="aiConsent.pointWho"></li>
+        <li data-i18n="aiConsent.pointNot"></li>
+      </ul>
+      <p class="urlHint"><span data-i18n="aiConsent.privacyPrefix">Details: </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a></p>
+      <div class="pasteActions">
+        <button id="btnAiConsentDecline" class="btn btn-ghost" data-i18n="aiConsent.decline">Not now</button>
+        <button id="btnAiConsentAllow" class="btn btn-primary" data-i18n="aiConsent.allow">Allow</button>
+      </div>
+    </div>
+  </div>
+
   <div id="accountSettingsPanelOverlay" class="hidden">
     <div id="accountSettingsPanel">
       <h2 data-i18n="nav.settings">Settings</h2>

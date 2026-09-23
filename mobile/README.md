@@ -18,15 +18,31 @@ App **已经在 App Store 审核流程里**，不是"准备提交"阶段了。�
 
 ### 接下来立刻要做的事（新会话从这里接着干）
 
-1. ~~等 `ios-release.yml` 的 run #16 跑完~~ → **已成功**（2026-09-23 03:51 UTC，commit `261eb2d`）。但 run #16 这个 build **不要拿去提交**，原因见下一条
-2. **run #16 之后又补了一个漏洞**：App 登录页底部链接的 `terms.html` / `privacy.html`（会被 `build-www.mjs` 整份打包进 App）里还留着完整的 "Contextia Pro subscription (iOS app)" 订阅条款和 "In-app purchases (iOS)" 段落。审核员只要点开服务条款，就能看到一个 App 里根本买不到的付费订阅——跟下面要回复苹果的"App 内已没有任何付费层级的引用"直接矛盾，很可能再被 3.1.1 打回。已把这几段从两份法律文本里删掉（git 历史里有原文，以后真开通 IAP 时 `git log -p -- frontend/terms.html` 找回来恢复即可，同时把 `IAP_SUBMISSION_ENABLED` 改回 `true`）。网页版法律页面随 Railway 自动部署同步更新
-3. **这个修复合并到 master 之后，重新触发一次 `ios-release.yml`**（改的是 `frontend/`，必须重新打包），等新 run 成功
-4. **回到 App Store Connect 那条 Guideline 3.1.1 的 Resolution Center 线程**，回复类似这样的内容（不要再用"这只是个调研用的等待名单"这种解释型说法，直接说"已经移除"）：
+run #16 → run #17 → 现在要提交的是 **run #18 之后**的 build，前两个都不要提交：
 
-   > We have removed the "Upgrade to Pro" entry point entirely from this version of the app, along with the subscription sections of our in-app Terms of Service and Privacy Policy. There is no longer any reference to a paid tier, subscription, or Pro feature anywhere in the app. The app is fully free with no paid content of any kind in this submission.
+- run #16（commit `261eb2d`）：只隐藏了导航栏 "Upgrade to Pro"
+- run #17（commit `95d69e8`，PR #41）：删掉法律页面里的 Pro 订阅/内购段落。补充：原生壳里的条款/隐私链接其实指向 Railway 线上版（`fixLegalLinksForNative()`），这个修改随网页部署已经生效
+- **run #18**（PR #42）：新增**第三方 AI 数据共享同意弹窗**（App Review 5.1.2(i)，2025-11 新增：把用户数据发给第三方 AI 之前必须写明发给谁、发什么，并取得明确同意）。`app.js` 的 `ensureAiConsent()` 卡在 `apiFetch` 里，原生壳第一次调用 `/api/analyze`、`/api/immersion/plan`、`/api/recommendations` 前弹框；同意存 localStorage `aiConsent.v1`，拒绝不存、下次再问，拒绝时返回前端伪造的 403 走现成报错展示。网页版不弹。`privacy.html` 同步写明了发送内容和接收方（免费试用 DeepSeek / 自填 Key 的四家 / 任意 OpenAI 兼容中转地址）
 
-5. **把版本页面的 Build 换成第 3 步那个新 run 对应的 build**，然后重新点"添加以供审核"提交。另外确认 App Store Connect 里**没有**挂着任何状态为"准备提交"的 App 内购买项目/订阅组（有的话从这个版本里移除），不然审核员还是会看到付费商品
-6. 之后如果还有新一轮回复，参考这一节和下面的完整历史，不用从头解释
+提交步骤：
+
+1. 等 run #18 成功
+2. App Store Connect 版本页："App 内购买项目和订阅"区块取消勾选 `com.contextia.app.pro.monthly`（商品本身保留"准备提交"状态，不删）
+3. "构建版本"换成 run #18 的 build
+4. Resolution Center 3.1.1 线程回复：
+
+   > We have removed the "Upgrade to Pro" entry point entirely from this version of the app, along with the subscription sections of our in-app Terms of Service and Privacy Policy. We have also detached the in-app subscription product from this submission. There is no longer any reference to a paid tier, subscription, or Pro feature anywhere in the app. The app is fully free with no paid content of any kind in this submission.
+   >
+   > Separately, in line with Guideline 5.1.2(i), the app now asks for explicit permission before any content is sent to a third-party AI provider, and names the providers and the data involved.
+
+5. 提交前自查元数据（代码管不到、只能人工看）：截图里有没有导航栏 "Upgrade to Pro"（有就重截）；描述/宣传文本/关键词/审核备注里有没有 Pro、订阅、waitlist、coming soon 之类字样；App 隐私问卷里广告追踪的申报是否还跟 ATT 弹窗一致
+6. 点"添加以供审核"。之后如果还有新一轮回复，参考这一节和下面的完整历史
+
+### 还剩的已知风险（这轮排查过、暂未处理）
+
+- **测试广告（"Test Ad" 横幅）**：有开发者因为 Google 测试广告标签被判 2.1 占位内容而拒审的先例；我们之前 2.1(b) 回复里已向审核员说明过、三轮审核都没提，所以暂时保留。如果被点名，改 `ads.js` 的 `ADS_ENABLED = false`，**同时**把 App 隐私问卷里的追踪申报撤掉（申报追踪却不弹 ATT 也会被拒）
+- **注销账号没有撤销 Sign in with Apple 授权**：苹果要求用 Apple 登录的账号删号时调用 `https://appleid.apple.com/auth/revoke`。现在 Apple 回调时没存 refresh token，要补需要加字段 + 改 `delete_account`，纯后端改动，不用重新打包。审核员很少实测，被点名再做也来得及
+- **原生壳里 Google/Apple 登录跳回 App 的流程**仍没在真机上完整测过（审核员用的是账号密码登录）。提交前最好自己在 TestFlight 版里各点一次
 
 ### 这个会话期间顺手修的真实 bug（都已经合并到 master）
 

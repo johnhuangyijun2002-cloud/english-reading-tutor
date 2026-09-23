@@ -1252,7 +1252,8 @@ body {
 
 /* ---------- 沉浸阅读结束后的"保存本次生词"确认弹层 ---------- */
 
-#immersionSaveOverlay {
+#immersionSaveOverlay,
+#aiConsentOverlay {
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -1265,11 +1266,19 @@ body {
   animation: fadeIn 0.18s var(--ease);
 }
 
-#immersionSaveOverlay.hidden {
+/* 同意框是被 AI 请求中途唤起的，可能叠在任何面板/引导弹窗上面——必须永远在最上层，
+   否则被盖住点不到，那次请求就会一直挂着等回答。 */
+#aiConsentOverlay {
+  z-index: 800;
+}
+
+#immersionSaveOverlay.hidden,
+#aiConsentOverlay.hidden {
   display: none;
 }
 
-#immersionSavePanel {
+#immersionSavePanel,
+#aiConsentPanel {
   width: min(480px, 90vw);
   max-height: 78vh;
   background: var(--glass-bg);
@@ -1285,11 +1294,26 @@ body {
   animation: popIn 0.28s var(--spring-ease);
 }
 
-#immersionSavePanel h2 {
+#immersionSavePanel h2,
+#aiConsentPanel h2 {
   margin: 0;
   font-size: 19px;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+#aiConsentPanel {
+  overflow-y: auto;
+}
+
+.aiConsentList {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 #immersionSaveList {
@@ -2960,6 +2984,7 @@ body {
   #statsPanel,
   #adminStatsPanel,
   #immersionSavePanel,
+  #aiConsentPanel,
   #recommendPanel,
   #nativeNewsPanel,
   #proPanel {
