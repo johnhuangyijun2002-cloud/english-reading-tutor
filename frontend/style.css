@@ -1215,6 +1215,10 @@ body {
   display: none;
 }
 
+#btnQuizRegenerate.hidden {
+  display: none;
+}
+
 #quizPanel {
   width: min(560px, 92vw);
   max-height: 82vh;
@@ -2678,6 +2682,13 @@ body {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
+}
+
+#btnNotionConnect.hidden,
+#btnNotionDisconnect.hidden,
+#notionSyncStatus.hidden,
+#notionTargetRow.hidden {
+  display: none;
 }
 
 .settingsBlockLabel {

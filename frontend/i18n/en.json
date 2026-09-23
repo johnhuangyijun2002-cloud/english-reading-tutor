@@ -200,7 +200,16 @@
     "exportData": "Export My Data",
     "deleteAccount": "Delete Account",
     "userLine": "Signed in as: {name}{ownerTag}",
-    "ownerTag": " (owner)"
+    "ownerTag": " (owner)",
+    "notionSync": "Sync to Notion",
+    "notionSyncHint": "Every word and sentence you save also becomes a page in a Notion page of your choice.",
+    "notionConnect": "Connect Notion",
+    "notionDisconnect": "Disconnect",
+    "notionDisconnectConfirm": "Disconnect Notion? New words/sentences will stop syncing until you reconnect.",
+    "notionConnectedNoTarget": "Connected to \"{workspace}\" — pick a page below to sync into",
+    "notionConnectedWithTarget": "Connected to \"{workspace}\" — syncing into \"{target}\"",
+    "notionTargetPlaceholder": "Choose a Notion page…",
+    "notionConnectFailed": "Couldn't start connecting to Notion: {message}"
   },
   "welcome": {
     "title": "Welcome — your account is ready",
