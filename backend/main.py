@@ -1820,11 +1820,20 @@ async def get_entitlement(user: dict = Depends(get_current_user)):
 
 class IAPSyncRequest(BaseModel):
     transaction_id: str
+    # Android 壳(Google Play Billing)发起同步时会带上这个字段；不填按 iOS 处理，兼容现有的
+    # iOS 客户端(旧版本永远不会带这个字段)。
+    platform: str = "apple_appstore"
 
 
 @app.post("/api/iap/sync")
 @limiter.limit("20/minute")
 async def iap_sync(request: Request, req: IAPSyncRequest, user: dict = Depends(get_current_user)):
+    if req.platform == "google_play":
+        # Google Play 的收据校验要走 Google Play Developer API(服务账号 + purchases.subscriptions
+        # 接口)，跟 Apple 这套完全是另一套凭证和流程，还没接。这里明确拒绝而不是当 Apple 收据
+        # 硬解析(会直接报"找不到匹配的订阅"从而误导)，更不能跳过校验直接发放 Pro——那样客户端
+        # 随便报个 transaction_id 就能白嫖订阅。等 Android 要正式上线内购时再实现这部分。
+        raise HTTPException(501, "Android in-app purchases aren't wired up on this backend yet")
     if not _apple_iap_configured():
         raise HTTPException(500, "This deployment hasn't configured Apple in-app purchases")
 

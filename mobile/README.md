@@ -1,6 +1,32 @@
-# Contextia iOS App 壳
+# Contextia iOS/Android App 壳
 
-用 [Capacitor](https://capacitorjs.com/) 把 `../frontend` 包一层原生壳，不改前端 UI，目标是上架 App Store。
+用 [Capacitor](https://capacitorjs.com/) 把 `../frontend` 包一层原生壳，不改前端 UI。iOS 那部分目标是上架 App Store，下面这节之后的内容全部是 iOS 专属的提审进度记录。Android 是后加的第二个原生壳，共用同一份 `frontend/` 代码和 `scripts/build-www.mjs` 构建脚本。
+
+## Android 壳（2026-09-23 新增）
+
+`npx cap add android` 生成的标准 Capacitor 工程，appId/appName 跟 iOS 共用同一个 `capacitor.config.json`（`com.contextia.app` / `Contextia`）。
+
+**已经跑通、真实验证过编译**：这个开发环境虽然是 Linux 容器，但 Android（跟必须要 Mac 的 iOS 不一样）本来就能在 Linux 上编译——装了一份 Android SDK（`platform-tools` + `platforms;android-36` + `build-tools;36.0.0`，走的是 `sdkmanager` 命令行工具，没有用 Android Studio 图形界面)，跑 `./gradlew assembleDebug` 真的编出了一个 `app-debug.apk`，不是只生成了工程骨架没验证过。
+
+**顺手修的一个真实 bug**：`capacitor-plugin-cdv-purchase`（内购插件，iOS/Android 共用）的 `android/build.gradle` 自己的 `buildscript` 块里写死了 `com.android.tools.build:gradle:8.7.3`，跟这个 Android 工程根目录 `build.gradle` 用的 `8.13.0` 不是同一个版本——Gradle 因此得下载两整棵不同版本的 Android Gradle Plugin 依赖树，不但慢，在这次验证编译时还因为触发太多 Maven Central 请求被限流(`429 Too Many Requests`)导致构建失败过几次。用 [`patch-package`](https://www.npmjs.com/package/patch-package) 把这个版本号patch 成跟根工程一致的 `8.13.0`（`mobile/patches/capacitor-plugin-cdv-purchase+13.18.0.patch`），`package.json` 加了 `postinstall: patch-package`，所以任何人 `npm install` 之后这个补丁都会自动生效，不用手动改 `node_modules`。
+
+**跟 iOS 代码共用、已经做了平台区分的地方**：
+- `frontend/ads.js`：iOS/Android 的 AdMob 测试/生产广告位 ID 是两套不同的值（`getAdUnitId()` 按 `Capacitor.getPlatform()` 分流），生产广告位 Android 那边暂时是空字符串——要去 AdMob 后台给这个 App **新增一个 Android 应用**（iOS 应用不能直接复用）才能拿到，拿到之前 Android 上广告开关开着也不会真的展示。
+- `mobile/android/app/src/main/AndroidManifest.xml`：`com.google.android.gms.ads.APPLICATION_ID` 这个 meta-data 是 Android 上 AdMob SDK 启动必需的(没有直接崩溃)，跟 iOS `Info.plist` 的 `GADApplicationIdentifier` 是同一个东西。现在填的是 Google 官方公开的测试用 Android App ID，同样要等真正建了 Android AdMob 应用再换成真的。
+- `frontend/app.js`：内购(`initIAP()`)按平台注册到 `Platform.APPLE_APPSTORE` 或 `Platform.GOOGLE_PLAY`，`/api/iap/sync` 请求体带上 `platform` 字段。
+- `backend/main.py` 的 `/api/iap/sync`：**目前只实现了 iOS(App Store Server API)的收据校验**，`platform=google_play` 会被明确拒绝(`501`)，不会误发 Pro 权限。Google Play 的收据校验要走 Google Play Developer API(服务账号 JSON key + `purchases.subscriptions` 接口)，是完全另一套凭证和流程，还没接——真要在 Android 上卖 Pro 订阅之前必须先做这个。
+
+**还没做、要在真实 Android Studio/真机上才能继续的事**（这个 Linux 容器能编译但装不了模拟器/连不了真机，跟 iOS 那节"App Store 4.2 与真机构建的现实限制"是同一类限制）：
+- App 图标/启动图还是 Capacitor 脚手架默认占位图（`mipmap-*/ic_launcher*.png`、`drawable*/splash.png`），iOS 那边已经换成真实品牌图标了，Android 这边还没换——正式发布前必须换，不然会跟 iOS 上第一次提审踩过的坑一样。
+- 没有测过真机上的 Google/Apple 登录跳转、通知权限弹窗、AdMob 广告实际展示效果。
+- 没有 Google Play 开发者账号、没有签名 keystore、没有类似 `ios-release.yml` 那样"云端签名 + 自动上传"的发布流程——目前只有 `.github/workflows/android-build.yml` 这个纯编译验证的 CI，不签名不发布。
+- Google Play 内购商品(`com.contextia.app.pro.monthly` 这个 ID 在 Play Console 里要重新建一次，不能照抄 iOS 的 App Store Connect 配置)还没建。
+
+**怎么在本地继续**：`cd mobile && npm install && npm run sync:android`，然后 `npm run open:android` 在 Android Studio 里打开（需要本地装 Android Studio），或者直接 `cd android && ./gradlew assembleDebug` 命令行编译。
+
+## iOS 部分
+
+以下内容全部是 iOS 专属的提审进度记录，Android 不涉及。
 
 ## 上架进度 / 接下来要做什么（2026-09-23 更新，交接给新会话用）
 

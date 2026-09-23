@@ -1,0 +1,48 @@
+name: Android build check
+
+# 跟 ios-build.yml 是同一个目的：验证 mobile/android 这个原生壳工程真的能编译过，不只是
+# 语法看起来对。跟 iOS 不一样的是 Android 用普通的 ubuntu runner 就能编(不需要 Mac)，
+# GitHub 托管的 ubuntu-latest 自带 Android SDK + JDK，不用额外装。
+# 只产出 debug APK 用来验证编译，不签名、不上传、不发布。
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "mobile/**"
+      - "frontend/**"
+      - ".github/workflows/android-build.yml"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "frontend/**"
+      - ".github/workflows/android-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Capacitor deps
+        run: npm ci
+
+      - name: Sync www + Android project
+        run: npm run sync:android
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: mobile/android
