@@ -18,13 +18,15 @@ App **已经在 App Store 审核流程里**，不是"准备提交"阶段了。�
 
 ### 接下来立刻要做的事（新会话从这里接着干）
 
-1. **等 `ios-release.yml` 的 run #16 跑完**（触发于 2026-09-23，commit `261eb2d`，包含"隐藏 Pro 入口"这个修复）。查状态：`mcp__github__actions_get` / `get_workflow_run`，`owner=johnhuangyijun2002-cloud repo=english-reading-tutor resource_id=35815643461`，或者直接问用户装了新 build 之后导航栏是不是真的看不到"Upgrade to Pro"了
-2. **回到 App Store Connect 那条 Guideline 3.1.1 的 Resolution Center 线程**，回复类似这样的内容（不要再用"这只是个调研用的等待名单"这种解释型说法，直接说"已经移除"）：
+1. ~~等 `ios-release.yml` 的 run #16 跑完~~ → **已成功**（2026-09-23 03:51 UTC，commit `261eb2d`）。但 run #16 这个 build **不要拿去提交**，原因见下一条
+2. **run #16 之后又补了一个漏洞**：App 登录页底部链接的 `terms.html` / `privacy.html`（会被 `build-www.mjs` 整份打包进 App）里还留着完整的 "Contextia Pro subscription (iOS app)" 订阅条款和 "In-app purchases (iOS)" 段落。审核员只要点开服务条款，就能看到一个 App 里根本买不到的付费订阅——跟下面要回复苹果的"App 内已没有任何付费层级的引用"直接矛盾，很可能再被 3.1.1 打回。已把这几段从两份法律文本里删掉（git 历史里有原文，以后真开通 IAP 时 `git log -p -- frontend/terms.html` 找回来恢复即可，同时把 `IAP_SUBMISSION_ENABLED` 改回 `true`）。网页版法律页面随 Railway 自动部署同步更新
+3. **这个修复合并到 master 之后，重新触发一次 `ios-release.yml`**（改的是 `frontend/`，必须重新打包），等新 run 成功
+4. **回到 App Store Connect 那条 Guideline 3.1.1 的 Resolution Center 线程**，回复类似这样的内容（不要再用"这只是个调研用的等待名单"这种解释型说法，直接说"已经移除"）：
 
-   > We have removed the "Upgrade to Pro" entry point entirely from this version of the app. There is no longer any reference to a paid tier, subscription, or Pro feature anywhere in the app. The app is fully free with no paid content of any kind in this submission.
+   > We have removed the "Upgrade to Pro" entry point entirely from this version of the app, along with the subscription sections of our in-app Terms of Service and Privacy Policy. There is no longer any reference to a paid tier, subscription, or Pro feature anywhere in the app. The app is fully free with no paid content of any kind in this submission.
 
-3. **把版本页面的 Build 换成新的（run #16 对应的那个）**，然后重新点"添加以供审核"提交
-4. 之后如果还有新一轮回复，参考这一节和下面的完整历史，不用从头解释
+5. **把版本页面的 Build 换成第 3 步那个新 run 对应的 build**，然后重新点"添加以供审核"提交。另外确认 App Store Connect 里**没有**挂着任何状态为"准备提交"的 App 内购买项目/订阅组（有的话从这个版本里移除），不然审核员还是会看到付费商品
+6. 之后如果还有新一轮回复，参考这一节和下面的完整历史，不用从头解释
 
 ### 这个会话期间顺手修的真实 bug（都已经合并到 master）
 
