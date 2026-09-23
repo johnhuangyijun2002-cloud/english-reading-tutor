@@ -1269,6 +1269,17 @@ adminStatsPanelOverlay.addEventListener("click", (e) => {
 // 以后能开通付费了，把这个改回 true 就行，不用重新开发。
 const IAP_SUBMISSION_ENABLED = false;
 
+// Apple 3.1.1 审核实测踩过的坑：哪怕"升级到 Pro"背后只是个不产生任何交易的等待名单，
+// 只要原生壳里出现这类指向"付费"概念的入口、又没有对应的 IAP 可以真的买，就会被判定
+// "App 引导访问站外购买的内容"而拒审。IAP_SUBMISSION_ENABLED 为 false 时，原生壳里
+// 直接把这个入口整个隐藏掉，"Pro"这个概念对原生用户完全不可见——网页版不受这条规则
+// 约束(App Review 只审 App 本身)，继续正常显示等待名单。
+function hideProEntryForNativeIfNoIAP() {
+  if (isNativeApp() && !IAP_SUBMISSION_ENABLED) {
+    btnUpgradePro.classList.add("hidden");
+  }
+}
+
 async function openProPanel() {
   proPanelOverlay.classList.remove("hidden");
 
@@ -3873,6 +3884,7 @@ btnLinkApple.addEventListener("click", async () => {
 (async () => {
   await loadI18n(currentUiLanguage);
   fixLegalLinksForNative();
+  hideProEntryForNativeIfNoIAP();
   if (isNativeApp() && window.ContextiaAds) {
     window.ContextiaAds.init().then(() => window.ContextiaAds.showBanner());
   }
