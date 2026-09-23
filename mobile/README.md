@@ -2,58 +2,54 @@
 
 用 [Capacitor](https://capacitorjs.com/) 把 `../frontend` 包一层原生壳，不改前端 UI，目标是上架 App Store。
 
-## 上架进度 / 接下来要做什么
+## 上架进度 / 接下来要做什么（2026-09-23 更新，交接给新会话用）
 
 这一节是自包含的——新开一个会话、不看聊天记录，只看这一节也能接着往下做。
 
-**代码层面已经写完、而且被 CI(`.github/workflows/ios-build.yml`，用云端 Mac 真编译过)验证过能编译通过的**：
+### 现在最新状态：已经提交审核，正在打第 4 轮回合的 build
 
-- [x] Capacitor iOS 原生壳(CocoaPods 集成，不是 SPM，原因见下面"为什么是 CocoaPods 不是 SPM")
-- [x] Sign in with Apple(后端 OAuth 接口 + 前端登录按钮 + 原生壳里系统浏览器 + deep link 跳转)
-- [x] 本地推送通知(复习提醒"你有 N 个单词待复习")
-- [x] 离线缓存(没网络时显示已存的文章/生词)
-- [x] Apple 内购 StoreKit(iOS Pro 订阅解锁"不用自己填 AI Key，无限量用站长的 AI")
-- [x] 账号自助注销(网页版设置页已经做好，iOS 复用同一套网页 UI，不用额外做)
-- [x] 隐私政策 & 服务条款已经按 App Store 3.1.2/5.1.1 条款要求补全(Sign in with Apple、内购数据处理、订阅价格/周期/自动续费/退款条款、购买按钮旁边的实时价格披露)，细节见下面"隐私政策 & 服务条款"一节
+App **已经在 App Store 审核流程里**，不是"准备提交"阶段了。截至目前一共经历了这几轮：
 
-App Store 4.2 条款(不能是纯网页套壳)要求的"实质性原生功能"、内购保留付费能力这些，代码层面已经**全部写完**，没有遗留的功能缺口。
+1. **第一次提交** → 提交后才发现 App 图标是 Capacitor 脚手架默认占位图（不是真实品牌图标），紧急修复（见下面"已修的真实 bug"），走了一次"移除审核 → 换新 build → 重新提交"的流程
+2. **Apple 回复 Guideline 2.1 - Information Needed** → 要求提供：真机录屏、测试设备型号/系统版本、App 功能说明、设置说明+登录凭据、外部服务列表、地区差异说明、受监管行业声明。已经用 `applereview`/`applereview` 这个演示账号 + 一段 iPad 真机录屏（传的 Google Drive 链接）完整回复，已重新提交
+3. **Apple 又回复 Guideline 2.1(b)** → 追问"商业模式"，因为看到了导航栏"Upgrade to Pro"这个入口，想搞清楚是不是有付费内容。已回复：目前完全免费、这个入口只是调研需求用的等待名单、不产生任何交易、如果未来做会走 IAP 月度订阅制、AdMob 目前只是测试占位广告
+4. **Apple 正式拒审，Guideline 3.1.1** → 认定"App 里出现指向付费内容的入口（Upgrade to Pro），但这部分内容不能通过 IAP 购买"，判定为违规。**说明"这只是个不产生交易的等待名单"这个解释本身没能说服审核员**，光靠文字解释这条路走不通。
+5. **刚做的修复**：`frontend/app.js` 新增 `hideProEntryForNativeIfNoIAP()`，`IAP_SUBMISSION_ENABLED` 为 `false` 时，原生壳导航栏里的"Upgrade to Pro"按钮整个隐藏，原生用户完全看不到任何"Pro"相关入口（不只是不能点，是连入口本身都不存在）。网页版不受影响，继续显示等待名单（App Review 只审 App 二进制，不审网站）。PR #39，commit `237f85f`。
 
-**Apple Developer 账号已经激活，账号/后台相关的配置已经做完**：
+### 接下来立刻要做的事（新会话从这里接着干）
 
-- [x] **Apple Developer Program 账号已激活**（个人身份，Team ID `6G7ZJV58R2`）
-- [x] **Sign in with Apple 配置完 + 已经端到端测试成功**（网页版实测走通了 Apple 登录关联）。用到的标识：App ID `com.contextia.app`、Services ID `com.contextia.app.signin`、Key ID `ZS94X297U5`。四个环境变量（`APPLE_TEAM_ID`/`APPLE_SERVICES_ID`/`APPLE_KEY_ID`/`APPLE_PRIVATE_KEY`）已经填进 Railway。
-  - 中途修过一个真实 bug：Apple 回调是 POST，后端跳转默认用的 307 会让浏览器带着 POST 方法重新请求 `/app.html`（只认 GET），报 405——改成显式 303（Post/Redirect/Get 标准做法）解决了，见 `_oauth_success_redirect`。
-- [x] **Apple 内购(StoreKit)服务端配置也填完了**：App Store Connect 里建好了 App(Apple ID `6801417907`)、生成了 In-App Purchase Key(Key ID `3F58RKYX7Q`，Issuer ID `3c38958f-02b5-4602-a679-13b5a85f4a4c`)、建好了 Pro 订阅商品(Product ID `com.contextia.app.pro.monthly`)、配好了 App Store Server Notifications 的 webhook 地址。六个环境变量（`APPLE_IAP_KEY_ID`/`APPLE_IAP_ISSUER_ID`/`APPLE_IAP_PRIVATE_KEY`/`APPLE_APP_APPLE_ID`/`APPLE_PRO_PRODUCT_ID`/`APPLE_IAP_ROOT_CERTS_BASE64`）已经填进 Railway。
-  - **这块配置本身对不对还没最终验证**——推荐先用下面"Apple 内购(StoreKit)"一节里"怎么测"提到的 curl 命令测一次（拿假 transaction_id 调 `/api/iap/sync`，能自己判断凭据有效还是失败），不用等 Xcode 才发现配错了。
+1. **等 `ios-release.yml` 的 run #16 跑完**（触发于 2026-09-23，commit `261eb2d`，包含"隐藏 Pro 入口"这个修复）。查状态：`mcp__github__actions_get` / `get_workflow_run`，`owner=johnhuangyijun2002-cloud repo=english-reading-tutor resource_id=35815643461`，或者直接问用户装了新 build 之后导航栏是不是真的看不到"Upgrade to Pro"了
+2. **回到 App Store Connect 那条 Guideline 3.1.1 的 Resolution Center 线程**，回复类似这样的内容（不要再用"这只是个调研用的等待名单"这种解释型说法，直接说"已经移除"）：
 
-**当前卡住的，就剩这一件事**：
+   > We have removed the "Upgrade to Pro" entry point entirely from this version of the app. There is no longer any reference to a paid tier, subscription, or Pro feature anywhere in the app. The app is fully free with no paid content of any kind in this submission.
 
-- **这个开发环境是 Linux 容器，没有 Mac/Xcode**，所以做不了：真机/模拟器运行、代码签名、生成 `.ipa`、上传审核。账号和后端这两块的配置已经不再是阻塞了。
+3. **把版本页面的 Build 换成新的（run #16 对应的那个）**，然后重新点"添加以供审核"提交
+4. 之后如果还有新一轮回复，参考这一节和下面的完整历史，不用从头解释
 
-**现在就能做，不用等 Mac**：App Store Connect 里配 Privacy Policy URL、App Privacy 问卷、订阅商品的本地化名称/描述——这几步是后台点点点，跟 Xcode 无关，见下面"隐私政策 & 服务条款"一节的清单。
+### 这个会话期间顺手修的真实 bug（都已经合并到 master）
 
-**关于"In-App Purchase capability"这一步——之前以为必须在 Xcode 里点，查证后发现大概率不需要**：In-App Purchase 没有专属的 entitlement key，只要 App 用的是正式注册的 App ID(不是通配符 `*` 那种)，内购能力就是默认可用的——`com.contextia.app` 已经是正式注册的 App ID。Xcode 那个 capability 开关主要是链接 `StoreKit.framework`，而这个已经通过 `capacitor-plugin-cdv-purchase` 这个 CocoaPods 依赖间接链进来了。等有 Xcode 的时候顺手看一眼 Signing & Capabilities 有没有就行，大概率不需要额外操作，不是一个真正卡流程的步骤。
+这些都是**真实存在的 bug**，不是审核流程本身的问题，是在准备/测试提审材料过程中发现顺手修的：
 
-**关于 CI**：`.github/workflows/ios-build.yml` 已经把 runner 从 `macos-14` 升到了 `macos-26`（默认带 Xcode 26.6）——苹果从 2026 年 4 月 28 日起要求提交审核必须用 Xcode 26 以上编译，旧 runner 的 Xcode 版本达不到，不管接下来走哪条路都得先解决这个。
+- **App 图标是占位图**（PR #32）：一直用的 Capacitor 默认生成的蓝色 "X" 图标，换成了 `frontend/favicon-512.png` 那个真实品牌图标，还顺便修了个会导致 Apple 直接拒绝上传的问题（原图标圆角+透明背景，Apple 要求图标必须是不透明正方形无 alpha 通道）
+- **`apiErrorText()` 读取 Response body 两次**（PR #33）：`res.json()` 解析失败后还调用 `res.text()`，body 流已经消费过，报 "body stream already read"，把真正的后端错误信息完全盖住了。现在改成只读一次文本再尝试 `JSON.parse`
+- **AI Picks / 母语新闻经常 "Load failed"**（PR #35）：`feedparser.parse(url)` 自己发请求不带超时，一个 RSS 源卡住整个请求就没有时间上限；而且英语 7 个源是顺序抓的，不是并发。改成用 `httpx` 带 8 秒超时抓内容再交给 feedparser 解析，并且所有源改成 `asyncio.gather` 并发抓取
+- **ATT 授权弹窗冷启动经常不出现**（PR #36）：`ContextiaAds.init()` 只检查一次 `window.Capacitor.Plugins.AdMob` 存不存在，App 真冷启动时原生桥可能还没就绪，查不到就直接放弃，退出登录触发 `location.reload()` 之后原生桥已经热了才第一次真正弹出来。改成轮询等待最多 3 秒
+- **设置面板太长、底部"注销账号"贴边**（PR #37）：调整了 padding 和 danger zone 的 margin-top
+- **免费试用额度从 10 次提到 20 次**（PR #30，`HOUSE_FREE_CALLS_PER_USER`）：给审核员/新用户更多空间试用 AI 解析功能不至于刚好用完
 
-**测试/上架不一定非要自己有 Mac——方案 A 已经跑通了**：`iOS release to TestFlight` workflow 手动触发成功过（2026-08-14，run #3），签名、打包、上传 TestFlight 全流程验证通过，第一个 build 已经在 TestFlight 里了。扩展现有 GitHub Actions CI，把签名后的包直接传上 TestFlight，之后所有测试都在自己的 iPhone 上用 TestFlight App 完成，全程不用租 Mac、不用碰 Xcode。选这个而不是 Capgo/EAS/Ionic Appflow 这些第三方云构建服务，是因为签名证书/密钥能一直只放在这个仓库自己的 GitHub Secrets 里，不用交给任何第三方托管——跟这个项目一直坚持的自建思路一致。代码在 `.github/workflows/ios-release.yml` + `mobile/ios/ExportOptions.plist`，配置细节见下面"方案 A：云端签名 + 上传 TestFlight"一节。
+### 广告 / AdMob 当前状态
 
-（如果之后想要"改了代码马上肉眼看效果"的交互式调试，还有个方案 B：按小时租云端 Mac 比如 MacinCloud，在 Xcode 模拟器里跑——不是当前优先级，需要的时候再问我要详细步骤。）
+见下面"广告变现"一节，简单说：`ADS_ENABLED = true` + `USE_TEST_ADS = true`，真实用户会看到 ATT 弹窗 + Google 测试广告占位（"Test Ad"字样），不产生任何真实收入，也不涉及真实广告网络。这个状态**跟 Guideline 3.1.1 那次拒审无关**（广告和订阅是两回事，苹果这次没提广告），不用因为这次拒审去动 AdMob 相关代码。
 
-**真机测试进度（2026-08-15）**：
+### 关键约束，新会话务必记住
 
-- [x] 用户名密码注册/登录——一开始因为 `native-config.js` 的后端地址还是占位符，全部联网操作都 404，修好后正常
-- [x] 服务条款/隐私政策链接——原生壳里之前是站内相对路径，点了没反应，改成绝对地址后正常
-- [x] StoreKit 面板能正常初始化、显示价格、"订阅"按钮可点——中途连续修了两个真实 bug：① 内购插件没有走 npm 包正常的 `registerPlugin` 流程（这个项目没构建工具，是手动加载插件的 www/ 源文件），要手动补一次 `Capacitor.registerPlugin`；② 插件自己的初始化代码探测到 `window.cordova`(Capacitor 原生桥接脚本自带的) 存在，会把初始化推迟到下一个事件循环 tick，我们的代码读早了一个 tick，要多等一下
-- [x] **StoreKit 购买流程走到底**——原计划推迟到提交审核之后验证，但后来发现韩国税务/事业者登陆证问题（留学生 D-2 签证原则上不能做营利性登记）会挡住收付费这条路，短期内解决不了。**决定先不接内购，iOS 这次直接以免费版提交**：`frontend/app.js` 加了 `IAP_SUBMISSION_ENABLED = false` 开关，原生壳"升级到 Pro"面板现在跟网页版一样显示等待名单，不显示订阅按钮；App Store Connect 那边也不用把 Contextia Pro 订阅加进这次审核。订阅相关代码全部保留，以后签证/税务问题解决了，把开关改回 `true`、订阅加入审核即可，不用重新开发（2026-08-19）
-- [ ] Google 登录——还没实测
-- [ ] Apple 登录（原生壳里系统浏览器 + deep link 那条路径）——还没实测，网页版走通过，但原生壳这条路径没验证过
-- [ ] 通知权限弹窗——还没实测
-- [ ] 离线缓存（飞行模式下看已存内容）——还没实测
+- **用户在韩国是 D-2 留学签证，原则上不能从事营利性活动**——这是这次选择"免费版先提交、IAP 订阅先不接"的根本原因，不是技术限制。不要在没有用户明确要求、且没有专业人士确认签证问题已解决的前提下，主动提议或推进任何绕开这个限制的方案（之前明确讨论过、也明确拒绝过用虚假税务身份之类的路子）
+- **这个开发环境每次新会话都是全新容器**，之前搭的本地 Postgres/venv/演示账号数据不会保留，重新做截图/本地调试需要重新搭一遍（可以参考本文档"方案 A"一节，或者问上一个会话具体怎么弄的，聊天记录里有完整步骤）
+- **改了 `frontend/` 下的代码（app.js/app.html/style.css/ads.js 等）必须重新触发一次 `ios-release.yml` 才会真的进到下一个提交的 build 里**——纯 `backend/main.py` 的改动不需要，Railway 会自动部署，网页版和原生壳的 API 调用都立刻生效
+- **每次改完代码，走的流程是**：`git fetch origin master <本分支>` 同步 → 改代码 → commit（带 `Co-Authored-By`/`Claude-Session` 那两行，看 system reminder 里最新的版本）→ push → 开 PR → 合并 → 如果涉及前端就 `actions_run_trigger` 触发 `ios-release.yml`
+- **演示/审核账号**：`applereview` / `applereview`，写在 App Store Connect 的登录信息里，给审核员用；确保这个账号还有剩余免费 AI 解析额度（20 次总额），别被之前的测试用完了
 
-**App Store Connect 后台还需要确认/完成的**（见下面"隐私政策 & 服务条款"一节的完整清单）：Privacy Policy URL、App Privacy 隐私问卷、订阅商品的本地化显示名称——这几项之前列过，还没有逐条跟你确认是否已经填完。
 
-**提交审核**：按你的要求先不做，等你想清楚再说。真要提交的时候需要准备：App 截图（不同尺寸机型）、宣传文字、关键词、分类、年龄分级，这些我没法替你准备（需要真机截图），到时候再一起梳理。**这次先按免费版提交**（不含 Contextia Pro 订阅，见上面"真机测试进度"最后一条）。
 
 ## 目录说明
 
@@ -294,6 +290,18 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
    - Location 不需要额外声明（AdMob 测试广告不主动请求定位权限）
    等真正切换成能产生真实收入的广告（`USE_TEST_ADS` 改 `false`）时，这个问卷不用再改，因为
    数据类型和用途跟测试广告阶段是一样的，只是广告库存变成真实的。
+
+4. **App Store Connect 素材已经全部填完**（App 描述、关键词、副标题英/德/韩三语、Support URL
+   即 `frontend/support.html`、App 截图 iPhone 6.9"/iPad 13" 各 5 张、Age Rating、Content
+   Rights、版权信息、定价等级选 Free、App Privacy 问卷）——不用重新准备，除非苹果针对具体某一项
+   提出新的问题。App 截图是用这个 Linux 环境里的无头浏览器(Playwright)截的网页版界面生成的，
+   不是真机截图，因为原生壳跟网页版用的是同一套 HTML/CSS，视觉上完全一致；具体怎么截图（本地
+   起 Postgres + FastAPI 服务、种测试数据、Playwright 脚本）聊天记录里有完整过程，新会话需要
+   重新生成截图的话可以照着做一遍，这个开发环境每次新会话都是全新容器，之前搭的本地数据不会
+   保留。
+
+5. **App Review 期间发现的真实 bug 修复过程 + Apple 审核几轮往返的具体内容**，见本文档最上面
+   "上架进度 / 接下来要做什么"一节，那里有完整时间线。
 
 ## iOS 编译 CI
 
