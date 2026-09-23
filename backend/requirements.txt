@@ -11,6 +11,8 @@ asyncpg
 cryptography
 PyJWT
 app-store-server-library
+google-api-python-client
+google-auth
 slowapi
 jieba
 janome

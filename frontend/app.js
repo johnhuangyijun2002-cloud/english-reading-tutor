@@ -222,9 +222,8 @@ async function initIAP() {
     }
     const { store, ProductType, Platform } = window.CdvPurchase;
     // Android 壳走 Google Play Billing，iOS 壳走 StoreKit——同一份 JS 靠
-    // Capacitor.getPlatform() 分流，不用维护两份内购代码。后端 /api/iap/sync 目前只真正
-    // 实现了 apple_appstore 的收据校验(见 backend/main.py)，google_play 会先被明确拒绝，
-    // 不会误发 Pro 权限。
+    // Capacitor.getPlatform() 分流，不用维护两份内购代码。后端 /api/iap/sync 两边都真正
+    // 实现了收据校验(见 backend/main.py 的 _iap_sync_apple / _iap_sync_google_play)。
     const isAndroid = window.Capacitor.getPlatform() === "android";
     const storePlatform = isAndroid ? Platform.GOOGLE_PLAY : Platform.APPLE_APPSTORE;
     store.register([{ id: IAP_PRODUCT_ID, type: ProductType.PAID_SUBSCRIPTION, platform: storePlatform }]);
@@ -235,6 +234,10 @@ async function initIAP() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             transaction_id: transaction.transactionId,
+            // Google Play Developer API 校验要用的是 purchaseToken，不是 transactionId
+            // (cdv-purchase 在没有 orderId 时会拿 purchaseToken 顶替 transactionId，两者
+            // 可能相同，但后端明确按 purchaseToken 优先取用，见 IAPSyncRequest 的注释)。
+            purchase_token: isAndroid ? transaction.purchaseToken || null : undefined,
             platform: isAndroid ? "google_play" : "apple_appstore",
           }),
         });

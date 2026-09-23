@@ -24,6 +24,7 @@
     "capacitor-plugin-cdv-purchase": "^13.18.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "8.4.2",
     "patch-package": "^8.0.1"
   }
