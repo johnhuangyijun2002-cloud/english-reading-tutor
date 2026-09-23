@@ -458,7 +458,7 @@ function populateLearningLanguageOptions() {
 // (下次用 AI 功能时再问)。拒绝时直接在前端伪造一个 403 响应，复用各调用处现成的报错展示，
 // 不影响 App 其他功能。网页版不受 App Review 约束，行为不变。
 const AI_CONSENT_KEY = "aiConsent.v1";
-const AI_CONSENT_PATHS = ["/api/analyze", "/api/immersion/plan", "/api/recommendations"];
+const AI_CONSENT_PATHS = ["/api/analyze", "/api/immersion/plan", "/api/recommendations", "/api/comprehension/quiz"];
 const aiConsentOverlay = document.getElementById("aiConsentOverlay");
 let aiConsentPending = null;
 
@@ -626,6 +626,13 @@ const statsDocCount = document.getElementById("statsDocCount");
 const statsAccuracyChart = document.getElementById("statsAccuracyChart");
 const btnStatsClose = document.getElementById("btnStatsClose");
 let latestStats = null;
+
+const quizPanelOverlay = document.getElementById("quizPanelOverlay");
+const quizBody = document.getElementById("quizBody");
+const btnQuizClose = document.getElementById("btnQuizClose");
+const btnQuizRegenerate = document.getElementById("btnQuizRegenerate");
+let quizDocId = null;
+let quizData = null; // 当前面板正在展示的题目({questions: [...]})，交卷时用来对答案
 
 const btnAdminStats = document.getElementById("btnAdminStats");
 const adminStatsPanelOverlay = document.getElementById("adminStatsPanelOverlay");
@@ -1025,7 +1032,7 @@ function buildArticleHeader(content, title, sourceUrl) {
   const isCharCounted = ["zh", "ja", "ko"].includes(currentDocLearningLanguage);
   const count = isCharCounted
     ? (content.match(/[^\s]/g) || []).length
-    : (content.match(/[A-Za-z]+(?:['’][A-Za-z]+)?/g) || []).length;
+    : (content.match(/\p{Script=Latin}+(?:['’]\p{Script=Latin}+)?/gu) || []).length;
   const minutes = Math.max(1, Math.round(count / (isCharCounted ? 400 : 150)));
 
   const statLang = document.createElement("span");
@@ -1051,6 +1058,14 @@ function buildArticleHeader(content, title, sourceUrl) {
     readAloudBtn.addEventListener("click", startReadAloud);
     meta.appendChild(readAloudBtn);
   }
+
+  const quizBtn = document.createElement("button");
+  quizBtn.type = "button";
+  quizBtn.className = "articleStat articleQuizBtn";
+  quizBtn.innerHTML = iconHTML("check-circle") + t("article.quiz");
+  const docIdForQuiz = currentDocId;
+  quizBtn.addEventListener("click", () => openQuizPanel(docIdForQuiz));
+  meta.appendChild(quizBtn);
 
   header.appendChild(meta);
 
@@ -1078,13 +1093,18 @@ function appendCoverageStat(meta, pct) {
 
 // 拉丁字母语言的覆盖率：跟 buildArticleHeader 里"约 N 词"用的是同一个单词正则，
 // 口径保持一致；已知词表本身不分语言(knownWordsMap 是全局的)，这里手动按学习语言过滤一遍。
+// 之前这里用的是 [A-Za-z]，法语/德语/西班牙语里带重音符号的词(très/über/está 这类)会被
+// 从中间切断，覆盖率和生词高亮都被这些词拖低。改成 \p{Script=Latin}，只多认拉丁字母表
+// 里的变体字符，不会影响中/日/韩(它们各自不属于 Latin 这个 Unicode script)。
+// 局限：这里仍然只做精确匹配，没有像英语那样做词形还原(lemmatizeCandidates)——法语/
+// 西班牙语/德语的动词变位、名词性数变化比英语复杂得多，值得做但工作量不小，先不做。
 function computeLatinCoverage(content, learningLanguage) {
   const scopedKnown = new Set(
     [...knownWordsMap.values()]
       .filter((v) => v.learning_language === learningLanguage)
       .map((v) => (v.word || "").trim().toLowerCase())
   );
-  const matches = content.match(/[A-Za-z]+(?:['’][A-Za-z]+)?/g) || [];
+  const matches = content.match(/\p{Script=Latin}+(?:['’]\p{Script=Latin}+)?/gu) || [];
   if (matches.length === 0) return null;
   const isEnglish = learningLanguage === "en";
   let known = 0;
@@ -1273,6 +1293,94 @@ statsPanelOverlay.addEventListener("click", (e) => {
   if (e.target === statsPanelOverlay) statsPanelOverlay.classList.add("hidden");
 });
 
+// ---------- 阅读理解小测 ----------
+// 读完一篇文章之前，除了查单词/存生词，没有别的"我是不是真读懂了"的反馈——AI 根据文章
+// 内容出几道选择题，交卷后立刻标对错、给解析。题目缓存在文档记录里(quiz_json)，同一篇
+// 文章重新点开小测不用再花一次 AI 调用，只有点"换一批"才会重新生成。
+
+async function openQuizPanel(docId) {
+  if (!docId) return;
+  quizDocId = docId;
+  quizData = null;
+  btnQuizRegenerate.classList.add("hidden");
+  quizBody.innerHTML = `<p class="urlHint">${t("quiz.loading")}</p>`;
+  quizPanelOverlay.classList.remove("hidden");
+  await loadQuiz(false);
+}
+
+async function loadQuiz(refresh) {
+  const docId = quizDocId;
+  quizBody.innerHTML = `<p class="urlHint">${t("quiz.loading")}</p>`;
+  btnQuizRegenerate.classList.add("hidden");
+  try {
+    const res = await apiFetch(`/api/comprehension/quiz/${docId}${refresh ? "?refresh=true" : ""}`);
+    if (docId !== quizDocId) return; // 面板已经关掉或者换了文章，请求结果不需要了
+    if (!res.ok) {
+      quizBody.innerHTML = `<p class="urlHint">${t("quiz.failedPrefix", { message: await apiErrorText(res) })}</p>`;
+      return;
+    }
+    quizData = await res.json();
+    renderQuiz();
+    btnQuizRegenerate.classList.remove("hidden");
+  } catch (err) {
+    if (docId !== quizDocId) return;
+    quizBody.innerHTML = `<p class="urlHint">${t("quiz.failedPrefix", { message: err.message })}</p>`;
+  }
+}
+
+function renderQuiz() {
+  quizBody.innerHTML = "";
+  quizData.questions.forEach((q, qIdx) => {
+    const card = document.createElement("div");
+    card.className = "quizQuestion";
+    card.dataset.qIdx = qIdx;
+
+    const stem = document.createElement("div");
+    stem.className = "quizQuestionStem";
+    stem.textContent = `${qIdx + 1}. ${q.question}`;
+    card.appendChild(stem);
+
+    const options = document.createElement("div");
+    options.className = "quizOptions";
+    q.options.forEach((opt, optIdx) => {
+      const optBtn = document.createElement("button");
+      optBtn.type = "button";
+      optBtn.className = "quizOption";
+      optBtn.dataset.optIdx = optIdx;
+      optBtn.textContent = opt;
+      optBtn.addEventListener("click", () => {
+        if (card.classList.contains("quizQuestion-answered")) return;
+        card.classList.add("quizQuestion-answered");
+        const correctIdx = q.correct_index;
+        [...options.children].forEach((btn) => {
+          const btnIdx = Number(btn.dataset.optIdx);
+          if (btnIdx === correctIdx) btn.classList.add("quizOption-correct");
+          else if (btnIdx === optIdx) btn.classList.add("quizOption-wrong");
+        });
+        if (q.explanation) {
+          const expl = document.createElement("p");
+          expl.className = "quizExplanation";
+          expl.textContent = q.explanation;
+          card.appendChild(expl);
+        }
+      });
+      options.appendChild(optBtn);
+    });
+    card.appendChild(options);
+    quizBody.appendChild(card);
+  });
+}
+
+btnQuizClose.addEventListener("click", () => {
+  quizPanelOverlay.classList.add("hidden");
+  quizDocId = null;
+  quizData = null;
+});
+quizPanelOverlay.addEventListener("click", (e) => {
+  if (e.target === quizPanelOverlay) btnQuizClose.click();
+});
+btnQuizRegenerate.addEventListener("click", () => loadQuiz(true));
+
 // ---------- 站长专属统计页面 ----------
 
 function renderAdminBarChart(container, entries) {
@@ -1457,7 +1565,7 @@ function highlightKnownWords(text) {
   if (knownWords.size === 0) return escapeHtml(text);
 
   const isEnglish = currentDocLearningLanguage === "en";
-  const wordRegex = /[A-Za-z]+(?:['’][A-Za-z]+)?/g;
+  const wordRegex = /\p{Script=Latin}+(?:['’]\p{Script=Latin}+)?/gu;
   let result = "";
   let lastIndex = 0;
   let match;
@@ -3371,7 +3479,7 @@ function markParagraphForPrint(text, vocabMap, sentenceList) {
     }
   });
 
-  const wordRegex = /[A-Za-z]+(?:['’][A-Za-z]+)?/g;
+  const wordRegex = /\p{Script=Latin}+(?:['’]\p{Script=Latin}+)?/gu;
   let match;
   while ((match = wordRegex.exec(text)) !== null) {
     const key = match[0].toLowerCase();

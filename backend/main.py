@@ -296,6 +296,9 @@ CREATE TABLE IF NOT EXISTS documents (
     uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS learning_language TEXT NOT NULL DEFAULT 'en';
+-- 阅读后理解小测：AI 生成的题目缓存成 JSON 存这里，同一篇文章重新打开小测不用再调一次 AI，
+-- 只有用户主动点"换一批"才会重新生成并覆盖这一列。
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS quiz_json TEXT;
 CREATE TABLE IF NOT EXISTS vocab (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -612,6 +615,11 @@ async def db_get_document(doc_id: str) -> Optional[dict]:
 async def db_delete_document(doc_id: str):
     pool = await get_pool()
     await pool.execute("DELETE FROM documents WHERE id=$1", doc_id)
+
+
+async def db_save_document_quiz(doc_id: str, quiz_json: str):
+    pool = await get_pool()
+    await pool.execute("UPDATE documents SET quiz_json=$1 WHERE id=$2", quiz_json, doc_id)
 
 
 async def db_create_vocab(record: dict):
@@ -3119,6 +3127,91 @@ async def get_recommendations(
 
     _recommend_cache[cache_key] = {"data": results, "ts": now}
     return results
+
+
+# ---------- 阅读理解小测 ----------
+# 现在读完一篇文章除了查单词/存生词之外没有别的反馈——加一个"读完了自测一下"的环节，
+# 用 AI 根据文章内容出几道选择题。题目和选项用 explain_language(用户的讲解语言)写，
+# 不是 learning_language，这样即使学习语言还读不利落，也能看懂题目、判断自己是不是真读懂了。
+QUIZ_QUESTION_COUNT = 4
+QUIZ_CONTENT_CHAR_LIMIT = 6000  # 超长文章只取前面这部分喂给 AI，控制 token 成本
+
+
+def build_quiz_prompt(content: str, learning_language: str, explain_language: str) -> str:
+    learn_label = LANGUAGE_LABELS.get(learning_language, learning_language)
+    explain_label = LANGUAGE_LABELS.get(explain_language, explain_language)
+    truncated = content[:QUIZ_CONTENT_CHAR_LIMIT]
+    return (
+        f"你是一个{learn_label}阅读理解出题助手。用户刚读完下面这篇{learn_label}文章，"
+        f"请出 {QUIZ_QUESTION_COUNT} 道选择题，检验用户是不是真的读懂了内容(不是考语法或单词)。\n"
+        f"文章内容：\n{truncated}\n\n"
+        "出题要求：\n"
+        "1) 题目要基于文章明确提到的信息，不要问文章没写的内容，也不要问过于琐碎的细节(比如某个具体数字)\n"
+        "2) 4 个选项里只有 1 个正确，干扰项要合理但明确错误，不能似是而非\n"
+        "3) 题目顺序尽量跟着文章的行文顺序，覆盖文章不同部分，不要挤在同一段里出题\n\n"
+        f"请以 JSON 格式返回，问题(question)/选项(options)/解析(explanation)都用{explain_label}表达"
+        f"(不要用{learn_label}或其它语言)：\n"
+        '{"questions": [{"question": "题干", "options": ["选项A", "选项B", "选项C", "选项D"], '
+        '"correct_index": 正确选项在 options 里的下标(0-3的整数), '
+        f'"explanation": "一句话说明为什么选这个，最好引用或复述文章里的依据，用{explain_label}表达"}}]}}\n'
+        "只返回这个 JSON，不要有其他文字。"
+    )
+
+
+class QuizQuestion(BaseModel):
+    question: str
+    options: list[str]
+    correct_index: int
+    explanation: str = ""
+
+
+class QuizResponse(BaseModel):
+    questions: list[QuizQuestion]
+
+
+def _parse_quiz_json(raw: str) -> QuizResponse:
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(502, "AI didn't return a usable quiz — please try again")
+
+    valid_questions = []
+    for q in data.get("questions", []):
+        options = q.get("options")
+        idx = q.get("correct_index")
+        if not q.get("question") or not isinstance(options, list) or len(options) != 4:
+            continue
+        if not isinstance(idx, int) or not (0 <= idx < 4):
+            continue
+        valid_questions.append(QuizQuestion(
+            question=q["question"], options=options, correct_index=idx, explanation=q.get("explanation", ""),
+        ))
+    if not valid_questions:
+        raise HTTPException(502, "AI didn't return a usable quiz — please try again")
+    return QuizResponse(questions=valid_questions)
+
+
+@app.get("/api/comprehension/quiz/{doc_id}", response_model=QuizResponse)
+@limiter.limit("10/minute")
+async def get_comprehension_quiz(
+    request: Request, doc_id: str, refresh: bool = False, user: dict = Depends(get_current_user)
+):
+    doc = await db_get_document(doc_id)
+    if not doc or doc.get("user_id") != user["id"]:
+        raise HTTPException(404, "Article not found")
+
+    if not refresh and doc.get("quiz_json"):
+        try:
+            return QuizResponse(**json.loads(doc["quiz_json"]))
+        except (json.JSONDecodeError, ValueError):
+            pass  # 缓存的格式坏了就当没有缓存，走下面重新生成
+
+    explain_language = resolve_explain_language(user)
+    prompt = build_quiz_prompt(doc.get("content") or "", doc.get("learning_language", "en"), explain_language)
+    raw = await call_ai_for_user(prompt, user, json_mode=True)
+    quiz = _parse_quiz_json(raw)
+    await db_save_document_quiz(doc_id, quiz.model_dump_json())
+    return quiz
 
 
 class ProficiencyRequest(BaseModel):
