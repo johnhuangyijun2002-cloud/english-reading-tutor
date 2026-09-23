@@ -1,16 +1,20 @@
 {
   "name": "contextia-mobile",
   "version": "1.0.0",
-  "description": "Contextia iOS app shell (Capacitor wrapper around ../frontend)",
+  "description": "Contextia iOS/Android app shell (Capacitor wrapper around ../frontend)",
   "private": true,
   "scripts": {
+    "postinstall": "patch-package",
     "build:www": "node scripts/build-www.mjs",
     "sync": "npm run build:www && cap sync",
     "sync:ios": "npm run build:www && cap sync ios",
-    "open:ios": "cap open ios"
+    "sync:android": "npm run build:www && cap sync android",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.1.0",
+    "@capacitor/android": "^8.4.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/browser": "^8.0.4",
     "@capacitor/core": "8.4.2",
@@ -20,6 +24,8 @@
     "capacitor-plugin-cdv-purchase": "^13.18.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "8.4.2"
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "8.4.2",
+    "patch-package": "^8.0.1"
   }
 }

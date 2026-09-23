@@ -20,6 +20,9 @@ from appstoreserverlibrary.signed_data_verifier import SignedDataVerifier, Verif
 import asyncpg
 import feedparser
 from cryptography.fernet import Fernet, InvalidToken
+from google.oauth2 import service_account as google_service_account
+from googleapiclient.discovery import build as google_api_build
+from googleapiclient.errors import HttpError as GoogleApiHttpError
 import httpx
 import jieba
 import jieba.posseg as pseg
@@ -101,6 +104,17 @@ APPLE_PRO_PRODUCT_ID = os.environ.get("APPLE_PRO_PRODUCT_ID", "com.contextia.app
 # base64(一行，比如 `base64 -i AppleRootCA-G3.cer | tr -d '\n'`)后填进来；
 # 多个证书用逗号分开。
 APPLE_IAP_ROOT_CERTS_BASE64 = os.environ.get("APPLE_IAP_ROOT_CERTS_BASE64", "")
+
+# Google Play 内购(Google Play Billing)：跟上面 Apple 那套是完全独立的另一份凭证/客户端，
+# 校验 Android 壳(mobile/android)里 capacitor-plugin-cdv-purchase 发起的订阅购买。
+# GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 是 Play Console -> 设置 -> API 访问 里关联的
+# Google Cloud 项目下创建的服务账号 JSON 密钥(角色至少要有 Play Console 里"查看财务数据"
+# 权限)，整份 JSON 文件转成 base64(一行，`base64 -i service-account.json | tr -d '\n'`)
+# 后填进来。这个变量没填之前，Android 内购校验直接返回明确的"没配置"错误，不会误判、
+# 更不会跳过校验直接放行。
+GOOGLE_PLAY_PACKAGE_NAME = os.environ.get("GOOGLE_PLAY_PACKAGE_NAME", "com.contextia.app")
+GOOGLE_PLAY_PRO_PRODUCT_ID = os.environ.get("GOOGLE_PLAY_PRO_PRODUCT_ID", "com.contextia.app.pro.monthly")
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 = os.environ.get("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64", "")
 
 TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
@@ -907,17 +921,17 @@ async def db_has_active_entitlement(user_id: str) -> bool:
 
 async def db_upsert_entitlement_by_user(
     user_id: str, product_id: str, original_transaction_id: str, latest_transaction_id: Optional[str],
-    status: str, environment: str, expires_at: Optional[datetime],
+    status: str, environment: str, expires_at: Optional[datetime], source: str = "ios_iap",
 ):
     pool = await get_pool()
     await pool.execute(
         """INSERT INTO entitlements (user_id, product_id, original_transaction_id, latest_transaction_id,
-                                      status, environment, expires_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,now())
+                                      status, environment, expires_at, source, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
            ON CONFLICT (user_id) DO UPDATE SET
              product_id=$2, original_transaction_id=$3, latest_transaction_id=$4,
-             status=$5, environment=$6, expires_at=$7, updated_at=now()""",
-        user_id, product_id, original_transaction_id, latest_transaction_id, status, environment, expires_at,
+             status=$5, environment=$6, expires_at=$7, source=$8, updated_at=now()""",
+        user_id, product_id, original_transaction_id, latest_transaction_id, status, environment, expires_at, source,
     )
 
 
@@ -1803,6 +1817,47 @@ async def _fetch_subscription_status(transaction_id: str):
     return resp, AppleEnvironment.SANDBOX
 
 
+_google_play_client = None  # androidpublisher API client，懒加载缓存，跟 Apple 那边的 _apple_iap_api_clients 是同一个思路
+
+
+def _google_play_configured() -> bool:
+    return bool(GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64)
+
+
+def _google_play_api_client():
+    global _google_play_client
+    if _google_play_client is None:
+        info = json.loads(base64.b64decode(GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64))
+        credentials = google_service_account.Credentials.from_service_account_info(
+            info, scopes=["https://www.googleapis.com/auth/androidpublisher"],
+        )
+        _google_play_client = google_api_build("androidpublisher", "v3", credentials=credentials, cache_discovery=False)
+    return _google_play_client
+
+
+def _map_google_play_state(state: Optional[str]) -> str:
+    # purchases.subscriptionsv2.get 返回的 subscriptionState 取值：
+    # https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptionsv2
+    if state in ("SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"):
+        return "active"
+    if state == "SUBSCRIPTION_STATE_ON_HOLD":
+        return "billing_retry"
+    if state == "SUBSCRIPTION_STATE_REVOKED":
+        return "revoked"
+    return "expired"  # CANCELED / EXPIRED / PAUSED / PENDING 都当作没有有效 Pro 权限处理
+
+
+async def _fetch_google_play_subscription(purchase_token: str) -> dict:
+    # google-api-python-client 是同步库，没有原生 asyncio 支持；这个项目里 Apple 那套
+    # (appstoreserverlibrary)也是在 async def 里直接同步调用，量级(几十次/分钟的限流)不值得
+    # 为了这个再引入 run_in_executor，保持跟 Apple 那边一致的写法。
+    client = _google_play_api_client()
+    request = client.purchases().subscriptionsv2().get(
+        packageName=GOOGLE_PLAY_PACKAGE_NAME, token=purchase_token,
+    )
+    return request.execute()
+
+
 async def _entitlement_response(user_id: str) -> dict:
     ent = await db_get_entitlement(user_id)
     return {
@@ -1820,11 +1875,15 @@ async def get_entitlement(user: dict = Depends(get_current_user)):
 
 class IAPSyncRequest(BaseModel):
     transaction_id: str
+    # Android 壳(Google Play Billing)发起同步时会带上这两个字段；不填按 iOS 处理，兼容现有的
+    # iOS 客户端(旧版本永远不会带这两个字段)。purchase_token 才是 Google Play Developer API
+    # 校验用的凭证，transaction_id 在 Android 上只是展示/去重用的一个标识(cdv-purchase 里
+    # 没有 orderId 时会直接拿 purchaseToken 当 transactionId，两者可能相同)。
+    platform: str = "apple_appstore"
+    purchase_token: Optional[str] = None
 
 
-@app.post("/api/iap/sync")
-@limiter.limit("20/minute")
-async def iap_sync(request: Request, req: IAPSyncRequest, user: dict = Depends(get_current_user)):
+async def _iap_sync_apple(user: dict, req: IAPSyncRequest) -> dict:
     if not _apple_iap_configured():
         raise HTTPException(500, "This deployment hasn't configured Apple in-app purchases")
 
@@ -1867,9 +1926,58 @@ async def iap_sync(request: Request, req: IAPSyncRequest, user: dict = Depends(g
         status=status,
         environment=environment.value,
         expires_at=expires_at,
+        source="ios_iap",
     )
-    _audit("iap_sync", user_id=user["id"], product_id=payload.productId, status=status)
+    _audit("iap_sync", user_id=user["id"], platform="ios", product_id=payload.productId, status=status)
     return await _entitlement_response(user["id"])
+
+
+async def _iap_sync_google_play(user: dict, req: IAPSyncRequest) -> dict:
+    if not _google_play_configured():
+        raise HTTPException(500, "This deployment hasn't configured Google Play in-app purchases")
+
+    purchase_token = req.purchase_token or req.transaction_id
+    if not purchase_token:
+        raise HTTPException(400, "Missing purchase token")
+
+    try:
+        subscription = await _fetch_google_play_subscription(purchase_token)
+    except GoogleApiHttpError as exc:
+        raise HTTPException(400, f"Couldn't verify purchase with Google Play: {exc.reason or exc.status_code}")
+
+    # subscriptionsv2.get 一次返回这个 purchase token 名下所有 line item(比如升降级、多个
+    # base plan)，只挑我们自己这个 Pro 商品那一条；理论上一个 token 不会同时匹配多条。
+    line_items = subscription.get("lineItems") or []
+    matched = next((li for li in line_items if li.get("productId") == GOOGLE_PLAY_PRO_PRODUCT_ID), None)
+    if not matched:
+        raise HTTPException(400, "No matching subscription found for this purchase")
+
+    expiry_time = matched.get("expiryTime")
+    expires_at = datetime.fromisoformat(expiry_time.replace("Z", "+00:00")) if expiry_time else None
+    status = _map_google_play_state(subscription.get("subscriptionState"))
+    # Google Play 的 purchaseToken 在同一份订阅的生命周期里(直到用户取消重新订阅)是稳定的，
+    # 拿它当 entitlements 表里 Apple 那边 original_transaction_id 扮演的"稳定标识"角色；
+    # latestOrderId 每次续费会变，对应 Apple 的 latest_transaction_id。
+    await db_upsert_entitlement_by_user(
+        user_id=user["id"],
+        product_id=GOOGLE_PLAY_PRO_PRODUCT_ID,
+        original_transaction_id=purchase_token,
+        latest_transaction_id=subscription.get("latestOrderId"),
+        status=status,
+        environment="Sandbox" if subscription.get("testPurchase") else "Production",
+        expires_at=expires_at,
+        source="android_iap",
+    )
+    _audit("iap_sync", user_id=user["id"], platform="android", product_id=GOOGLE_PLAY_PRO_PRODUCT_ID, status=status)
+    return await _entitlement_response(user["id"])
+
+
+@app.post("/api/iap/sync")
+@limiter.limit("20/minute")
+async def iap_sync(request: Request, req: IAPSyncRequest, user: dict = Depends(get_current_user)):
+    if req.platform == "google_play":
+        return await _iap_sync_google_play(user, req)
+    return await _iap_sync_apple(user, req)
 
 
 class IAPNotificationBody(BaseModel):

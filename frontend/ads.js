@@ -19,13 +19,28 @@
 const ADS_ENABLED = true;
 const USE_TEST_ADS = true;
 
-// Google 官方文档公开的测试专用广告位 ID，任何开发者都能直接用：
+// Google 官方文档公开的测试专用广告位 ID，任何开发者都能直接用，iOS 和 Android 是两套不同的
+// ID(同一个"测试横幅"在两边的资源路径不一样)：
 // https://developers.google.com/admob/ios/test-ads
-const TEST_BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/2934735716";
+// https://developers.google.com/admob/android/test-ads
+const TEST_BANNER_AD_UNIT_ID = {
+  ios: "ca-app-pub-3940256099942544/2934735716",
+  android: "ca-app-pub-3940256099942544/6300978111",
+};
 
-// 用户真实 AdMob 账号下创建的广告单元 ID——USE_TEST_ADS 为 true 时不会被用到，
-// 只有真正翻开关上线才会生效。
-const PRODUCTION_BANNER_AD_UNIT_ID = "ca-app-pub-7356124481466705/6674096817";
+// 用户真实 AdMob 账号下创建的广告单元 ID——USE_TEST_ADS 为 true 时不会被用到，只有真正翻
+// 开关上线才会生效。Android 侧的广告单元要等 AdMob 后台给这个 App 新增 Android 应用后才能
+// 拿到，在那之前先留空，PRODUCTION_BANNER_AD_UNIT_ID 在 Android 上取不到值也不会崩，只是
+// 广告开关打开了也不会真的展示(showBanner 里做了兜底)。
+const PRODUCTION_BANNER_AD_UNIT_ID = {
+  ios: "ca-app-pub-7356124481466705/6674096817",
+  android: "",
+};
+
+function getAdUnitId(map) {
+  const platform = window.Capacitor && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : "";
+  return map[platform] || "";
+}
 
 let adMobReady = false;
 
@@ -73,9 +88,11 @@ window.ContextiaAds = {
     if (!ADS_ENABLED || !adMobReady) return;
     const AdMob = getAdMobPlugin();
     if (!AdMob) return;
+    const adId = getAdUnitId(USE_TEST_ADS ? TEST_BANNER_AD_UNIT_ID : PRODUCTION_BANNER_AD_UNIT_ID);
+    if (!adId) return;
     try {
       await AdMob.showBanner({
-        adId: USE_TEST_ADS ? TEST_BANNER_AD_UNIT_ID : PRODUCTION_BANNER_AD_UNIT_ID,
+        adId,
         adSize: "ADAPTIVE_BANNER",
         position: "BOTTOM_CENTER",
         isTesting: USE_TEST_ADS,

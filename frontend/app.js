@@ -221,24 +221,36 @@ async function initIAP() {
       );
     }
     const { store, ProductType, Platform } = window.CdvPurchase;
-    store.register([{ id: IAP_PRODUCT_ID, type: ProductType.PAID_SUBSCRIPTION, platform: Platform.APPLE_APPSTORE }]);
+    // Android 壳走 Google Play Billing，iOS 壳走 StoreKit——同一份 JS 靠
+    // Capacitor.getPlatform() 分流，不用维护两份内购代码。后端 /api/iap/sync 两边都真正
+    // 实现了收据校验(见 backend/main.py 的 _iap_sync_apple / _iap_sync_google_play)。
+    const isAndroid = window.Capacitor.getPlatform() === "android";
+    const storePlatform = isAndroid ? Platform.GOOGLE_PLAY : Platform.APPLE_APPSTORE;
+    store.register([{ id: IAP_PRODUCT_ID, type: ProductType.PAID_SUBSCRIPTION, platform: storePlatform }]);
     store.when().approved(async (transaction) => {
       try {
         const res = await apiFetch("/api/iap/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transaction_id: transaction.transactionId }),
+          body: JSON.stringify({
+            transaction_id: transaction.transactionId,
+            // Google Play Developer API 校验要用的是 purchaseToken，不是 transactionId
+            // (cdv-purchase 在没有 orderId 时会拿 purchaseToken 顶替 transactionId，两者
+            // 可能相同，但后端明确按 purchaseToken 优先取用，见 IAPSyncRequest 的注释)。
+            purchase_token: isAndroid ? transaction.purchaseToken || null : undefined,
+            platform: isAndroid ? "google_play" : "apple_appstore",
+          }),
         });
         if (res.ok) currentEntitlement = await res.json();
       } catch (err) {
-        // 同步失败也要 finish()，不然 Apple 会一直重复投递这笔交易；下次打开 App 走
+        // 同步失败也要 finish()，不然商店会一直重复投递这笔交易；下次打开 App 走
         // loadEntitlement() 或者用户手动点"恢复购买"还能再同步一次
       } finally {
         await transaction.finish();
         updateIapPanel();
       }
     });
-    await store.initialize([Platform.APPLE_APPSTORE]);
+    await store.initialize([storePlatform]);
     iapStoreReady = true;
   } catch (err) {
     // StoreKit 初始化失败(比如插件没装好、模拟器不支持内购)不影响正常使用，安静忽略——
