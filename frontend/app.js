@@ -763,6 +763,11 @@ const aiRelayUrlInput = document.getElementById("aiRelayUrlInput");
 const aiRelayModelInput = document.getElementById("aiRelayModelInput");
 const sheetsSyncBlock = document.getElementById("sheetsSyncBlock");
 const sheetsSyncToggle = document.getElementById("sheetsSyncToggle");
+const notionSyncStatus = document.getElementById("notionSyncStatus");
+const notionTargetRow = document.getElementById("notionTargetRow");
+const notionTargetSelect = document.getElementById("notionTargetSelect");
+const btnNotionConnect = document.getElementById("btnNotionConnect");
+const btnNotionDisconnect = document.getElementById("btnNotionDisconnect");
 const btnSettingsSave = document.getElementById("btnSettingsSave");
 const settingsSaveStatus = document.getElementById("settingsSaveStatus");
 const btnLogout = document.getElementById("btnLogout");
@@ -3583,6 +3588,7 @@ async function loadSettingsIntoPanel() {
 
   sheetsSyncBlock.classList.toggle("hidden", !data.is_owner);
   sheetsSyncToggle.checked = !!data.sheets_sync_enabled;
+  loadNotionStatus();
 
   changePasswordLabel.textContent = data.has_password ? t("settings.changePassword") : t("settings.changePasswordUnset");
   newPasswordInput.value = "";
@@ -3604,6 +3610,97 @@ async function loadSettingsIntoPanel() {
     : t("settings.appleUnlinkedStatus");
   btnLinkApple.textContent = data.has_apple ? t("settings.appleLinkBtnRelink") : t("settings.appleLinkBtn");
 }
+
+// ---------- Notion 同步(每个用户自己连接自己的工作区) ----------
+
+async function loadNotionStatus() {
+  try {
+    const res = await apiFetch("/api/integrations");
+    if (!res.ok) return;
+    const list = await res.json();
+    const conn = list.find((i) => i.provider === "notion");
+    renderNotionStatus(conn || null);
+  } catch (err) {
+    // 面板已经用上次的状态渲染过了，这里失败不额外提示
+  }
+}
+
+function renderNotionStatus(conn) {
+  if (!conn) {
+    notionSyncStatus.classList.add("hidden");
+    notionTargetRow.classList.add("hidden");
+    btnNotionConnect.classList.remove("hidden");
+    btnNotionDisconnect.classList.add("hidden");
+    return;
+  }
+  btnNotionConnect.classList.add("hidden");
+  btnNotionDisconnect.classList.remove("hidden");
+  notionSyncStatus.classList.remove("hidden");
+  if (conn.target_label) {
+    notionSyncStatus.textContent = t("settings.notionConnectedWithTarget", {
+      workspace: conn.workspace_name || "", target: conn.target_label,
+    });
+    notionTargetRow.classList.add("hidden");
+  } else {
+    notionSyncStatus.textContent = t("settings.notionConnectedNoTarget", { workspace: conn.workspace_name || "" });
+    loadNotionTargets();
+  }
+}
+
+async function loadNotionTargets() {
+  notionTargetRow.classList.remove("hidden");
+  notionTargetSelect.innerHTML = `<option value="">${t("settings.notionTargetPlaceholder")}</option>`;
+  try {
+    const res = await apiFetch("/api/integrations/notion/targets");
+    if (!res.ok) return;
+    const pages = await res.json();
+    pages.forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.title;
+      notionTargetSelect.appendChild(opt);
+    });
+  } catch (err) {
+    // 列表拉不到就留一个空的下拉框，用户可以重新打开设置面板重试
+  }
+}
+
+notionTargetSelect.addEventListener("change", async () => {
+  const targetId = notionTargetSelect.value;
+  if (!targetId) return;
+  const targetLabel = notionTargetSelect.options[notionTargetSelect.selectedIndex].textContent;
+  try {
+    const res = await apiFetch("/api/integrations/notion/target", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: targetId, target_label: targetLabel }),
+    });
+    if (res.ok) loadNotionStatus();
+  } catch (err) {
+    // 静默失败，用户可以重新选一次
+  }
+});
+
+btnNotionConnect.addEventListener("click", async () => {
+  try {
+    const res = await apiFetch("/api/integrations/notion/connect-init", { method: "POST" });
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    const { nonce } = await res.json();
+    startOAuthFlow(`/api/integrations/notion/authorize?nonce=${encodeURIComponent(nonce)}`);
+  } catch (err) {
+    alert(t("settings.notionConnectFailed", { message: err.message }));
+  }
+});
+
+btnNotionDisconnect.addEventListener("click", async () => {
+  if (!confirm(t("settings.notionDisconnectConfirm"))) return;
+  try {
+    await apiFetch("/api/integrations/notion", { method: "DELETE" });
+  } catch (err) {
+    // 忽略网络错误，下面无论如何都刷新一次状态
+  }
+  loadNotionStatus();
+});
 
 btnLinkGoogle.addEventListener("click", async () => {
   btnLinkGoogle.disabled = true;
@@ -3929,6 +4026,10 @@ async function finishOAuthCallback(hash) {
     btnAccountSettings.click();
   } else if (/(^|&)apple_linked=1/.test(hash)) {
     alert(t("settings.appleLinkSuccess"));
+    btnAccountSettings.click();
+  } else if (/(^|&)notion_connected=1/.test(hash)) {
+    // btnAccountSettings 的点击处理里已经会调 loadSettingsIntoPanel() -> loadNotionStatus()，
+    // 这里不用再显式调一次，不然两次并发请求会把目标页面下拉框的选项渲染重复。
     btnAccountSettings.click();
   } else {
     startNavTour();

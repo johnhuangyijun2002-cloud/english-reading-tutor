@@ -75,6 +75,16 @@ run #16 → run #17 → 现在要提交的是 **run #18 之后**的 build，前�
 - **注销账号没有撤销 Sign in with Apple 授权**：苹果要求用 Apple 登录的账号删号时调用 `https://appleid.apple.com/auth/revoke`。现在 Apple 回调时没存 refresh token，要补需要加字段 + 改 `delete_account`，纯后端改动，不用重新打包。审核员很少实测，被点名再做也来得及
 - **原生壳里 Google/Apple 登录跳回 App 的流程**仍没在真机上完整测过（审核员用的是账号密码登录）。提交前最好自己在 TestFlight 版里各点一次
 
+### 新功能：连接 Notion 同步（还没合并，等 Railway 环境变量配好）
+
+设置面板新增"连接 Notion"，每个用户自己 OAuth 授权连接自己的 Notion 工作区，生词/句子笔记会同步成用户选定的那个 Notion 页面下的子页面。跟旧的 Google Sheets 方案（`apps_script/Code.gs`，只有主账号能用、要手动部署脚本）不是一回事，这个是每个用户都能用、走标准 OAuth，不需要用户自己折腾。
+
+**上线前必须做的事**：Railway 环境变量加 `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET`（在 [notion.so/my-integrations](https://www.notion.so/my-integrations) 建一个 Public 类型的 OAuth 集成拿到，具体步骤见 `.env.example` 里的注释）。没配之前点"连接 Notion"会报 500。不需要等 Notion 审核——那只在申请上架 Notion 官方集成市场时才需要，直接走 OAuth 授权就能用。
+
+这次改动只涉及 `frontend/`（设置面板 UI）和 `backend/`，合并后网页版 Railway 自动生效；iOS 端要走一次 `ios-release.yml` 才会进下一个 TestFlight build。
+
+**顺手修的 bug**：这个项目里 `.hidden` 这个 class 没有全局 CSS 规则，每个用到的元素都要单独写一条 `#id.hidden { display: none }`，漏写就是没用（元素一直显示）。上一个 PR #43 加的"换一批"按钮（`#btnQuizRegenerate`）就漏写了，这次一起补上。排查发现还有几个更早就存在的、同样漏写的元素（`#btnAdminStats`、`#btnPrint`、`#houseTrialHint` 等），影响都不大（比如站长统计按钮对普通用户可见，但后端接口本身有 `is_owner` 校验，点了也进不去），这次没有顺手全部修，以后改到附近代码时可以留意。
+
 ### 这个会话期间顺手修的真实 bug（都已经合并到 master）
 
 这些都是**真实存在的 bug**，不是审核流程本身的问题，是在准备/测试提审材料过程中发现顺手修的：

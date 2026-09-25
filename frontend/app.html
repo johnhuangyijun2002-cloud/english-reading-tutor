@@ -430,6 +430,21 @@
         <input type="checkbox" id="sheetsSyncToggle" />
       </div>
 
+      <div id="notionSyncBlock" class="settingsBlock">
+        <span class="settingsBlockLabel" data-i18n="settings.notionSync">Sync to Notion</span>
+        <p class="urlHint" data-i18n="settings.notionSyncHint">Every word and sentence you save also becomes a page in a Notion page of your choice.</p>
+        <p id="notionSyncStatus" class="urlHint hidden"></p>
+        <div id="notionTargetRow" class="settingsBlockRow hidden">
+          <select id="notionTargetSelect" class="doc-select"></select>
+        </div>
+        <div class="pasteActions">
+          <button type="button" id="btnNotionConnect" class="btn btn-ghost btn-small">
+            <span data-i18n="settings.notionConnect">Connect Notion</span>
+          </button>
+          <button type="button" id="btnNotionDisconnect" class="btn btn-ghost btn-small hidden" data-i18n="settings.notionDisconnect">Disconnect</button>
+        </div>
+      </div>
+
       <div class="settingsBlock">
         <span class="settingsBlockLabel" data-i18n="settings.changeEmail">Recovery Email</span>
         <p class="urlHint" data-i18n="settings.changeEmailHint">Optional, but without it there's no way to recover your account if you forget your password (unless you also sign in with Google).</p>

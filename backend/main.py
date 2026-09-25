@@ -66,6 +66,12 @@ SHEETS_TOKEN = os.environ.get("SHEETS_TOKEN", "")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 
+# Notion 同步：每个用户自己走 OAuth 连接自己的 Notion 工作区，不是站长配一个全局 webhook——
+# 跟上面 Google 登录共用同一套"整页跳转期间没有 Authorization header"的 nonce 方案。
+# 在 notion.so/my-integrations 建一个 Public 类型的集成拿到这两个值。
+NOTION_CLIENT_ID = os.environ.get("NOTION_CLIENT_ID", "")
+NOTION_CLIENT_SECRET = os.environ.get("NOTION_CLIENT_SECRET", "")
+
 # Sign in with Apple：iOS App 里有 Google 登录，苹果审核要求必须同时提供 Apple 登录
 # (guideline 4.8)。跟 Google 走的是同一套 OAuth authorization-code 流程，但 client_secret
 # 不是固定字符串，而是每次现算的一个短期 JWT(用 Apple Developer 后台生成的 .p8 私钥签)。
@@ -376,6 +382,21 @@ CREATE TABLE IF NOT EXISTS waitlist_signups (
     email TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- 第三方协同工具同步(Notion 目前是第一个，以后 Google Sheets 也会挂在这张表下)：
+-- 每个用户自己的 OAuth token，一个 provider 只留一条最新的连接(重新连接直接覆盖旧的)。
+-- target_id/target_label 是连接之后用户选的同步目标(比如 Notion 里的某个页面)，
+-- 没选之前是 NULL，这时候即使已连接也先不同步(不知道该写去哪儿)。
+CREATE TABLE IF NOT EXISTS integration_connections (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    access_token TEXT NOT NULL,
+    workspace_name TEXT,
+    target_id TEXT,
+    target_label TEXT,
+    connected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, provider)
+);
 """
 
 
@@ -634,6 +655,45 @@ async def db_delete_document(doc_id: str):
 async def db_save_document_quiz(doc_id: str, quiz_json: str):
     pool = await get_pool()
     await pool.execute("UPDATE documents SET quiz_json=$1 WHERE id=$2", quiz_json, doc_id)
+
+
+async def db_upsert_integration(user_id: str, provider: str, access_token: str, workspace_name: str):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO integration_connections (id, user_id, provider, access_token, workspace_name)
+           VALUES ($1,$2,$3,$4,$5)
+           ON CONFLICT (user_id, provider) DO UPDATE SET
+             access_token=EXCLUDED.access_token, workspace_name=EXCLUDED.workspace_name,
+             target_id=NULL, target_label=NULL, connected_at=now()""",
+        uuid.uuid4().hex[:12], user_id, provider, access_token, workspace_name,
+    )
+
+
+async def db_get_integration(user_id: str, provider: str) -> Optional[dict]:
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT * FROM integration_connections WHERE user_id=$1 AND provider=$2", user_id, provider,
+    )
+    return _serialize_row(row) if row else None
+
+
+async def db_list_integrations(user_id: str) -> list:
+    pool = await get_pool()
+    rows = await pool.fetch("SELECT * FROM integration_connections WHERE user_id=$1", user_id)
+    return [_serialize_row(r) for r in rows]
+
+
+async def db_set_integration_target(user_id: str, provider: str, target_id: str, target_label: str):
+    pool = await get_pool()
+    await pool.execute(
+        "UPDATE integration_connections SET target_id=$1, target_label=$2 WHERE user_id=$3 AND provider=$4",
+        target_id, target_label, user_id, provider,
+    )
+
+
+async def db_delete_integration(user_id: str, provider: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM integration_connections WHERE user_id=$1 AND provider=$2", user_id, provider)
 
 
 async def db_create_vocab(record: dict):
@@ -3477,7 +3537,182 @@ async def update_settings(req: SettingsRequest, user: dict = Depends(get_current
     return {"ok": True}
 
 
-# ---------- 保存生词 / 句子笔记(本地 + 可选 Google Sheet 同步，仅限主账号) ----------
+# ---------- 第三方协同工具同步(Notion) ----------
+# 每个用户自己连接自己的 Notion 工作区，不是站长配一个全局 webhook(那是旧的 Google Sheets
+# 方案，见 apps_script/Code.gs，只有主账号能用)。技术上跟"关联 Google/Apple 账号"是同一个
+# 问题(整页跳转期间拿不到 Authorization header)，复用同一套 nonce -> state 两段式方案；
+# 连接成功后也复用 _oauth_success_redirect 重新发一个 session token，让前端走一模一样的
+# hash 解析逻辑(见 app.js 的 finishOAuthCallback)，不用另外写一套跳转处理。
+
+NOTION_VERSION = "2022-06-28"
+
+
+@app.post("/api/integrations/notion/connect-init")
+@limiter.limit("10/minute")
+async def notion_connect_init(request: Request, user: dict = Depends(get_current_user)):
+    _cleanup_stale(_pending_link_nonces)
+    nonce = secrets.token_urlsafe(24)
+    _pending_link_nonces[nonce] = {"ts": datetime.now(timezone.utc), "user_id": user["id"]}
+    return {"nonce": nonce}
+
+
+@app.get("/api/integrations/notion/authorize")
+async def notion_authorize(request: Request, nonce: str = "", platform: str = ""):
+    if not NOTION_CLIENT_ID:
+        raise HTTPException(500, "This deployment hasn't configured Notion sync (missing NOTION_CLIENT_ID)")
+    entry = _pending_link_nonces.pop(nonce, None)
+    if not entry:
+        raise HTTPException(400, "This connection request has expired, go back to Settings and try again")
+    state = _new_oauth_state(link_user_id=entry["user_id"], platform=platform)
+    redirect_uri = str(request.base_url) + "api/integrations/notion/callback"
+    params = {
+        "client_id": NOTION_CLIENT_ID,
+        "response_type": "code",
+        "owner": "user",
+        "redirect_uri": redirect_uri,
+        "state": state,
+    }
+    return RedirectResponse("https://api.notion.com/v1/oauth/authorize?" + urlencode(params))
+
+
+@app.get("/api/integrations/notion/callback")
+async def notion_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    if error:
+        raise HTTPException(400, f"Notion authorization failed: {error}")
+    if not state or state not in _pending_oauth_states:
+        raise HTTPException(400, "This connection request has expired, go back to Settings and try again")
+    state_entry = _pending_oauth_states.pop(state)
+    user_id = state_entry.get("link_user_id")
+    platform = state_entry.get("platform", "")
+    if not user_id:
+        raise HTTPException(400, "Missing account to connect this to, go back to Settings and try again")
+
+    redirect_uri = str(request.base_url) + "api/integrations/notion/callback"
+    basic_auth = base64.b64encode(f"{NOTION_CLIENT_ID}:{NOTION_CLIENT_SECRET}".encode()).decode()
+    async with httpx.AsyncClient(timeout=15) as client:
+        token_resp = await client.post(
+            "https://api.notion.com/v1/oauth/token",
+            headers={"Authorization": f"Basic {basic_auth}", "Content-Type": "application/json"},
+            json={"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri},
+        )
+    if token_resp.status_code != 200:
+        raise HTTPException(400, f"Failed to exchange Notion authorization code: {token_resp.text}")
+    data = token_resp.json()
+    access_token = data.get("access_token", "")
+    workspace_name = data.get("workspace_name") or ""
+    if not access_token:
+        raise HTTPException(400, "Notion didn't return an access token")
+
+    await db_upsert_integration(user_id, "notion", _encrypt_key(access_token), workspace_name)
+    _audit("notion_connected", user_id=user_id, workspace_name=workspace_name)
+
+    token = await db_create_session(user_id)
+    return _oauth_success_redirect(platform, token, "notion_connected=1")
+
+
+@app.get("/api/integrations")
+async def list_integrations(user: dict = Depends(get_current_user)):
+    rows = await db_list_integrations(user["id"])
+    return [
+        {
+            "provider": r["provider"],
+            "workspace_name": r.get("workspace_name"),
+            "target_id": r.get("target_id"),
+            "target_label": r.get("target_label"),
+        }
+        for r in rows
+    ]
+
+
+def _notion_page_title(page: dict) -> str:
+    for prop in page.get("properties", {}).values():
+        if prop.get("type") == "title":
+            texts = prop.get("title", [])
+            joined = "".join(t.get("plain_text", "") for t in texts)
+            return joined or "(Untitled)"
+    return "(Untitled)"
+
+
+@app.get("/api/integrations/notion/targets")
+async def notion_targets(user: dict = Depends(get_current_user)):
+    conn = await db_get_integration(user["id"], "notion")
+    if not conn:
+        raise HTTPException(400, "Notion isn't connected yet")
+    access_token = _decrypt_key(conn["access_token"])
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(
+            "https://api.notion.com/v1/search",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Notion-Version": NOTION_VERSION,
+                "Content-Type": "application/json",
+            },
+            # 只列页面，不列数据库——每条生词/句子笔记同步成一个子页面，不用去匹配数据库
+            # 里未知的列结构(用户可能连接一个属性完全不一样的数据库，没法自动对上号)。
+            json={"filter": {"value": "page", "property": "object"}, "page_size": 100},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(502, "Couldn't list your Notion pages — try disconnecting and reconnecting")
+    return [
+        {"id": r["id"], "title": _notion_page_title(r)}
+        for r in resp.json().get("results", [])
+    ]
+
+
+class NotionTargetRequest(BaseModel):
+    target_id: str
+    target_label: str
+
+
+@app.post("/api/integrations/notion/target")
+async def set_notion_target(req: NotionTargetRequest, user: dict = Depends(get_current_user)):
+    conn = await db_get_integration(user["id"], "notion")
+    if not conn:
+        raise HTTPException(400, "Notion isn't connected yet")
+    await db_set_integration_target(user["id"], "notion", req.target_id, req.target_label)
+    return {"ok": True}
+
+
+@app.delete("/api/integrations/notion")
+async def disconnect_notion(user: dict = Depends(get_current_user)):
+    await db_delete_integration(user["id"], "notion")
+    return {"ok": True}
+
+
+async def push_to_notion(user_id: str, title: str, lines: list) -> bool:
+    """lines 里每一条变成 Notion 页面正文的一个段落 block，空字符串会被跳过。"""
+    conn = await db_get_integration(user_id, "notion")
+    if not conn or not conn.get("target_id"):
+        return False
+    access_token = _decrypt_key(conn["access_token"])
+    children = [
+        {
+            "object": "block", "type": "paragraph",
+            "paragraph": {"rich_text": [{"type": "text", "text": {"content": line[:2000]}}]},
+        }
+        for line in lines if line
+    ]
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                "https://api.notion.com/v1/pages",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Notion-Version": NOTION_VERSION,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "parent": {"page_id": conn["target_id"]},
+                    "properties": {"title": {"title": [{"type": "text", "text": {"content": title[:200]}}]}},
+                    "children": children[:100],  # Notion 一次创建页面最多接受 100 个 block
+                },
+            )
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+# ---------- 保存生词 / 句子笔记(本地 + 可选 Google Sheet / Notion 同步) ----------
 
 async def push_to_sheet(payload: dict) -> bool:
     if not SHEETS_WEBHOOK_URL:
@@ -3544,6 +3779,15 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
                 "source": req.source_doc,
                 "date": today,
             })
+        # Notion 同步不看 is_owner——每个用户自己连接自己的工作区，跟 Google Sheets
+        # 那套"只有主账号能用"的全局 webhook 是两回事。
+        await push_to_notion(user["id"], req.text, [
+            f"{req.pos} {req.chinese_meaning}".strip(),
+            f"IPA: {req.ipa}" if req.ipa else "",
+            f"例句: {req.context}" if req.context else "",
+            f"其他形态: {req.other_forms}" if req.other_forms else "",
+            f"来源: {req.source_doc} · {today}",
+        ])
         return {"record": record, "sheet_synced": synced, "duplicate": False}
     else:
         record = {
@@ -3567,6 +3811,10 @@ async def save_entry(req: SaveRequest, user: dict = Depends(get_current_user)):
                 "source": req.source_doc,
                 "date": today,
             })
+        await push_to_notion(user["id"], req.text[:80], [
+            req.explanation,
+            f"来源: {req.source_doc} · {today}",
+        ])
         return {"record": record, "sheet_synced": synced, "duplicate": False}
 
 

@@ -200,7 +200,16 @@
     "exportData": "导出我的数据",
     "deleteAccount": "删除账号",
     "userLine": "登录身份：{name}{ownerTag}",
-    "ownerTag": "（主账号）"
+    "ownerTag": "（主账号）",
+    "notionSync": "同步到 Notion",
+    "notionSyncHint": "存下的每个单词和句子笔记，都会变成你选定的那个 Notion 页面下的一个子页面。",
+    "notionConnect": "连接 Notion",
+    "notionDisconnect": "断开连接",
+    "notionDisconnectConfirm": "确定要断开 Notion 连接吗？断开后新存的生词/句子笔记不会再同步，重新连接才会恢复。",
+    "notionConnectedNoTarget": "已连接到工作区「{workspace}」——请在下面选一个页面作为同步目标",
+    "notionConnectedWithTarget": "已连接到工作区「{workspace}」——正在同步到「{target}」",
+    "notionTargetPlaceholder": "选择一个 Notion 页面…",
+    "notionConnectFailed": "连接 Notion 失败: {message}"
   },
   "welcome": {
     "title": "欢迎，账号已经注册好了",
