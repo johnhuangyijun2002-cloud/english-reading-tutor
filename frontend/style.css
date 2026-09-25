@@ -2701,6 +2701,93 @@ body {
   display: none;
 }
 
+/* ---------- 设置面板：分类列表 + 子页面导航 ---------- */
+
+#settingsHome.hidden,
+.settingsSection.hidden {
+  display: none;
+}
+
+.settingsCategoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settingsCategoryRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 12px 4px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background 0.15s var(--ease);
+}
+
+.settingsCategoryRow:hover {
+  background: var(--accent-tint);
+}
+
+.settingsCategoryRow > .inline-icon:first-child {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.settingsCategoryLabel {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.settingsCategoryChevron {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.settingsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settingsSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settingsSectionHeader h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.settingsBackBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  margin-left: -6px;
+}
+
+.settingsBackBtn:hover {
+  background: var(--accent-tint);
+}
+
 .settingsSelect,
 #accountSettingsPanel input[type="password"],
 #accountSettingsPanel input[type="text"],

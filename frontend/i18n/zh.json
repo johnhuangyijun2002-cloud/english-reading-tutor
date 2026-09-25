@@ -209,7 +209,12 @@
     "notionConnectedNoTarget": "已连接到工作区「{workspace}」——请在下面选一个页面作为同步目标",
     "notionConnectedWithTarget": "已连接到工作区「{workspace}」——正在同步到「{target}」",
     "notionTargetPlaceholder": "选择一个 Notion 页面…",
-    "notionConnectFailed": "连接 Notion 失败: {message}"
+    "notionConnectFailed": "连接 Notion 失败: {message}",
+    "categoryLanguage": "语言与阅读",
+    "categoryAI": "AI 服务商",
+    "categorySync": "数据同步",
+    "categoryAccount": "账户信息",
+    "categoryDanger": "账户管理"
   },
   "welcome": {
     "title": "欢迎，账号已经注册好了",
