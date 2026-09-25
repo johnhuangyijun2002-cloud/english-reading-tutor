@@ -209,7 +209,12 @@
     "notionConnectedNoTarget": "Connected to \"{workspace}\" — pick a page below to sync into",
     "notionConnectedWithTarget": "Connected to \"{workspace}\" — syncing into \"{target}\"",
     "notionTargetPlaceholder": "Choose a Notion page…",
-    "notionConnectFailed": "Couldn't start connecting to Notion: {message}"
+    "notionConnectFailed": "Couldn't start connecting to Notion: {message}",
+    "categoryLanguage": "Language & Reading",
+    "categoryAI": "AI Provider",
+    "categorySync": "Sync",
+    "categoryAccount": "Account Info",
+    "categoryDanger": "Account Management"
   },
   "welcome": {
     "title": "Welcome — your account is ready",

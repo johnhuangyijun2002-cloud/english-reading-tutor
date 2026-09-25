@@ -324,6 +324,13 @@ const ICON_PATHS = {
   flame: '<path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4" />',
   pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" />',
   save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" /><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" /><path d="M7 3v4a1 1 0 0 0 1 1h7" />',
+  languages: '<path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" /><path d="m22 22-5-10-5 10" /><path d="M14 18h6" />',
+  bot: '<path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" />',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />',
+  "user-round": '<circle cx="12" cy="8" r="5" /><path d="M20 21a8 8 0 0 0-16 0" />',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />',
+  "chevron-right": '<path d="m9 18 6-6-6-6" />',
+  "chevron-left": '<path d="m15 18-6-6 6-6" />',
 };
 
 function iconHTML(name, extraClass) {
@@ -768,8 +775,8 @@ const notionTargetRow = document.getElementById("notionTargetRow");
 const notionTargetSelect = document.getElementById("notionTargetSelect");
 const btnNotionConnect = document.getElementById("btnNotionConnect");
 const btnNotionDisconnect = document.getElementById("btnNotionDisconnect");
-const btnSettingsSave = document.getElementById("btnSettingsSave");
-const settingsSaveStatus = document.getElementById("settingsSaveStatus");
+const settingsHome = document.getElementById("settingsHome");
+const btnAccountSettingsClose = document.getElementById("btnAccountSettingsClose");
 const btnLogout = document.getElementById("btnLogout");
 
 const newUsernameInput = document.getElementById("newUsernameInput");
@@ -3529,7 +3536,28 @@ function markParagraphForPrint(text, vocabMap, sentenceList) {
 
 // ---------- 设置面板(AI 服务商 + key、Google Sheets 同步开关) ----------
 
+function showSettingsHome() {
+  document.querySelectorAll(".settingsSection").forEach((sec) => sec.classList.add("hidden"));
+  settingsHome.classList.remove("hidden");
+}
+
+function showSettingsSection(sectionId) {
+  settingsHome.classList.add("hidden");
+  document.querySelectorAll(".settingsSection").forEach((sec) => sec.classList.toggle("hidden", sec.id !== sectionId));
+}
+
+document.querySelectorAll(".settingsCategoryRow").forEach((row) => {
+  row.addEventListener("click", () => showSettingsSection(row.dataset.section));
+});
+
+document.querySelectorAll(".settingsBackBtn").forEach((btn) => {
+  btn.addEventListener("click", showSettingsHome);
+});
+
+btnAccountSettingsClose.addEventListener("click", () => accountSettingsPanelOverlay.classList.add("hidden"));
+
 btnAccountSettings.addEventListener("click", async () => {
+  showSettingsHome(); // 每次重新打开都从分类列表开始，不记住上次停在哪个子页面
   accountSettingsPanelOverlay.classList.remove("hidden");
   await loadSettingsIntoPanel();
 });
@@ -3541,7 +3569,7 @@ accountSettingsPanelOverlay.addEventListener("click", (e) => {
 let settingsDataCache = null;
 
 async function loadSettingsIntoPanel() {
-  settingsSaveStatus.textContent = "";
+  document.querySelectorAll(".settingsSaveStatus").forEach((el) => (el.textContent = ""));
   const res = await apiFetch("/api/settings");
   if (!res.ok) return;
   const data = await res.json();
@@ -3846,9 +3874,13 @@ uiLanguageSelect.addEventListener("change", () => {
   aiRelayBlock.classList.toggle("hidden", uiLanguageSelect.value !== "zh");
 });
 
-btnSettingsSave.addEventListener("click", async () => {
-  btnSettingsSave.disabled = true;
-  settingsSaveStatus.textContent = t("common.saving");
+// 设置面板拆成了几个分类子页面，但底层还是同一个 POST /api/settings，一次性把所有字段
+// 提交上去——所以"语言与阅读"、"AI 服务商"、"同步"这三个子页面各有一个"保存"按钮，
+// 点任意一个都会读取全部输入框当前的值（隐藏的 <select>/<input> 的 .value 照样能读到，
+// 不受外层容器 display:none 影响），不会漏保存其他分类里已经改过的内容。
+async function saveAllSettings(triggerBtn, statusEl) {
+  triggerBtn.disabled = true;
+  statusEl.textContent = t("common.saving");
   const newUiLanguage = uiLanguageSelect.value;
   try {
     const res = await apiFetch("/api/settings", {
@@ -3879,12 +3911,17 @@ btnSettingsSave.addEventListener("click", async () => {
       return;
     }
     await loadSettingsIntoPanel();
-    settingsSaveStatus.textContent = t("common.saved");
+    statusEl.textContent = t("common.saved");
   } catch (err) {
-    settingsSaveStatus.textContent = t("common.saveFailed", { message: err.message });
+    statusEl.textContent = t("common.saveFailed", { message: err.message });
   } finally {
-    btnSettingsSave.disabled = false;
+    triggerBtn.disabled = false;
   }
+}
+
+document.querySelectorAll(".settingsSaveBtn").forEach((btn) => {
+  const statusEl = btn.closest(".settingsSection").querySelector(".settingsSaveStatus");
+  btn.addEventListener("click", () => saveAllSettings(btn, statusEl));
 });
 
 btnLogout.addEventListener("click", async () => {

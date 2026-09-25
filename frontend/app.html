@@ -359,149 +359,244 @@
 
   <div id="accountSettingsPanelOverlay" class="hidden">
     <div id="accountSettingsPanel">
-      <h2 data-i18n="nav.settings">Settings</h2>
-      <p id="settingsUserLine" class="settingsUserLine"></p>
+      <!-- 分类列表(打开设置面板先看到这个)，点一个分类才滑进对应的子页面。
+           每个分类内部的输入框元素本身不会被移出 DOM(只是外层容器隐藏)，所以
+           app.js 里现有的读取/保存逻辑完全不用改，隐藏状态下 input.value 照样读得到。 -->
+      <div id="settingsHome">
+        <h2 data-i18n="nav.settings">Settings</h2>
+        <p id="settingsUserLine" class="settingsUserLine"></p>
 
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.uiLanguage">Interface Language</span>
-        <select id="uiLanguageSelect" class="settingsSelect">
-          <option value="zh">中文</option>
-          <option value="en">English</option>
-          <option value="ko">한국어</option>
-        </select>
-      </div>
-
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.learningLanguage">Learning Language</span>
-        <select id="settingsLearningLanguageSelect" class="settingsSelect"></select>
-      </div>
-
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.immersionTargetLanguage">Immersion Mode Target Language</span>
-        <select id="immersionTargetLanguageSelect" class="settingsSelect">
-          <option value="follow" data-i18n="settings.immersionFollowLearning">Follow learning language</option>
-        </select>
-      </div>
-
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.immersionSourcePriority">Word Selection Priority</span>
-        <div class="settingsOptions" data-setting="immersionSourcePriority">
-          <button data-value="vocab" data-i18n="settings.immersionVocabFirst">Vocab book first</button>
-          <button data-value="frequency" data-i18n="settings.immersionFrequencyFirst">High-frequency words first</button>
-        </div>
-      </div>
-
-      <div class="settingsBlock settingsBlockRow">
-        <span class="settingsBlockLabel" data-i18n="settings.immersionExcludeProperNouns">Exclude proper nouns/numbers</span>
-        <input type="checkbox" id="immersionExcludeProperNounsToggle" checked />
-      </div>
-
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.explainLanguage">AI Explanation Language</span>
-        <select id="explainLanguageSelect" class="settingsSelect">
-          <option value="auto" data-i18n="settings.explainFollowUI">Follow interface language</option>
-          <option value="zh">中文</option>
-          <option value="en">English</option>
-        </select>
-      </div>
-
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.aiProvider">AI Provider</span>
-        <select id="aiProviderSelect" class="settingsSelect"></select>
-      </div>
-
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.apiKey">API Key</span>
-        <input type="password" id="aiApiKeyInput" data-i18n-placeholder="settings.apiKeyPlaceholder" placeholder="Enter this provider's API key" />
-        <p id="aiKeyHint" class="urlHint"></p>
-        <p id="houseTrialHint" class="urlHint hidden"></p>
-      </div>
-
-      <div id="aiRelayBlock" class="settingsBlock hidden">
-        <span class="settingsBlockLabel" data-i18n="settings.aiRelayLabel">AI Relay Base URL (optional)</span>
-        <input type="text" id="aiRelayUrlInput" data-i18n-placeholder="settings.aiRelayPlaceholder" placeholder="e.g. https://your-relay.example.com/v1 — leave blank to use the official endpoint" />
-        <p class="urlHint" data-i18n="settings.aiRelayHint">When set, requests to all four providers are routed through this address (must be an OpenAI-compatible endpoint). Leave blank if unsure.</p>
-        <input type="text" id="aiRelayModelInput" data-i18n-placeholder="settings.aiRelayModelPlaceholder" placeholder="Leave blank to use each provider's default model name" />
-        <p class="urlHint" data-i18n="settings.aiRelayModelHint">If the relay says the model name isn't supported, enter the model name the relay expects here</p>
-      </div>
-
-      <div id="sheetsSyncBlock" class="settingsBlock settingsBlockRow hidden">
-        <span class="settingsBlockLabel" data-i18n="settings.sheetsSync">Sync to Google Sheet</span>
-        <input type="checkbox" id="sheetsSyncToggle" />
-      </div>
-
-      <div id="notionSyncBlock" class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.notionSync">Sync to Notion</span>
-        <p class="urlHint" data-i18n="settings.notionSyncHint">Every word and sentence you save also becomes a page in a Notion page of your choice.</p>
-        <p id="notionSyncStatus" class="urlHint hidden"></p>
-        <div id="notionTargetRow" class="settingsBlockRow hidden">
-          <select id="notionTargetSelect" class="doc-select"></select>
-        </div>
-        <div class="pasteActions">
-          <button type="button" id="btnNotionConnect" class="btn btn-ghost btn-small">
-            <span data-i18n="settings.notionConnect">Connect Notion</span>
+        <div class="settingsCategoryList">
+          <button type="button" class="settingsCategoryRow" data-section="settingsSection-language">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" /><path d="m22 22-5-10-5 10" /><path d="M14 18h6" /></svg>
+            <span class="settingsCategoryLabel" data-i18n="settings.categoryLanguage">Language &amp; Reading</span>
+            <svg class="inline-icon settingsCategoryChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
           </button>
-          <button type="button" id="btnNotionDisconnect" class="btn btn-ghost btn-small hidden" data-i18n="settings.notionDisconnect">Disconnect</button>
+          <button type="button" class="settingsCategoryRow" data-section="settingsSection-ai">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" /></svg>
+            <span class="settingsCategoryLabel" data-i18n="settings.categoryAI">AI Provider</span>
+            <svg class="inline-icon settingsCategoryChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
+          <button type="button" class="settingsCategoryRow" data-section="settingsSection-sync">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+            <span class="settingsCategoryLabel" data-i18n="settings.categorySync">Sync</span>
+            <svg class="inline-icon settingsCategoryChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
+          <button type="button" class="settingsCategoryRow" data-section="settingsSection-account">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5" /><path d="M20 21a8 8 0 0 0-16 0" /></svg>
+            <span class="settingsCategoryLabel" data-i18n="settings.categoryAccount">Account Info</span>
+            <svg class="inline-icon settingsCategoryChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
+          <button type="button" class="settingsCategoryRow" data-section="settingsSection-danger">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg>
+            <span class="settingsCategoryLabel" data-i18n="settings.categoryDanger">Account Management</span>
+            <svg class="inline-icon settingsCategoryChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+          </button>
         </div>
-      </div>
 
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.changeEmail">Recovery Email</span>
-        <p class="urlHint" data-i18n="settings.changeEmailHint">Optional, but without it there's no way to recover your account if you forget your password (unless you also sign in with Google).</p>
-        <input type="email" id="newEmailInput" data-i18n-placeholder="settings.newEmailPlaceholder" placeholder="you@example.com" />
         <div class="pasteActions">
-          <button id="btnChangeEmail" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
+          <button id="btnAccountSettingsClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
         </div>
-        <p id="changeEmailStatus" class="urlHint"></p>
       </div>
 
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.changeUsername">Change Username</span>
-        <input type="text" id="newUsernameInput" data-i18n-placeholder="settings.newUsernamePlaceholder" placeholder="New username" />
+      <div id="settingsSection-language" class="settingsSection hidden">
+        <div class="settingsSectionHeader">
+          <button type="button" class="settingsBackBtn" data-back aria-label="Back">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+          <h2 data-i18n="settings.categoryLanguage">Language &amp; Reading</h2>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.uiLanguage">Interface Language</span>
+          <select id="uiLanguageSelect" class="settingsSelect">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+            <option value="ko">한국어</option>
+          </select>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.learningLanguage">Learning Language</span>
+          <select id="settingsLearningLanguageSelect" class="settingsSelect"></select>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.immersionTargetLanguage">Immersion Mode Target Language</span>
+          <select id="immersionTargetLanguageSelect" class="settingsSelect">
+            <option value="follow" data-i18n="settings.immersionFollowLearning">Follow learning language</option>
+          </select>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.immersionSourcePriority">Word Selection Priority</span>
+          <div class="settingsOptions" data-setting="immersionSourcePriority">
+            <button data-value="vocab" data-i18n="settings.immersionVocabFirst">Vocab book first</button>
+            <button data-value="frequency" data-i18n="settings.immersionFrequencyFirst">High-frequency words first</button>
+          </div>
+        </div>
+
+        <div class="settingsBlock settingsBlockRow">
+          <span class="settingsBlockLabel" data-i18n="settings.immersionExcludeProperNouns">Exclude proper nouns/numbers</span>
+          <input type="checkbox" id="immersionExcludeProperNounsToggle" checked />
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.explainLanguage">AI Explanation Language</span>
+          <select id="explainLanguageSelect" class="settingsSelect">
+            <option value="auto" data-i18n="settings.explainFollowUI">Follow interface language</option>
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+
         <div class="pasteActions">
-          <button id="btnChangeUsername" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
+          <button class="btn btn-primary settingsSaveBtn" data-i18n="common.save">Save</button>
         </div>
-        <p id="changeUsernameStatus" class="urlHint"></p>
+        <p class="settingsSaveStatus urlHint"></p>
       </div>
 
-      <div class="settingsBlock">
-        <span id="changePasswordLabel" class="settingsBlockLabel" data-i18n="settings.changePassword">Change Password</span>
-        <input type="password" id="newPasswordInput" data-i18n-placeholder="settings.newPasswordPlaceholder" placeholder="New password, at least 8 characters" />
+      <div id="settingsSection-ai" class="settingsSection hidden">
+        <div class="settingsSectionHeader">
+          <button type="button" class="settingsBackBtn" data-back aria-label="Back">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+          <h2 data-i18n="settings.categoryAI">AI Provider</h2>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.aiProvider">AI Provider</span>
+          <select id="aiProviderSelect" class="settingsSelect"></select>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.apiKey">API Key</span>
+          <input type="password" id="aiApiKeyInput" data-i18n-placeholder="settings.apiKeyPlaceholder" placeholder="Enter this provider's API key" />
+          <p id="aiKeyHint" class="urlHint"></p>
+          <p id="houseTrialHint" class="urlHint hidden"></p>
+        </div>
+
+        <div id="aiRelayBlock" class="settingsBlock hidden">
+          <span class="settingsBlockLabel" data-i18n="settings.aiRelayLabel">AI Relay Base URL (optional)</span>
+          <input type="text" id="aiRelayUrlInput" data-i18n-placeholder="settings.aiRelayPlaceholder" placeholder="e.g. https://your-relay.example.com/v1 — leave blank to use the official endpoint" />
+          <p class="urlHint" data-i18n="settings.aiRelayHint">When set, requests to all four providers are routed through this address (must be an OpenAI-compatible endpoint). Leave blank if unsure.</p>
+          <input type="text" id="aiRelayModelInput" data-i18n-placeholder="settings.aiRelayModelPlaceholder" placeholder="Leave blank to use each provider's default model name" />
+          <p class="urlHint" data-i18n="settings.aiRelayModelHint">If the relay says the model name isn't supported, enter the model name the relay expects here</p>
+        </div>
+
         <div class="pasteActions">
-          <button id="btnChangePassword" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
+          <button class="btn btn-primary settingsSaveBtn" data-i18n="common.save">Save</button>
         </div>
-        <p id="changePasswordStatus" class="urlHint"></p>
+        <p class="settingsSaveStatus urlHint"></p>
       </div>
 
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.googleLink">Google Account Link</span>
-        <p id="googleLinkStatus" class="urlHint"></p>
+      <div id="settingsSection-sync" class="settingsSection hidden">
+        <div class="settingsSectionHeader">
+          <button type="button" class="settingsBackBtn" data-back aria-label="Back">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+          <h2 data-i18n="settings.categorySync">Sync</h2>
+        </div>
+
+        <div id="sheetsSyncBlock" class="settingsBlock settingsBlockRow hidden">
+          <span class="settingsBlockLabel" data-i18n="settings.sheetsSync">Sync to Google Sheet</span>
+          <input type="checkbox" id="sheetsSyncToggle" />
+        </div>
+
+        <div id="notionSyncBlock" class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.notionSync">Sync to Notion</span>
+          <p class="urlHint" data-i18n="settings.notionSyncHint">Every word and sentence you save also becomes a page in a Notion page of your choice.</p>
+          <p id="notionSyncStatus" class="urlHint hidden"></p>
+          <div id="notionTargetRow" class="settingsBlockRow hidden">
+            <select id="notionTargetSelect" class="doc-select"></select>
+          </div>
+          <div class="pasteActions">
+            <button type="button" id="btnNotionConnect" class="btn btn-ghost btn-small">
+              <span data-i18n="settings.notionConnect">Connect Notion</span>
+            </button>
+            <button type="button" id="btnNotionDisconnect" class="btn btn-ghost btn-small hidden" data-i18n="settings.notionDisconnect">Disconnect</button>
+          </div>
+        </div>
+
         <div class="pasteActions">
-          <button id="btnLinkGoogle" class="btn btn-ghost btn-small" data-i18n="settings.googleLinkBtn">Link Google Account</button>
+          <button class="btn btn-primary settingsSaveBtn" data-i18n="common.save">Save</button>
+        </div>
+        <p class="settingsSaveStatus urlHint"></p>
+      </div>
+
+      <div id="settingsSection-account" class="settingsSection hidden">
+        <div class="settingsSectionHeader">
+          <button type="button" class="settingsBackBtn" data-back aria-label="Back">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+          <h2 data-i18n="settings.categoryAccount">Account Info</h2>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.changeEmail">Recovery Email</span>
+          <p class="urlHint" data-i18n="settings.changeEmailHint">Optional, but without it there's no way to recover your account if you forget your password (unless you also sign in with Google).</p>
+          <input type="email" id="newEmailInput" data-i18n-placeholder="settings.newEmailPlaceholder" placeholder="you@example.com" />
+          <div class="pasteActions">
+            <button id="btnChangeEmail" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
+          </div>
+          <p id="changeEmailStatus" class="urlHint"></p>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.changeUsername">Change Username</span>
+          <input type="text" id="newUsernameInput" data-i18n-placeholder="settings.newUsernamePlaceholder" placeholder="New username" />
+          <div class="pasteActions">
+            <button id="btnChangeUsername" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
+          </div>
+          <p id="changeUsernameStatus" class="urlHint"></p>
+        </div>
+
+        <div class="settingsBlock">
+          <span id="changePasswordLabel" class="settingsBlockLabel" data-i18n="settings.changePassword">Change Password</span>
+          <input type="password" id="newPasswordInput" data-i18n-placeholder="settings.newPasswordPlaceholder" placeholder="New password, at least 8 characters" />
+          <div class="pasteActions">
+            <button id="btnChangePassword" class="btn btn-ghost btn-small" data-i18n="common.confirm">Confirm</button>
+          </div>
+          <p id="changePasswordStatus" class="urlHint"></p>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.googleLink">Google Account Link</span>
+          <p id="googleLinkStatus" class="urlHint"></p>
+          <div class="pasteActions">
+            <button id="btnLinkGoogle" class="btn btn-ghost btn-small" data-i18n="settings.googleLinkBtn">Link Google Account</button>
+          </div>
+        </div>
+
+        <div class="settingsBlock">
+          <span class="settingsBlockLabel" data-i18n="settings.appleLink">Apple Account Link</span>
+          <p id="appleLinkStatus" class="urlHint"></p>
+          <div class="pasteActions">
+            <button id="btnLinkApple" class="btn btn-ghost btn-small" data-i18n="settings.appleLinkBtn">Link Apple Account</button>
+          </div>
         </div>
       </div>
 
-      <div class="settingsBlock">
-        <span class="settingsBlockLabel" data-i18n="settings.appleLink">Apple Account Link</span>
-        <p id="appleLinkStatus" class="urlHint"></p>
+      <div id="settingsSection-danger" class="settingsSection hidden">
+        <div class="settingsSectionHeader">
+          <button type="button" class="settingsBackBtn" data-back aria-label="Back">
+            <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
+          <h2 data-i18n="settings.categoryDanger">Account Management</h2>
+        </div>
+
         <div class="pasteActions">
-          <button id="btnLinkApple" class="btn btn-ghost btn-small" data-i18n="settings.appleLinkBtn">Link Apple Account</button>
+          <button id="btnLogout" class="btn btn-ghost" data-i18n="settings.logout">Log Out</button>
         </div>
-      </div>
 
-      <div class="pasteActions">
-        <button id="btnLogout" class="btn btn-ghost" data-i18n="settings.logout">Log Out</button>
-        <button id="btnSettingsSave" class="btn btn-primary" data-i18n="common.save">Save</button>
-      </div>
-      <p id="settingsSaveStatus" class="urlHint"></p>
-
-      <div class="settingsBlock settingsDangerZone">
-        <span class="settingsBlockLabel" data-i18n="settings.accountData">Account Data</span>
-        <div class="pasteActions">
-          <button id="btnExportData" class="btn btn-ghost btn-small" data-i18n="settings.exportData">Export My Data</button>
-          <button id="btnDeleteAccount" class="btn btn-danger btn-small" data-i18n="settings.deleteAccount">Delete Account</button>
+        <div class="settingsBlock settingsDangerZone">
+          <span class="settingsBlockLabel" data-i18n="settings.accountData">Account Data</span>
+          <div class="pasteActions">
+            <button id="btnExportData" class="btn btn-ghost btn-small" data-i18n="settings.exportData">Export My Data</button>
+            <button id="btnDeleteAccount" class="btn btn-danger btn-small" data-i18n="settings.deleteAccount">Delete Account</button>
+          </div>
+          <p id="accountDataStatus" class="urlHint"></p>
         </div>
-        <p id="accountDataStatus" class="urlHint"></p>
       </div>
     </div>
   </div>
