@@ -104,9 +104,10 @@
     "empty": "暂时没有合适的推荐，点\"换一批\"再试试",
     "failed": "推荐失败：{message}",
     "difficulty": "难度 · {level}",
-    "readThis": "读这篇",
+    "readThis": "去原文阅读",
     "fetching": "抓取中...",
-    "levelLabel": "你的水平"
+    "levelLabel": "你的水平",
+    "externalHint": "点击文章会跳转到原文网站的新标签页（出于版权考虑，我们不会自己抓取全文）——在那边复制正文，回来粘贴即可。"
   },
   "levels": {
     "A1": "A1 · 入门",

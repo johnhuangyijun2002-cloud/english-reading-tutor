@@ -331,6 +331,7 @@ const ICON_PATHS = {
   shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />',
   "chevron-right": '<path d="m9 18 6-6-6-6" />',
   "chevron-left": '<path d="m15 18-6-6 6-6" />',
+  "external-link": '<path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />',
 };
 
 function iconHTML(name, extraClass) {
@@ -2197,7 +2198,9 @@ function renderRecommendations(picks) {
     card.querySelector(".recCard-source").textContent = pick.source;
 
     const readBtn = card.querySelector(".btn-primary");
-    readBtn.textContent = t("recommend.readThis");
+    // 外链图标提前告诉用户"点了会跳走"，别让人以为是站内打开——之前只有点了之后才用
+    // alert 解释，被反馈说"莫名其妙跳到别的网页"；现在改成点之前就能从按钮上看出来。
+    readBtn.innerHTML = iconHTML("external-link") + t("recommend.readThis");
     // 不在站内抓正文——推荐列表只展示 RSS 本身就公开提供的标题/摘要，点"读这篇"
     // 直接跳转到源网站的原文页面，不把完整正文抓进自己的数据库,降低版权风险；
     // 同时把"粘贴文本"面板打开好，方便用户手动复制正文回来继续用完整功能。
@@ -2269,7 +2272,7 @@ function renderNativeNews(items) {
     card.querySelector(".recCard-source").textContent = item.source;
 
     const readBtn = card.querySelector(".btn-primary");
-    readBtn.textContent = t("recommend.readThis");
+    readBtn.innerHTML = iconHTML("external-link") + t("recommend.readThis");
     // 不在站内抓正文——理由跟 renderRecommendations() 里的 AI Picks 一样：这是 App 自己
     // 从 RSS 源挑出来推荐给用户的，不是用户自己选的链接，直接抓全文存库版权风险更高。
     // 点"读这篇"改成跳转到源网站 + 引导用户自己复制正文回来粘贴。

@@ -104,9 +104,10 @@
     "empty": "지금은 맞는 추천이 없어요. \"다시 추천받기\"를 눌러보세요",
     "failed": "추천 실패: {message}",
     "difficulty": "난이도 · {level}",
-    "readThis": "이 글 읽기",
+    "readThis": "원문에서 읽기",
     "fetching": "가져오는 중...",
-    "levelLabel": "회원님의 수준"
+    "levelLabel": "회원님의 수준",
+    "externalHint": "글을 누르면 새 탭에서 원문 사이트가 열립니다(저작권 문제로 전문을 직접 가져오지 않아요) — 그곳에서 본문을 복사한 뒤 돌아와 붙여넣으면 됩니다."
   },
   "levels": {
     "A1": "A1 · 입문",
