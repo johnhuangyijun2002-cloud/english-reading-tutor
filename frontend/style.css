@@ -417,6 +417,11 @@ body {
   color: var(--text-secondary);
 }
 
+.urlHint a {
+  color: var(--accent);
+  font-weight: 500;
+}
+
 #pasteFromRecommendHint.hidden {
   display: none;
 }
