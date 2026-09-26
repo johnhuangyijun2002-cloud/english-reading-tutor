@@ -1955,8 +1955,15 @@ btnAddArticle.addEventListener("click", () => {
 // 原生壳里用 App 内嵌浏览器(跟 startOAuthFlow 登录用的是同一个 @capacitor/browser 插件，
 // iOS 底层是 SFSafariViewController)打开源文章，点"完成"直接回到这个粘贴面板，不用切 App；
 // 网页版还是开系统新标签页。
+//
+// 浏览器只有在"点击的直接后果"这个时间窗口内调用 window.open() 才会真的开新标签页，
+// 中间插一个 alert() 这种会暂停执行等用户交互的调用，等 alert 关掉后再 open 就已经不算
+// "直接后果"了——大部分浏览器会静默拦截，手机上的 App 内置浏览器(微信/小红书这类)拦得
+// 更狠。以前这里先 alert() 再 open()，用户会遇到"点了没反应，也不知道去哪了"。现在把
+// open() 挪到最前面，紧跟点击本身，不再夹别的阻塞调用；原来 alert 里的提示文字本来就会
+// 重复显示在下面粘贴框上方，直接去掉 alert 也不算少了什么信息。
+// 另外加一道保险：万一还是被某些浏览器拦掉，粘贴框上方留一个可以手动点开的原文链接。
 function openPasteFromExternal(pick) {
-  alert(t("paste.fromExternalHint"));
   const browser = isNativeApp() && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
   if (browser) {
     browser.open({ url: pick.url });
@@ -1970,7 +1977,16 @@ function openPasteFromExternal(pick) {
   });
   pasteTitle.value = pick.source ? `${pick.title} — ${pick.source}` : pick.title;
   pasteContent.value = "";
-  pasteFromRecommendHint.textContent = t("paste.fromExternalHint");
+  // 图标写死可信，pick.url/pick.title 是服务端来的数据(不是用户输入)，但保险起见还是走
+  // "先塞图标，再当文本节点追加"这个套路，不直接拼进 innerHTML。
+  pasteFromRecommendHint.innerHTML = "";
+  pasteFromRecommendHint.append(document.createTextNode(t("paste.fromExternalHint") + " "));
+  const manualLink = document.createElement("a");
+  manualLink.href = pick.url;
+  manualLink.target = "_blank";
+  manualLink.rel = "noopener";
+  manualLink.textContent = t("paste.fromExternalManualLink");
+  pasteFromRecommendHint.appendChild(manualLink);
   pasteFromRecommendHint.classList.remove("hidden");
   pastePanelOverlay.classList.remove("hidden");
   pasteContent.focus();
