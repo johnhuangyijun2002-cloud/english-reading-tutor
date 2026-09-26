@@ -111,7 +111,10 @@
     "aiSummary": "现在阅读",
     "aiSummaryLabel": "AI 摘要：",
     "aiSummaryLoading": "正在生成摘要…",
-    "aiSummaryFailed": "生成摘要失败: {message}"
+    "aiSummaryFailed": "生成摘要失败: {message}",
+    "readNowConfirm": "要把这篇文章存进你的个人阅读收藏吗？",
+    "sourceBannerPrefix": "原文来自 {source} · ",
+    "sourceBannerLink": "查看原文"
   },
   "levels": {
     "A1": "A1 · 入门",

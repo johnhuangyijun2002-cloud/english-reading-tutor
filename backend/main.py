@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode, urlparse
+from urllib.robotparser import RobotFileParser
 
 from appstoreserverlibrary.api_client import AppStoreServerAPIClient, APIException
 from appstoreserverlibrary.models.Environment import Environment as AppleEnvironment
@@ -2299,10 +2300,17 @@ class UrlFetchRequest(BaseModel):
 
 
 @app.post("/api/fetch-url")
-async def fetch_url_document(req: UrlFetchRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("20/day")
+async def fetch_url_document(request: Request, req: UrlFetchRequest, user: dict = Depends(get_current_user)):
     url = req.url.strip()
     if not url.startswith("http://") and not url.startswith("https://"):
         raise HTTPException(400, "Invalid URL format — it needs to start with http:// or https://")
+
+    if not await _is_fetch_allowed(url):
+        raise HTTPException(
+            403,
+            "This site's robots.txt doesn't allow automatic fetching — try opening the source article and copying the text instead",
+        )
 
     downloaded = await asyncio.to_thread(trafilatura.fetch_url, url)
     if not downloaded:
@@ -3202,6 +3210,43 @@ def _is_ai_summary_blocked(url: str) -> bool:
         return False
     host = host.lower()
     return any(host == d or host.endswith("." + d) for d in NO_AI_SUMMARY_DOMAINS)
+
+
+# 抓取正文存成文档之前，先看一眼目标站点的 robots.txt 有没有明确禁止——这是审核/合规层面
+# "我们主动遵守网站规则"的一个姿态，不是走个形式：真遇到 Disallow: / 这种明确拒绝的
+# (比如 KBS World)，就不抓正文存库，只退回"跳转去源站阅读"这条路。查不到/抓不到
+# robots.txt 时按惯例默认允许——没有 robots.txt 通常就代表没有限制，不能反过来当作禁止。
+_robots_cache = {}  # "scheme://host" -> {"parser": RobotFileParser, "ts": datetime}
+ROBOTS_CACHE_SECONDS = 24 * 60 * 60
+
+
+async def _is_fetch_allowed(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+    except Exception:
+        return True
+
+    now = datetime.now(timezone.utc)
+    cache_entry = _robots_cache.get(origin)
+    if not cache_entry or (now - cache_entry["ts"]).total_seconds() >= ROBOTS_CACHE_SECONDS:
+        robots_text = ""
+        try:
+            async with httpx.AsyncClient(timeout=5, follow_redirects=True) as client:
+                res = await client.get(f"{origin}/robots.txt", headers={"User-Agent": "Mozilla/5.0"})
+            if res.status_code == 200:
+                robots_text = res.text
+        except Exception:
+            robots_text = ""
+        parser = RobotFileParser()
+        parser.parse(robots_text.splitlines())
+        cache_entry = {"parser": parser, "ts": now}
+        _robots_cache[origin] = cache_entry
+
+    try:
+        return cache_entry["parser"].can_fetch("*", url)
+    except Exception:
+        return True
 
 
 async def _fetch_article_fulltext(url: str) -> str:

@@ -111,7 +111,10 @@
     "aiSummary": "Read now",
     "aiSummaryLabel": "AI summary:",
     "aiSummaryLoading": "Generating summary…",
-    "aiSummaryFailed": "Couldn't generate a summary: {message}"
+    "aiSummaryFailed": "Couldn't generate a summary: {message}",
+    "readNowConfirm": "Save this article to your personal reading collection?",
+    "sourceBannerPrefix": "From {source} · ",
+    "sourceBannerLink": "View original"
   },
   "levels": {
     "A1": "A1 · Beginner",
