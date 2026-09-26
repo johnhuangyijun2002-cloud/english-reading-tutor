@@ -2162,6 +2162,54 @@ async function loadRecommendations(refresh) {
   }
 }
 
+// AI Picks / 母语新闻两处卡片共用：展示后端顺手抓下来的一小段真实原文摘录(没抓到就不显示这块，
+// 不影响其它内容)，以及"AI 总结"按钮——点了才现调用 AI，不是每张卡片一打开面板就都生成一遍，
+// 省下没人会点开看的那些文章的 AI 调用成本。摘录跟 AI 摘要视觉上做了区分(引用块 vs 强调底色 +
+// "AI 摘要"字样开头)，不能让用户把 AI 总结的内容误当成原文本身。
+function setupRecCardExtras(card, item) {
+  const excerptEl = card.querySelector(".recCard-excerpt");
+  if (item.excerpt) {
+    excerptEl.textContent = item.excerpt;
+  } else {
+    excerptEl.classList.add("hidden");
+  }
+
+  const summaryBtn = card.querySelector(".recCard-summaryBtn");
+  const summaryEl = card.querySelector(".recCard-summary");
+  summaryBtn.innerHTML = iconHTML("bot") + t("recommend.aiSummary");
+
+  summaryBtn.addEventListener("click", async () => {
+    // 已经生成过一次了，再点就是收起/展开，不用重新调用 AI 花第二次钱
+    if (summaryEl.dataset.loaded === "1") {
+      summaryEl.classList.toggle("hidden");
+      return;
+    }
+    summaryBtn.disabled = true;
+    summaryEl.classList.remove("hidden");
+    summaryEl.textContent = t("recommend.aiSummaryLoading");
+    try {
+      const res = await apiFetch("/api/recommendations/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: item.url }),
+      });
+      if (!res.ok) throw new Error(await apiErrorText(res));
+      const data = await res.json();
+      summaryEl.innerHTML = "";
+      const label = document.createElement("span");
+      label.className = "recCard-summaryLabel";
+      label.textContent = t("recommend.aiSummaryLabel");
+      summaryEl.appendChild(label);
+      summaryEl.append(" " + data.summary);
+      summaryEl.dataset.loaded = "1";
+    } catch (err) {
+      summaryEl.textContent = t("recommend.aiSummaryFailed", { message: err.message });
+    } finally {
+      summaryBtn.disabled = false;
+    }
+  });
+}
+
 function renderRecommendations(picks) {
   if (!picks || picks.length === 0) {
     recommendList.innerHTML = `<p class="recommend-loading">${t("recommend.empty")}</p>`;
@@ -2175,9 +2223,14 @@ function renderRecommendations(picks) {
       <div class="recCard-tags"></div>
       <div class="recCard-title"></div>
       <div class="recCard-reason"></div>
+      <div class="recCard-excerpt"></div>
+      <div class="recCard-summary hidden"></div>
       <div class="recCard-footer">
         <span class="recCard-source"></span>
-        <button class="btn btn-primary btn-small">${t("recommend.readThis")}</button>
+        <div class="recCard-actions">
+          <button class="btn btn-ghost btn-small recCard-summaryBtn"></button>
+          <button class="btn btn-primary btn-small"></button>
+        </div>
       </div>
     `;
     const tagsEl = card.querySelector(".recCard-tags");
@@ -2201,13 +2254,14 @@ function renderRecommendations(picks) {
     // 外链图标提前告诉用户"点了会跳走"，别让人以为是站内打开——之前只有点了之后才用
     // alert 解释，被反馈说"莫名其妙跳到别的网页"；现在改成点之前就能从按钮上看出来。
     readBtn.innerHTML = iconHTML("external-link") + t("recommend.readThis");
-    // 不在站内抓正文——推荐列表只展示 RSS 本身就公开提供的标题/摘要，点"读这篇"
-    // 直接跳转到源网站的原文页面，不把完整正文抓进自己的数据库,降低版权风险；
-    // 同时把"粘贴文本"面板打开好，方便用户手动复制正文回来继续用完整功能。
+    // 不整篇抓正文存库——推荐列表现在会展示一小段真实原文摘录(见 setupRecCardExtras)，
+    // 但完整全文还是只能跳转到源网站看，不把完整正文抓进自己的数据库，降低版权风险；
+    // 点"读这篇"也顺手把"粘贴文本"面板打开好，方便想要完整正文的人自己复制回来。
     readBtn.addEventListener("click", () => {
       recommendPanelOverlay.classList.add("hidden");
       openPasteFromExternal(pick);
     });
+    setupRecCardExtras(card, pick);
 
     recommendList.appendChild(card);
   });
@@ -2262,9 +2316,14 @@ function renderNativeNews(items) {
     card.innerHTML = `
       <div class="recCard-title"></div>
       <div class="recCard-reason"></div>
+      <div class="recCard-excerpt"></div>
+      <div class="recCard-summary hidden"></div>
       <div class="recCard-footer">
         <span class="recCard-source"></span>
-        <button class="btn btn-primary btn-small">${t("recommend.readThis")}</button>
+        <div class="recCard-actions">
+          <button class="btn btn-ghost btn-small recCard-summaryBtn"></button>
+          <button class="btn btn-primary btn-small"></button>
+        </div>
       </div>
     `;
     card.querySelector(".recCard-title").textContent = item.title;
@@ -2273,13 +2332,15 @@ function renderNativeNews(items) {
 
     const readBtn = card.querySelector(".btn-primary");
     readBtn.innerHTML = iconHTML("external-link") + t("recommend.readThis");
-    // 不在站内抓正文——理由跟 renderRecommendations() 里的 AI Picks 一样：这是 App 自己
-    // 从 RSS 源挑出来推荐给用户的，不是用户自己选的链接，直接抓全文存库版权风险更高。
-    // 点"读这篇"改成跳转到源网站 + 引导用户自己复制正文回来粘贴。
+    // 不整篇抓正文存库——理由跟 renderRecommendations() 里的 AI Picks 一样：这是 App 自己
+    // 从 RSS 源挑出来推荐给用户的，不是用户自己选的链接，直接整篇存库版权风险更高。
+    // 点"读这篇"跳转到源网站 + 引导用户自己复制正文回来粘贴；卡片上的一小段摘录见
+    // setupRecCardExtras()。
     readBtn.addEventListener("click", () => {
       nativeNewsPanelOverlay.classList.add("hidden");
       openPasteFromExternal(item);
     });
+    setupRecCardExtras(card, item);
 
     nativeNewsList.appendChild(card);
   });
