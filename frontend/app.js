@@ -2166,7 +2166,7 @@ async function loadRecommendations(refresh) {
 // 不影响其它内容)，以及"AI 总结"按钮——点了才现调用 AI，不是每张卡片一打开面板就都生成一遍，
 // 省下没人会点开看的那些文章的 AI 调用成本。摘录跟 AI 摘要视觉上做了区分(引用块 vs 强调底色 +
 // "AI 摘要"字样开头)，不能让用户把 AI 总结的内容误当成原文本身。
-function setupRecCardExtras(card, item) {
+function setupRecCardExtras(card, item, articleLanguage) {
   const excerptEl = card.querySelector(".recCard-excerpt");
   if (item.excerpt) {
     excerptEl.textContent = item.excerpt;
@@ -2191,7 +2191,7 @@ function setupRecCardExtras(card, item) {
       const res = await apiFetch("/api/recommendations/summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: item.url }),
+        body: JSON.stringify({ url: item.url, language: articleLanguage }),
       });
       if (!res.ok) throw new Error(await apiErrorText(res));
       const data = await res.json();
@@ -2261,7 +2261,9 @@ function renderRecommendations(picks) {
       recommendPanelOverlay.classList.add("hidden");
       openPasteFromExternal(pick);
     });
-    setupRecCardExtras(card, pick);
+    // AI Picks 推荐的文章本来就是用户正在学习的语言写的，"AI 总结"也用这个语言写，
+    // 让总结本身也是一段目标语言阅读材料，不是翻译成母语的辅助工具。
+    setupRecCardExtras(card, pick, getLastLearningLanguage());
 
     recommendList.appendChild(card);
   });
@@ -2340,7 +2342,8 @@ function renderNativeNews(items) {
       nativeNewsPanelOverlay.classList.add("hidden");
       openPasteFromExternal(item);
     });
-    setupRecCardExtras(card, item);
+    // 母语新闻本来就是用界面语言(母语)写的文章，总结也保持同一种语言，不用改。
+    setupRecCardExtras(card, item, currentUiLanguage);
 
     nativeNewsList.appendChild(card);
   });
