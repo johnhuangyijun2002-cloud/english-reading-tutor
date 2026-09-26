@@ -111,7 +111,10 @@
     "aiSummary": "바로 보기",
     "aiSummaryLabel": "AI 요약:",
     "aiSummaryLoading": "요약 생성 중…",
-    "aiSummaryFailed": "요약 생성 실패: {message}"
+    "aiSummaryFailed": "요약 생성 실패: {message}",
+    "readNowConfirm": "이 글을 내 개인 읽기 보관함에 저장할까요?",
+    "sourceBannerPrefix": "원문: {source} · ",
+    "sourceBannerLink": "원문 보기"
   },
   "levels": {
     "A1": "A1 · 입문",

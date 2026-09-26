@@ -332,6 +332,7 @@ const ICON_PATHS = {
   "chevron-right": '<path d="m9 18 6-6-6-6" />',
   "chevron-left": '<path d="m15 18-6-6 6-6" />',
   "external-link": '<path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />',
+  "book-open": '<path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />',
 };
 
 function iconHTML(name, extraClass) {
@@ -584,6 +585,7 @@ const docSelect = document.getElementById("docSelect");
 const viewer = document.getElementById("viewer");
 const viewerContent = document.getElementById("viewerContent");
 const readingProgressFill = document.getElementById("readingProgressFill");
+const quickReadSourceBanner = document.getElementById("quickReadSourceBanner");
 const annotationList = document.getElementById("annotationList");
 const sidebar = document.getElementById("sidebar");
 const btnToggleSidebar = document.getElementById("btnToggleSidebar");
@@ -990,6 +992,7 @@ function loadDocument(doc) {
 function renderTextDocument(content, title, sourceUrl, preserveScroll = false) {
   stopReadAloud(); // 重渲染会整个换掉 DOM，旧的句子元素引用会失效，先把播放状态清掉
   const savedScrollTop = preserveScroll ? viewer.scrollTop : 0;
+  updateQuickReadSourceBanner(sourceUrl);
   viewerContent.innerHTML = "";
   const container = document.createElement("div");
   container.className = "text-doc";
@@ -1021,6 +1024,33 @@ function renderTextDocument(content, title, sourceUrl, preserveScroll = false) {
   } else {
     resetReadingProgress();
   }
+}
+
+// 阅读界面顶部贴着滚动条的来源提示条——跟文章头部里那行来源链接是两回事：那行会随内容
+// 一起滚走，这条一直贴在最上面，确保用户全程都能看到"这是引用来的内容，不是我们写的"。
+function updateQuickReadSourceBanner(sourceUrl) {
+  if (!sourceUrl) {
+    quickReadSourceBanner.classList.add("hidden");
+    quickReadSourceBanner.innerHTML = "";
+    return;
+  }
+  let host = "";
+  try {
+    host = new URL(sourceUrl).hostname.replace(/^www\./, "");
+  } catch (err) {
+    quickReadSourceBanner.classList.add("hidden");
+    quickReadSourceBanner.innerHTML = "";
+    return;
+  }
+  quickReadSourceBanner.innerHTML =
+    iconHTML("globe") + `<span>${t("recommend.sourceBannerPrefix", { source: displaySourceName(host) })}</span>`;
+  const link = document.createElement("a");
+  link.href = sourceUrl;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = t("recommend.sourceBannerLink");
+  quickReadSourceBanner.appendChild(link);
+  quickReadSourceBanner.classList.remove("hidden");
 }
 
 // ---------- 文章头部(标题 / 来源 / 字数 / 预计阅读时长) ----------
@@ -2163,57 +2193,78 @@ async function loadRecommendations(refresh) {
 }
 
 // AI Picks / 母语新闻两处卡片共用：展示后端顺手抓下来的一小段真实原文摘录(没抓到就不显示这块，
-// 不影响其它内容)，以及"AI 总结"按钮——点了才现调用 AI，不是每张卡片一打开面板就都生成一遍，
-// 省下没人会点开看的那些文章的 AI 调用成本。摘录跟 AI 摘要视觉上做了区分(引用块 vs 强调底色 +
-// "AI 摘要"字样开头)，不能让用户把 AI 总结的内容误当成原文本身。
-function setupRecCardExtras(card, item, articleLanguage) {
+// 不影响其它内容)，以及"现在阅读"按钮——点了之后关掉推荐面板、把这篇文章像"网址导入"一样存成
+// 一篇正式文档并直接在阅读器里打开，正文下方再补一段 AI 摘要(异步生成，不阻塞正文的展示)。
+// closeOverlay 是调用方传进来的"关掉当前这个面板"的回调，AI Picks 和母语新闻两个面板不一样。
+function setupRecCardExtras(card, item, articleLanguage, closeOverlay) {
   const excerptEl = card.querySelector(".recCard-excerpt");
   if (item.excerpt) {
     excerptEl.textContent = item.excerpt;
   } else {
     excerptEl.classList.add("hidden");
   }
+  // 卡片本身不再内嵌展示摘要——摘要现在挪到阅读器正文下方一起显示了，这个元素留空隐藏即可。
+  card.querySelector(".recCard-summary").classList.add("hidden");
 
-  const summaryBtn = card.querySelector(".recCard-summaryBtn");
-  const summaryEl = card.querySelector(".recCard-summary");
-  // 部分源(目前是 BBC 系)在自己的 robots.txt 里明确写了不允许拿它的内容做总结，
-  // 后端标了 aiSummaryBlocked 就直接不展示这个按钮，避免用户点了也是后端拒绝。
-  if (item.aiSummaryBlocked) {
-    summaryBtn.classList.add("hidden");
-    return;
-  }
-  summaryBtn.innerHTML = iconHTML("bot") + t("recommend.aiSummary");
+  const readNowBtn = card.querySelector(".recCard-summaryBtn");
+  readNowBtn.innerHTML = iconHTML("book-open") + t("recommend.aiSummary");
 
-  summaryBtn.addEventListener("click", async () => {
-    // 已经生成过一次了，再点就是收起/展开，不用重新调用 AI 花第二次钱
-    if (summaryEl.dataset.loaded === "1") {
-      summaryEl.classList.toggle("hidden");
-      return;
-    }
-    summaryBtn.disabled = true;
-    summaryEl.classList.remove("hidden");
-    summaryEl.textContent = t("recommend.aiSummaryLoading");
+  readNowBtn.addEventListener("click", async () => {
+    if (readNowBtn.disabled) return;
+    if (!confirm(t("recommend.readNowConfirm"))) return;
+    readNowBtn.disabled = true;
     try {
-      const res = await apiFetch("/api/recommendations/summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: item.url, language: articleLanguage }),
-      });
-      if (!res.ok) throw new Error(await apiErrorText(res));
-      const data = await res.json();
-      summaryEl.innerHTML = "";
-      const label = document.createElement("span");
-      label.className = "recCard-summaryLabel";
-      label.textContent = t("recommend.aiSummaryLabel");
-      summaryEl.appendChild(label);
-      summaryEl.append(" " + data.summary);
-      summaryEl.dataset.loaded = "1";
+      const doc = await fetchUrlAsDocument(item.url, articleLanguage);
+      closeOverlay();
+      showDocumentLoadingState();
+      await refreshDocuments(doc.id);
+      // BBC 系源的 robots.txt 明确写了不允许拿它的内容做总结，后端标了 aiSummaryBlocked
+      // 就不生成摘要——正文照常展示，只是不出现"生成摘要中"那一块。
+      if (!item.aiSummaryBlocked) {
+        attachQuickSummary(doc.id, item.url, articleLanguage);
+      }
     } catch (err) {
-      summaryEl.textContent = t("recommend.aiSummaryFailed", { message: err.message });
+      alert(t("paste.fetchFailed", { message: err.message }));
     } finally {
-      summaryBtn.disabled = false;
+      readNowBtn.disabled = false;
     }
   });
+}
+
+function showDocumentLoadingState() {
+  updateQuickReadSourceBanner("");
+  viewerContent.innerHTML = `<p class="recommend-loading">${t("recommend.fetching")}</p>`;
+}
+
+// 正文加载完之后，在文章末尾追加一段"生成摘要中…"，AI 摘要回来了就原地替换成真正的内容——
+// 视觉上跟 .recCard-summary 保持一致(强调底色 + "AI 摘要"标签)，避免被误认成原文的一部分。
+async function attachQuickSummary(docId, url, language) {
+  if (docId !== currentDocId) return; // 摘要还没开始生成，用户已经切到别的文章了
+  const container = viewerContent.querySelector(".text-doc");
+  if (!container) return;
+  const block = document.createElement("div");
+  block.className = "readerQuickSummary";
+  block.textContent = t("recommend.aiSummaryLoading");
+  container.appendChild(block);
+  try {
+    const res = await apiFetch("/api/recommendations/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, language }),
+    });
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    const data = await res.json();
+    if (docId !== currentDocId) return; // 生成过程中用户切走了，不要把结果插到别的文章下面
+    block.innerHTML = "";
+    const label = document.createElement("span");
+    label.className = "readerQuickSummaryLabel";
+    label.textContent = t("recommend.aiSummaryLabel");
+    block.appendChild(label);
+    block.append(" " + data.summary);
+  } catch (err) {
+    if (docId !== currentDocId) return;
+    block.textContent = t("recommend.aiSummaryFailed", { message: err.message });
+  }
 }
 
 function renderRecommendations(picks) {
@@ -2267,9 +2318,9 @@ function renderRecommendations(picks) {
       recommendPanelOverlay.classList.add("hidden");
       openPasteFromExternal(pick);
     });
-    // AI Picks 推荐的文章本来就是用户正在学习的语言写的，"AI 总结"也用这个语言写，
-    // 让总结本身也是一段目标语言阅读材料，不是翻译成母语的辅助工具。
-    setupRecCardExtras(card, pick, getLastLearningLanguage());
+    // AI Picks 推荐的文章本来就是用户正在学习的语言写的，摘要也用这个语言写，
+    // 让摘要本身也是一段目标语言阅读材料，不是翻译成母语的辅助工具。
+    setupRecCardExtras(card, pick, getLastLearningLanguage(), () => recommendPanelOverlay.classList.add("hidden"));
 
     recommendList.appendChild(card);
   });
@@ -2348,8 +2399,8 @@ function renderNativeNews(items) {
       nativeNewsPanelOverlay.classList.add("hidden");
       openPasteFromExternal(item);
     });
-    // 母语新闻本来就是用界面语言(母语)写的文章，总结也保持同一种语言，不用改。
-    setupRecCardExtras(card, item, currentUiLanguage);
+    // 母语新闻本来就是用界面语言(母语)写的文章，摘要也保持同一种语言，不用改。
+    setupRecCardExtras(card, item, currentUiLanguage, () => nativeNewsPanelOverlay.classList.add("hidden"));
 
     nativeNewsList.appendChild(card);
   });
@@ -2725,6 +2776,7 @@ function showHistoryEmptyState(message) {
 }
 
 function showNoDocumentState() {
+  updateQuickReadSourceBanner("");
   viewerContent.innerHTML = `
     <div id="emptyState">
       <p class="emptyState-hint">${t("empty.getStartedHint")}</p>

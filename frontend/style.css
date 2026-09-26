@@ -1958,6 +1958,56 @@ body {
   transition: width 0.15s linear;
 }
 
+/* "现在阅读"存下来的文章顶部一直贴着显示来源，滚动也不会滚走——参考 Apple News 的做法，
+   明确提示这是"引用自XX来源"而不是自己写的内容(苹果审核 5.2.1 关注的知识产权归属问题)。*/
+.quickReadSourceBanner {
+  position: sticky;
+  top: 3px;
+  z-index: 9;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 32px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--accent-tint);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.quickReadSourceBanner.hidden {
+  display: none;
+}
+
+.quickReadSourceBanner a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.quickReadSourceBanner a:hover {
+  text-decoration: underline;
+}
+
+/* "现在阅读"流程里，正文下方现出的 AI 摘要——跟 .recCard-summary 视觉语言保持一致
+   (强调底色 + 标签)，确保用户不会把 AI 概括的内容误当成原文本身。 */
+.readerQuickSummary {
+  width: 100%;
+  margin-top: 24px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--accent-tint);
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+.readerQuickSummaryLabel {
+  font-weight: 600;
+  color: var(--accent);
+}
+
 #viewerContent {
   flex: 1;
   display: flex;
