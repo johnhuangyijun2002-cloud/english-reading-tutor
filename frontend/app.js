@@ -2392,7 +2392,15 @@ function showSelectionToolbarForCurrentSelection() {
   btnPronounce.classList.toggle("hidden", !(pendingSelectionMode === "word" && canSpeak()));
   btnPronounce.title = t("common.pronounce");
   selectionToolbar.classList.remove("hidden");
-  clampPopupPosition(selectionToolbar, rect, { gapBelow: 6 });
+  // 触屏设备选中文字后，系统自己也会在选区正上方弹一个"复制/查询/分享"的气泡菜单——
+  // 网页没有办法知道这个系统菜单到底弹没弹、多高，只能按经验预留够用的净空。平时我们的
+  // 工具栏优先显示在选区下方，不会跟系统菜单打架；只有下方空间不够、被迫翻到选区上方
+  // 显示时，才会跟系统菜单抢同一块地方——这时候在触屏设备上多留一截距离(大致是系统气泡
+  // 菜单+箭头的高度)，把工具栏推得更靠上，尽量不重叠。
+  clampPopupPosition(selectionToolbar, rect, {
+    gapBelow: 6,
+    gapAbove: isCoarsePointerDevice ? 52 : 8,
+  });
 }
 
 document.addEventListener("mouseup", (e) => {
