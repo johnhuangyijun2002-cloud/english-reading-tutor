@@ -3234,12 +3234,17 @@ async def _attach_excerpts(results: list) -> list:
     return results
 
 
-def build_article_summary_prompt(full_text: str, explain_language: str) -> str:
-    explain_label = LANGUAGE_LABELS.get(explain_language, explain_language)
+def build_article_summary_prompt(full_text: str, summary_language: str) -> str:
+    # summary_language 是"总结要用什么语言写"，不是用户的讲解语言——AI Picks 推荐的文章
+    # 本身就是用户正在学习的目标语言，总结也用同一种语言写，这样总结本身也是一段目标语言
+    # 阅读材料，而不是变成"帮你翻译成母语"的工具，跟这个 App 的定位(通过真实阅读材料学习)
+    # 更一致。母语新闻(沉浸模式素材)那边传的是母语本身，两种场景用的都是"文章原来的语言"。
+    summary_label = LANGUAGE_LABELS.get(summary_language, summary_language)
     return (
-        f"请把下面这篇新闻文章总结成一段简明的{explain_label}摘要，覆盖文章的关键事实和结论，"
-        f"控制在 150-220 字左右，不要分点列举，不要输出除了摘要本身以外的任何文字，"
-        f"也不要加类似「这篇文章讲的是」这种开场白：\n\n{full_text[:6000]}"
+        f"请把下面这篇新闻文章总结成 3-4 段有完整逻辑的{summary_label}文字，覆盖文章提到的关键"
+        f"事实、数据、引述和结论，要比一两句话的简短摘要详细得多，帮读者不用看原文也能了解"
+        f"文章的主要内容；不要分点列举，不要输出除了摘要本身以外的任何文字，也不要加类似"
+        f"「这篇文章讲的是」这种开场白：\n\n{full_text[:6000]}"
     )
 
 
@@ -3510,6 +3515,8 @@ async def get_native_news(
 
 class ArticleSummaryRequest(BaseModel):
     url: str
+    language: str = ""  # 文章本身的语言(AI Picks 传学习语言，母语新闻传界面语言)；
+    # 留空的话(老版前端还没升级)退回按讲解语言总结，兼容旧行为，不会直接报错
 
 
 @app.post("/api/recommendations/summary")
@@ -3518,9 +3525,10 @@ async def summarize_article(request: Request, req: ArticleSummaryRequest, user: 
     """给推荐列表/母语新闻卡片上的"AI 总结"按钮用——跟卡片上那段"真实原文摘录"是两回事：
     摘录是原文本身，一字不改；这里是 AI 用自己的话概括全文，给不想跳转看全文、只想
     快速了解大概内容的人用，明确标成"AI 摘要"展示，不能跟摘录混在一起，避免让人误以为
-    这是原文。"""
-    explain_language = resolve_explain_language(user)
-    cache_key = (req.url, explain_language)
+    这是原文。总结用文章本身的语言写(不是用户的讲解语言)，这样总结本身也是一段目标语言
+    阅读材料。"""
+    summary_language = req.language or resolve_explain_language(user)
+    cache_key = (req.url, summary_language)
     now = datetime.now(timezone.utc)
     cache_entry = _article_summary_cache.get(cache_key)
     if cache_entry and (now - cache_entry["ts"]).total_seconds() < ARTICLE_CACHE_SECONDS:
@@ -3530,7 +3538,7 @@ async def summarize_article(request: Request, req: ArticleSummaryRequest, user: 
     if not full_text:
         raise HTTPException(502, "Couldn't fetch this article's content — try opening the source article instead")
 
-    summary = await call_ai_for_user(build_article_summary_prompt(full_text, explain_language), user)
+    summary = await call_ai_for_user(build_article_summary_prompt(full_text, summary_language), user)
     _article_summary_cache[cache_key] = {"text": summary, "ts": now}
     return {"summary": summary}
 
