@@ -108,7 +108,7 @@
     "fetching": "抓取中...",
     "levelLabel": "你的水平",
     "externalHint": "点击文章会跳转到原文网站的新标签页（出于版权考虑，我们不会自己抓取全文）——在那边复制正文，回来粘贴即可。",
-    "aiSummary": "快速了解",
+    "aiSummary": "现在阅读",
     "aiSummaryLabel": "AI 摘要：",
     "aiSummaryLoading": "正在生成摘要…",
     "aiSummaryFailed": "生成摘要失败: {message}"

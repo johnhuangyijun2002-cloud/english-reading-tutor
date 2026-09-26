@@ -676,6 +676,10 @@ body {
   color: var(--accent);
 }
 
+.recCard-summaryBtn.hidden {
+  display: none;
+}
+
 .recCard-footer {
   display: flex;
   flex-wrap: wrap;
