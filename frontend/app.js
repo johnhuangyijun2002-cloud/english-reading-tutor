@@ -2176,6 +2176,12 @@ function setupRecCardExtras(card, item, articleLanguage) {
 
   const summaryBtn = card.querySelector(".recCard-summaryBtn");
   const summaryEl = card.querySelector(".recCard-summary");
+  // 部分源(目前是 BBC 系)在自己的 robots.txt 里明确写了不允许拿它的内容做总结，
+  // 后端标了 aiSummaryBlocked 就直接不展示这个按钮，避免用户点了也是后端拒绝。
+  if (item.aiSummaryBlocked) {
+    summaryBtn.classList.add("hidden");
+    return;
+  }
   summaryBtn.innerHTML = iconHTML("bot") + t("recommend.aiSummary");
 
   summaryBtn.addEventListener("click", async () => {

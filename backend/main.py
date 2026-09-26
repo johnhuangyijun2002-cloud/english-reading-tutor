@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from appstoreserverlibrary.api_client import AppStoreServerAPIClient, APIException
 from appstoreserverlibrary.models.Environment import Environment as AppleEnvironment
@@ -3188,6 +3188,21 @@ _article_summary_cache = {}  # (url, explain_language) -> {"text": "", "ts": dat
 ARTICLE_CACHE_SECONDS = 12 * 60 * 60  # 正文/摘要基本不会变，缓存久一点减少重复访问原站
 EXCERPT_CHAR_LIMIT = 500
 
+# BBC 的 robots.txt 里明文写了"No using BBC content to create summaries for your own use"，
+# 这是专门针对"拿它的内容做总结"这件事写的，比一般的反爬条款更直接、更对号入座——真实原文摘录
+# (未改写、附来源链接)仍然保留，但 AI 总结这个功能对 BBC 系的源要停用，避免明知对方明确反对
+# 还继续做，这在版权纠纷里是比"不知情"严重得多的过错程度。
+NO_AI_SUMMARY_DOMAINS = ("bbc.co.uk", "bbc.com", "bbci.co.uk")
+
+
+def _is_ai_summary_blocked(url: str) -> bool:
+    try:
+        host = urlparse(url).hostname or ""
+    except Exception:
+        return False
+    host = host.lower()
+    return any(host == d or host.endswith("." + d) for d in NO_AI_SUMMARY_DOMAINS)
+
 
 async def _fetch_article_fulltext(url: str) -> str:
     """返回这篇文章提取出来的正文，抓不到就返回空字符串——调用方要能接受"没有摘录"
@@ -3231,6 +3246,7 @@ async def _attach_excerpts(results: list) -> list:
     )
     for r, full_text in zip(results, full_texts):
         r["excerpt"] = _truncate_excerpt(full_text) if isinstance(full_text, str) else ""
+        r["aiSummaryBlocked"] = _is_ai_summary_blocked(r["url"])
     return results
 
 
@@ -3527,6 +3543,9 @@ async def summarize_article(request: Request, req: ArticleSummaryRequest, user: 
     快速了解大概内容的人用，明确标成"AI 摘要"展示，不能跟摘录混在一起，避免让人误以为
     这是原文。总结用文章本身的语言写(不是用户的讲解语言)，这样总结本身也是一段目标语言
     阅读材料。"""
+    if _is_ai_summary_blocked(req.url):
+        raise HTTPException(403, "AI summaries are disabled for this source at the source's own request")
+
     summary_language = req.language or resolve_explain_language(user)
     cache_key = (req.url, summary_language)
     now = datetime.now(timezone.utc)
