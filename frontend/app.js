@@ -2228,8 +2228,8 @@ function renderRecommendations(picks) {
       <div class="recCard-footer">
         <span class="recCard-source"></span>
         <div class="recCard-actions">
-          <button class="btn btn-ghost btn-small recCard-summaryBtn"></button>
-          <button class="btn btn-primary btn-small"></button>
+          <button class="btn btn-ghost btn-small recCard-readBtn"></button>
+          <button class="btn btn-primary btn-small recCard-summaryBtn"></button>
         </div>
       </div>
     `;
@@ -2250,7 +2250,7 @@ function renderRecommendations(picks) {
     card.querySelector(".recCard-reason").textContent = pick.reason || "";
     card.querySelector(".recCard-source").textContent = pick.source;
 
-    const readBtn = card.querySelector(".btn-primary");
+    const readBtn = card.querySelector(".recCard-readBtn");
     // 外链图标提前告诉用户"点了会跳走"，别让人以为是站内打开——之前只有点了之后才用
     // alert 解释，被反馈说"莫名其妙跳到别的网页"；现在改成点之前就能从按钮上看出来。
     readBtn.innerHTML = iconHTML("external-link") + t("recommend.readThis");
@@ -2323,8 +2323,8 @@ function renderNativeNews(items) {
       <div class="recCard-footer">
         <span class="recCard-source"></span>
         <div class="recCard-actions">
-          <button class="btn btn-ghost btn-small recCard-summaryBtn"></button>
-          <button class="btn btn-primary btn-small"></button>
+          <button class="btn btn-ghost btn-small recCard-readBtn"></button>
+          <button class="btn btn-primary btn-small recCard-summaryBtn"></button>
         </div>
       </div>
     `;
@@ -2332,7 +2332,7 @@ function renderNativeNews(items) {
     card.querySelector(".recCard-reason").textContent = item.summary || "";
     card.querySelector(".recCard-source").textContent = item.source;
 
-    const readBtn = card.querySelector(".btn-primary");
+    const readBtn = card.querySelector(".recCard-readBtn");
     readBtn.innerHTML = iconHTML("external-link") + t("recommend.readThis");
     // 不整篇抓正文存库——理由跟 renderRecommendations() 里的 AI Picks 一样：这是 App 自己
     // 从 RSS 源挑出来推荐给用户的，不是用户自己选的链接，直接整篇存库版权风险更高。

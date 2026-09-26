@@ -108,7 +108,7 @@
     "fetching": "Fetching...",
     "levelLabel": "Your level",
     "externalHint": "Tapping an article opens the original site in a new tab (we don't copy full articles ourselves, for copyright reasons) — copy the text there and come back to paste it in.",
-    "aiSummary": "AI Summary",
+    "aiSummary": "Quick summary",
     "aiSummaryLabel": "AI summary:",
     "aiSummaryLoading": "Generating summary…",
     "aiSummaryFailed": "Couldn't generate a summary: {message}"
