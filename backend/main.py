@@ -3176,6 +3176,72 @@ RECOMMEND_CACHE_SECONDS = 3 * 60 * 60
 
 _native_news_cache = {}  # (user_id, ui_language) -> {"data": [...], "ts": datetime}
 
+# 推荐列表/母语新闻卡片上展示的"真实原文摘录"——RSS 源本身只给标题+一句话摘要
+# (BBC/Guardian 这些都是故意不把全文塞进 RSS 里的，为了把流量导回自己网站)，要让用户
+# 不用跳转就能先读到几段真实原文，只能像"网址导入"那个功能一样真的去访问原网页提取正文。
+# 跟整篇转载不是一回事：只截取前面一小段 + 明确的"阅读全文"链接跳回原文，是新闻类
+# 聚合产品(Apple News/Google News 这类)通行的做法。
+# 正文本身按 URL 缓存(不分用户)，同一篇文章不用每个人都各自重新抓一次；AI 摘要额外
+# 按(URL, 讲解语言)缓存，因为不同用户的讲解语言可能不同。
+_article_fulltext_cache = {}  # url -> {"text": "", "ts": datetime}
+_article_summary_cache = {}  # (url, explain_language) -> {"text": "", "ts": datetime}
+ARTICLE_CACHE_SECONDS = 12 * 60 * 60  # 正文/摘要基本不会变，缓存久一点减少重复访问原站
+EXCERPT_CHAR_LIMIT = 500
+
+
+async def _fetch_article_fulltext(url: str) -> str:
+    """返回这篇文章提取出来的正文，抓不到就返回空字符串——调用方要能接受"没有摘录"
+    这个结果，不能因为个别源打不开就影响整个推荐列表。"""
+    now = datetime.now(timezone.utc)
+    cache_entry = _article_fulltext_cache.get(url)
+    if cache_entry and (now - cache_entry["ts"]).total_seconds() < ARTICLE_CACHE_SECONDS:
+        return cache_entry["text"]
+
+    full_text = ""
+    try:
+        downloaded = await asyncio.wait_for(asyncio.to_thread(trafilatura.fetch_url, url), timeout=8)
+        if downloaded:
+            extracted = await asyncio.to_thread(
+                trafilatura.extract, downloaded, include_comments=False, include_tables=False, favor_precision=True,
+            )
+            full_text = (extracted or "").strip()
+    except Exception:
+        full_text = ""
+
+    _article_fulltext_cache[url] = {"text": full_text, "ts": now}
+    return full_text
+
+
+def _truncate_excerpt(full_text: str, limit: int = EXCERPT_CHAR_LIMIT) -> str:
+    if not full_text:
+        return ""
+    if len(full_text) <= limit:
+        return full_text
+    truncated = full_text[:limit]
+    # 尽量卡在段落/句子边界截断，不要把一个单词硬切一半；找不到合适边界就直接硬截。
+    cut = max(truncated.rfind("\n"), truncated.rfind(". "), truncated.rfind("。"))
+    if cut > limit * 0.6:
+        truncated = truncated[: cut + 1]
+    return truncated.strip() + "…"
+
+
+async def _attach_excerpts(results: list) -> list:
+    full_texts = await asyncio.gather(
+        *(_fetch_article_fulltext(r["url"]) for r in results), return_exceptions=True,
+    )
+    for r, full_text in zip(results, full_texts):
+        r["excerpt"] = _truncate_excerpt(full_text) if isinstance(full_text, str) else ""
+    return results
+
+
+def build_article_summary_prompt(full_text: str, explain_language: str) -> str:
+    explain_label = LANGUAGE_LABELS.get(explain_language, explain_language)
+    return (
+        f"请把下面这篇新闻文章总结成一段简明的{explain_label}摘要，覆盖文章的关键事实和结论，"
+        f"控制在 150-220 字左右，不要分点列举，不要输出除了摘要本身以外的任何文字，"
+        f"也不要加类似「这篇文章讲的是」这种开场白：\n\n{full_text[:6000]}"
+    )
+
 
 def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text or "").strip()
@@ -3293,6 +3359,7 @@ async def get_recommendations(
             "reason": p.get("reason", ""),
         })
 
+    results = await _attach_excerpts(results)
     _recommend_cache[cache_key] = {"data": results, "ts": now}
     return results
 
@@ -3436,8 +3503,36 @@ async def get_native_news(
         results.append(item)
     results = results[:12]
 
+    results = await _attach_excerpts(results)
     _native_news_cache[cache_key] = {"data": results, "ts": now}
     return results
+
+
+class ArticleSummaryRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/recommendations/summary")
+@limiter.limit("10/minute")
+async def summarize_article(request: Request, req: ArticleSummaryRequest, user: dict = Depends(get_current_user)):
+    """给推荐列表/母语新闻卡片上的"AI 总结"按钮用——跟卡片上那段"真实原文摘录"是两回事：
+    摘录是原文本身，一字不改；这里是 AI 用自己的话概括全文，给不想跳转看全文、只想
+    快速了解大概内容的人用，明确标成"AI 摘要"展示，不能跟摘录混在一起，避免让人误以为
+    这是原文。"""
+    explain_language = resolve_explain_language(user)
+    cache_key = (req.url, explain_language)
+    now = datetime.now(timezone.utc)
+    cache_entry = _article_summary_cache.get(cache_key)
+    if cache_entry and (now - cache_entry["ts"]).total_seconds() < ARTICLE_CACHE_SECONDS:
+        return {"summary": cache_entry["text"]}
+
+    full_text = await _fetch_article_fulltext(req.url)
+    if not full_text:
+        raise HTTPException(502, "Couldn't fetch this article's content — try opening the source article instead")
+
+    summary = await call_ai_for_user(build_article_summary_prompt(full_text, explain_language), user)
+    _article_summary_cache[cache_key] = {"text": summary, "ts": now}
+    return {"summary": summary}
 
 
 # ---------- 设置(AI 服务商 + key、Google Sheets 同步开关) ----------

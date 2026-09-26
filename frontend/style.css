@@ -642,16 +642,58 @@ body {
   margin-bottom: 10px;
 }
 
+/* 真实原文摘录——特意做成"引用块"的样式(左边一条竖线)，跟下面 AI 生成的
+   .recCard-summary 从视觉上就区分开，不会让人误以为两者是一回事。 */
+.recCard-excerpt {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0 0 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--glass-border);
+}
+
+.recCard-excerpt.hidden {
+  display: none;
+}
+
+.recCard-summary {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--accent-tint);
+}
+
+.recCard-summary.hidden {
+  display: none;
+}
+
+.recCard-summaryLabel {
+  font-weight: 600;
+  color: var(--accent);
+}
+
 .recCard-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .recCard-source {
   font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
+}
+
+.recCard-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
 }
 
 /* ---------- 全局搜索弹层 ---------- */
