@@ -4158,6 +4158,7 @@ const NAV_TOUR_STEPS = [
   { target: "btnNavMore", textKey: "navTour.more" },
 ];
 let navTourIndex = 0;
+const navTourBackdrop = document.getElementById("navTourBackdrop");
 const navTourTooltip = document.getElementById("navTourTooltip");
 const navTourText = document.getElementById("navTourText");
 const navTourStepLabel = document.getElementById("navTourStep");
@@ -4181,7 +4182,9 @@ function positionNavTour(targetEl) {
   } else {
     const top = Math.max(12, Math.min(rect.top + rect.height / 2 - 40, window.innerHeight - 140));
     navTourTooltip.style.top = `${top}px`;
-    navTourTooltip.style.left = `${rect.right + 12}px`;
+    // 侧边栏窄的屏幕上 rect.right + 12 可能已经超出视口了，夹一下不让气泡被截断/跑出屏幕外
+    const left = Math.min(rect.right + 12, window.innerWidth - 260 - 12);
+    navTourTooltip.style.left = `${left}px`;
   }
 }
 
@@ -4199,11 +4202,13 @@ function showNavTourStep(i) {
   navTourStepLabel.textContent = `${i + 1} / ${NAV_TOUR_STEPS.length}`;
   navTourNext.textContent = i === NAV_TOUR_STEPS.length - 1 ? t("navTour.done") : t("navTour.next");
   positionNavTour(targetEl);
+  navTourBackdrop.classList.remove("hidden");
   navTourTooltip.classList.remove("hidden");
 }
 
 function finishNavTour() {
   clearNavTourHighlight();
+  navTourBackdrop.classList.add("hidden");
   navTourTooltip.classList.add("hidden");
   localStorage.setItem(NAV_TOUR_SEEN_KEY, "1");
 }
