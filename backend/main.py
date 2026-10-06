@@ -131,8 +131,13 @@ TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 # 完全不影响"必须自己填 key"这个原有行为。
 HOUSE_AI_PROVIDER = os.environ.get("HOUSE_AI_PROVIDER", "deepseek")
 HOUSE_AI_API_KEY = os.environ.get("HOUSE_AI_API_KEY", "")
-HOUSE_FREE_CALLS_PER_USER = 20
-HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "5"))
+HOUSE_FREE_CALLS_PER_DAY = 15
+HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "30"))
+
+
+def _house_calls_used_today(user: dict) -> int:
+    today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return user.get("house_calls_today", 0) if user.get("house_calls_date") == today_key else 0
 
 # 变现第一阶段：可选的自愿支持链接（Stripe Payment Link）。没配置就留空，
 # 前端"升级到 Pro"面板会自动隐藏这个入口，不会出现点了没反应的死链接。
@@ -258,6 +263,12 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS house_calls_used INTEGER NOT NULL DEFAULT 0;
+-- 免费体验额度从"每人一次性用完 20 次"改成"每人每天 15 次、每天重置"，house_calls_used
+-- 这个老字段留着不用了(历史数据，不再读写)，新加两个字段配合实现每日重置：
+-- house_calls_today 是"今天"已经用了几次，house_calls_date 记录这个计数对应的是哪一天，
+-- 读取/自增的时候发现日期对不上就当作今天还没用过，不需要另外跑定时任务去清零。
+ALTER TABLE users ADD COLUMN IF NOT EXISTS house_calls_today INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS house_calls_date TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_language TEXT NOT NULL DEFAULT 'en';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS explain_language TEXT NOT NULL DEFAULT 'auto';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_relay_base_url TEXT NOT NULL DEFAULT '';
@@ -960,9 +971,17 @@ async def db_record_house_usage(month: str, cost: float):
     )
 
 
-async def db_increment_house_calls_used(user_id: str):
+async def db_increment_house_calls_used(user_id: str, today_key: str):
     pool = await get_pool()
-    await pool.execute("UPDATE users SET house_calls_used = house_calls_used + 1 WHERE id=$1", user_id)
+    # 一条 UPDATE 原子完成"今天第一次用就从 1 开始计、不是今天第一次就 +1"，不用先 SELECT
+    # 再判断再 UPDATE 那种两步走的写法(并发下容易漏计/重复计)。
+    await pool.execute(
+        """UPDATE users SET
+               house_calls_today = CASE WHEN house_calls_date = $2 THEN house_calls_today + 1 ELSE 1 END,
+               house_calls_date = $2
+           WHERE id=$1""",
+        user_id, today_key,
+    )
 
 
 async def db_get_entitlement(user_id: str) -> Optional[dict]:
@@ -1157,9 +1176,11 @@ def _hash_password(password: str, salt: str) -> str:
 
 @app.get("/api/config")
 async def get_public_config():
-    # Turnstile site key 本来就是要贴到前端页面里的公开值，不是敏感信息，
-    # 走接口发而不是写死在 HTML 里，只是为了配置还是统一走环境变量。
-    return {"turnstile_site_key": TURNSTILE_SITE_KEY}
+    # Turnstile site key / Apple Services ID 本来就是要贴到前端页面里的公开值，不是敏感信息
+    # (OAuth 的 client_id 从来都是公开的，真正的密钥是只在后端用的私钥，前端拿不到也不需要)，
+    # 走接口发而不是写死在 HTML 里，只是为了配置还是统一走环境变量。apple_client_id 只用来
+    # 给"Sign in with Apple JS"官方按钮做视觉渲染，真正登录仍然走原来后端这套重定向流程。
+    return {"turnstile_site_key": TURNSTILE_SITE_KEY, "apple_client_id": APPLE_SERVICES_ID}
 
 
 async def _verify_turnstile(token: str, remote_ip: str = "") -> bool:
@@ -1300,7 +1321,7 @@ async def register(request: Request, req: RegisterRequest):
         "is_owner": new_user["is_owner"],
         "ui_language": new_user.get("ui_language", "en"),
         "house_trial_enabled": bool(HOUSE_AI_API_KEY),
-        "house_calls_total": HOUSE_FREE_CALLS_PER_USER,
+        "house_calls_total": HOUSE_FREE_CALLS_PER_DAY,
     }
 
 
@@ -1390,12 +1411,18 @@ async def reset_password(request: Request, req: ResetPasswordRequest):
     return {"ok": True}
 
 
-async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
+async def get_current_user(
+    request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)
+):
     if not credentials:
         raise HTTPException(401, "Not signed in")
     user = await db_get_session_user(credentials.credentials)
     if not user:
         raise HTTPException(401, "Your session has expired, please sign in again")
+    # 原生壳在每个请求上都会带这个 header(见 app.js 的 apiFetch)——不持久化进数据库，
+    # 只是这一次请求范围内用来区分"该不该提示用户去填自己的 AI key"：iOS 上免费额度用完
+    # 提这个会被苹果判定成引导用户绕开 IAP 付费(Apple 审核实测踩过)，网页版不受这条约束。
+    user["_platform"] = request.headers.get("X-Platform", "")
     return user
 
 
@@ -2646,7 +2673,7 @@ async def resolve_ai_credentials(user: dict):
     if await db_has_active_entitlement(user["id"]):
         return HOUSE_AI_PROVIDER, HOUSE_AI_API_KEY, "pro", None
 
-    if user.get("house_calls_used", 0) >= HOUSE_FREE_CALLS_PER_USER:
+    if _house_calls_used_today(user) >= HOUSE_FREE_CALLS_PER_DAY:
         return provider, "", None, "user_limit"
 
     month_key = datetime.now().strftime("%Y-%m")
@@ -2660,12 +2687,24 @@ async def resolve_ai_credentials(user: dict):
 async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> str:
     provider, api_key, house_reason, blocked_reason = await resolve_ai_credentials(user)
     if not api_key:
+        # iOS 原生壳上不能提"去填自己的 AI key"——这等于引导用户直接付钱给第三方 AI 服务商
+        # 换取 App 内继续可用的功能，绕开了 Apple 的 IAP 抽成，审核会按 3.1.1 判定违规
+        # (实测踩过)。网页版不受这条审核规则约束，继续照常提示。
+        is_ios = user.get("_platform") == "ios"
         if blocked_reason == "user_limit":
+            if is_ios:
+                raise HTTPException(400, f"You've used today's {HOUSE_FREE_CALLS_PER_DAY} free AI calls — more will be available tomorrow")
             raise HTTPException(
-                400, f"You've used up your free trial ({HOUSE_FREE_CALLS_PER_USER} calls) — add your own AI key in Settings to keep going"
+                400,
+                f"You've used today's {HOUSE_FREE_CALLS_PER_DAY} free AI calls — "
+                "add your own AI key in Settings to keep going, or try again tomorrow",
             )
         if blocked_reason == "global_budget":
+            if is_ios:
+                raise HTTPException(400, "The shared free trial budget is used up for this month — more will be available next month")
             raise HTTPException(400, "The shared free trial budget is used up for this month — add your own AI key in Settings to keep going")
+        if is_ios:
+            raise HTTPException(400, "AI features aren't available on this account yet")
         raise HTTPException(400, "No AI API key configured yet — add one in Settings")
 
     relay_base_url = "" if house_reason else (user.get("ai_relay_base_url") or "")
@@ -2676,7 +2715,8 @@ async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> 
     )
 
     if house_reason == "trial":
-        await db_increment_house_calls_used(user["id"])
+        today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        await db_increment_house_calls_used(user["id"], today_key)
         month_key = datetime.now().strftime("%Y-%m")
         await db_record_house_usage(month_key, cost)
     # house_reason == "pro"：Pro 订阅用户走站长 key，但不计入体验额度/体验月度预算——
@@ -3637,8 +3677,8 @@ async def get_settings(user: dict = Depends(get_current_user)):
         "sheets_sync_enabled": user.get("sheets_sync_enabled", False),
         "providers": [{"value": k, "label": v["label"]} for k, v in PROVIDER_CONFIG.items()],
         "house_trial_enabled": bool(HOUSE_AI_API_KEY),
-        "house_calls_used": user.get("house_calls_used", 0),
-        "house_calls_total": HOUSE_FREE_CALLS_PER_USER,
+        "house_calls_used": _house_calls_used_today(user),
+        "house_calls_total": HOUSE_FREE_CALLS_PER_DAY,
         "ui_language": user.get("ui_language", "en"),
         "ui_languages": UI_LANGUAGES,
         "explain_language": user.get("explain_language", "auto"),

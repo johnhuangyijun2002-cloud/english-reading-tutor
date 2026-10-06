@@ -3064,6 +3064,21 @@ body {
   width: 100%;
 }
 
+/* 苹果官方 Sign in with Apple JS 渲染出来的按钮是定宽的(JS 运行时按容器宽度动态设置
+   data-width)，不是百分比，这里把容器居中，实际按钮本身的宽度由 app.js 里量好了再填。*/
+.appleIDButton {
+  display: flex;
+  justify-content: center;
+}
+
+.appleIDButton.hidden {
+  display: none;
+}
+
+#btnAppleLogin.hidden {
+  display: none;
+}
+
 /* ---------- 打印(文章 + 生词表 + 句子笔记) ---------- */
 
 #printArea {

@@ -12,6 +12,7 @@
 <meta name="theme-color" content="#0071e3" />
 <link rel="stylesheet" href="style.css" />
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
 </head>
 <body>
   <div id="offlineBanner" class="hidden" data-i18n="offline.banner">Offline — showing content from the last time you were online</div>
@@ -692,6 +693,7 @@
         </div>
         <div class="loginDivider"><span data-i18n="login.or">or</span></div>
         <button id="btnGoogleLogin" class="btn btn-ghost loginGoogleBtn" data-i18n="login.googleLogin">Sign in with Google</button>
+        <div id="appleid-signin" class="loginAppleBtn appleIDButton hidden" data-color="black" data-border="true" data-type="sign in" data-width="280" data-height="44" data-border-radius="10"></div>
         <button id="btnAppleLogin" class="btn btn-ghost loginAppleBtn" data-i18n="login.appleLogin">Sign in with Apple</button>
         <p class="loginLegalLinks">
           <span data-i18n="login.legalPrefix">By continuing you agree to the </span><a href="/terms.html" target="_blank" data-i18n="login.terms">Terms of Service</a><span data-i18n="login.and"> and </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a>
