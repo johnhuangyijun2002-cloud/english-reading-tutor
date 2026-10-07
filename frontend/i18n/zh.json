@@ -224,7 +224,8 @@
     "categoryAI": "AI 服务商",
     "categorySync": "数据同步",
     "categoryAccount": "账户信息",
-    "categoryDanger": "账户管理"
+    "categoryDanger": "账户管理",
+    "houseTrialLeftIos": "每天有免费 AI 额度，今天还剩 {left}/{total} 次，每天重置"
   },
   "welcome": {
     "title": "欢迎，账号已经注册好了",
@@ -239,7 +240,8 @@
     "feature3Desc": "按你的学习语言自动匹配新闻源，挑出适合你水平的文章",
     "feature4Title": "生词本",
     "feature4Desc": "所有存过的生词和笔记，随时能搜到",
-    "gotIt": "开始使用"
+    "gotIt": "开始使用",
+    "houseTrialLineIos": "每天有 {count} 次免费 AI 额度可以直接用。"
   },
   "languagePicker": {
     "hint": "以后随时可以去设置里改"

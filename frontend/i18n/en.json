@@ -224,7 +224,8 @@
     "categoryAI": "AI Provider",
     "categorySync": "Sync",
     "categoryAccount": "Account Info",
-    "categoryDanger": "Account Management"
+    "categoryDanger": "Account Management",
+    "houseTrialLeftIos": "Free AI calls every day — {left}/{total} left today, resets daily"
   },
   "welcome": {
     "title": "Welcome — your account is ready",
@@ -239,7 +240,8 @@
     "feature3Desc": "News picked for your level, from sources in the language you're learning",
     "feature4Title": "Vocabulary book",
     "feature4Desc": "Every saved word and note, searchable in one place",
-    "gotIt": "Get Started"
+    "gotIt": "Get Started",
+    "houseTrialLineIos": "You get {count} free AI calls every day."
   },
   "languagePicker": {
     "hint": "You can change this anytime in Settings"

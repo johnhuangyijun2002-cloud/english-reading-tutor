@@ -135,6 +135,18 @@ HOUSE_FREE_CALLS_PER_DAY = 15
 HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "30"))
 
 
+# 给 App Review 审核员用的专用测试账号：审核员会连点各种 AI 功能，每天 15 次很容易用完，
+# 被判"功能不工作"。名单里的用户名走站长 key，不受每日额度/月度预算限制，也不计入体验用量。
+# 靠环境变量配置(逗号分隔的用户名)，不写死在代码里，审核结束后清空这个变量就恢复正常。
+REVIEW_ACCOUNT_USERNAMES = {
+    u.strip().lower() for u in os.environ.get("REVIEW_ACCOUNT_USERNAMES", "").split(",") if u.strip()
+}
+
+
+def _is_review_account(user: dict) -> bool:
+    return (user.get("username") or "").lower() in REVIEW_ACCOUNT_USERNAMES
+
+
 def _house_calls_used_today(user: dict) -> int:
     today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return user.get("house_calls_today", 0) if user.get("house_calls_date") == today_key else 0
@@ -2670,7 +2682,7 @@ async def resolve_ai_credentials(user: dict):
     if not HOUSE_AI_API_KEY:
         return provider, "", None, "no_key"
 
-    if await db_has_active_entitlement(user["id"]):
+    if _is_review_account(user) or await db_has_active_entitlement(user["id"]):
         return HOUSE_AI_PROVIDER, HOUSE_AI_API_KEY, "pro", None
 
     if _house_calls_used_today(user) >= HOUSE_FREE_CALLS_PER_DAY:

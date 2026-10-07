@@ -467,19 +467,19 @@
           <h2 data-i18n="settings.categoryAI">AI Provider</h2>
         </div>
 
-        <div class="settingsBlock">
+        <div class="settingsBlock byokOnly">
           <span class="settingsBlockLabel" data-i18n="settings.aiProvider">AI Provider</span>
           <select id="aiProviderSelect" class="settingsSelect"></select>
         </div>
 
         <div class="settingsBlock">
-          <span class="settingsBlockLabel" data-i18n="settings.apiKey">API Key</span>
-          <input type="password" id="aiApiKeyInput" data-i18n-placeholder="settings.apiKeyPlaceholder" placeholder="Enter this provider's API key" />
-          <p id="aiKeyHint" class="urlHint"></p>
+          <span class="settingsBlockLabel byokOnly" data-i18n="settings.apiKey">API Key</span>
+          <input type="password" id="aiApiKeyInput" class="byokOnly" data-i18n-placeholder="settings.apiKeyPlaceholder" placeholder="Enter this provider's API key" />
+          <p id="aiKeyHint" class="urlHint byokOnly"></p>
           <p id="houseTrialHint" class="urlHint hidden"></p>
         </div>
 
-        <div id="aiRelayBlock" class="settingsBlock hidden">
+        <div id="aiRelayBlock" class="settingsBlock byokOnly hidden">
           <span class="settingsBlockLabel" data-i18n="settings.aiRelayLabel">AI Relay Base URL (optional)</span>
           <input type="text" id="aiRelayUrlInput" data-i18n-placeholder="settings.aiRelayPlaceholder" placeholder="e.g. https://your-relay.example.com/v1 — leave blank to use the official endpoint" />
           <p class="urlHint" data-i18n="settings.aiRelayHint">When set, requests to all four providers are routed through this address (must be an OpenAI-compatible endpoint). Leave blank if unsure.</p>
@@ -487,10 +487,10 @@
           <p class="urlHint" data-i18n="settings.aiRelayModelHint">If the relay says the model name isn't supported, enter the model name the relay expects here</p>
         </div>
 
-        <div class="pasteActions">
+        <div class="pasteActions byokOnly">
           <button class="btn btn-primary settingsSaveBtn" data-i18n="common.save">Save</button>
         </div>
-        <p class="settingsSaveStatus urlHint"></p>
+        <p class="settingsSaveStatus urlHint byokOnly"></p>
       </div>
 
       <div id="settingsSection-sync" class="settingsSection hidden">
