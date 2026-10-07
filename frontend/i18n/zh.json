@@ -9,7 +9,7 @@
     "save": "保存",
     "saving": "保存中...",
     "saved": "已保存",
-    "saveFailed": "保存失败: {message}",
+    "saveFailed": "保存失败：{message}",
     "pronounce": "朗读发音",
     "off": "关",
     "on": "开",
@@ -29,7 +29,7 @@
     "review": "复习",
     "nativeNews": "母语新闻",
     "stats": "学习统计",
-    "adminStats": "站长统计",
+    "adminStats": "站点统计",
     "upgradePro": "升级到 Pro",
     "more": "更多"
   },
@@ -38,9 +38,9 @@
     "empty": "还没有添加过文章",
     "open": "打开",
     "delete": "删除",
-    "deleteConfirm": "确定要删除《{title}》吗？已经存过的生词/句子笔记不会被删除。",
-    "deleteFailed": "删除失败: {message}",
-    "jumpHint": "点击跳转到这篇文章"
+    "deleteConfirm": "确定删除《{title}》吗？从这篇文章存下的生词和句子笔记会保留。",
+    "deleteFailed": "删除失败：{message}",
+    "jumpHint": "打开这篇文章"
   },
   "readerSettings": {
     "fontSize": "字号",
@@ -90,29 +90,29 @@
     "noData": "当天无复习记录"
   },
   "nativeNews": {
-    "title": "母语新闻（沉浸模式素材）",
-    "langHint": "已匹配到你的母语（{language}），导入后会自动开启沉浸模式",
+    "title": "母语新闻（用于沉浸阅读）",
+    "langHint": "已为你挑选{language}新闻，打开后会自动开启沉浸模式",
     "loading": "正在获取新闻...",
-    "empty": "暂时没有可用的新闻，试试\"换一批\"",
+    "empty": "暂时没有可读的新闻，点「换一批」试试",
     "failed": "获取失败：{message}"
   },
   "recommend": {
     "title": "今日推荐",
     "refresh": "换一批",
-    "forLanguage": "已根据你的学习语言自动匹配来源：{language}",
-    "loading": "正在挑选适合你的文章，大概几秒钟...",
-    "empty": "暂时没有合适的推荐，点\"换一批\"再试试",
+    "forLanguage": "已按你的学习语言（{language}）匹配新闻来源",
+    "loading": "正在挑选适合你水平的文章，几秒钟就好…",
+    "empty": "暂时没有合适的推荐，点「换一批」再试试",
     "failed": "推荐失败：{message}",
     "difficulty": "难度 · {level}",
     "readThis": "去原文阅读",
     "fetching": "抓取中...",
     "levelLabel": "你的水平",
-    "externalHint": "点击文章会跳转到原文网站的新标签页（出于版权考虑，我们不会自己抓取全文）——在那边复制正文，回来粘贴即可。",
+    "externalHint": "「去原文阅读」会打开原网站；「现在阅读」会把文章存进你的个人阅读收藏，直接在这里读。",
     "aiSummary": "现在阅读",
     "aiSummaryLabel": "AI 摘要：",
     "aiSummaryLoading": "正在生成摘要…",
-    "aiSummaryFailed": "生成摘要失败: {message}",
-    "readNowConfirm": "要把这篇文章存进你的个人阅读收藏吗？",
+    "aiSummaryFailed": "生成摘要失败：{message}",
+    "readNowConfirm": "要把这篇文章存进你的阅读收藏吗？",
     "sourceBannerPrefix": "原文来自 {source} · ",
     "sourceBannerLink": "查看原文"
   },
@@ -135,9 +135,9 @@
     "submit": "开始阅读",
     "needContent": "先把文章内容粘贴进去",
     "needUrl": "先粘贴一个文章网址",
-    "saveFailed": "保存失败: {message}",
-    "fetchFailed": "抓取失败: {message}",
-    "fromExternalHint": "出于版权限制，这篇文章无法自动导入——打开原文，复制正文，粘贴到下面的文本框即可。",
+    "saveFailed": "保存失败：{message}",
+    "fetchFailed": "抓取失败：{message}",
+    "fromExternalHint": "已打开原文。想在这里精读的话，可以把正文复制后粘贴到下面。",
     "fromExternalManualLink": "打开原文"
   },
   "search": {
@@ -170,17 +170,17 @@
     "aiProvider": "AI 服务商",
     "apiKey": "API Key",
     "apiKeyPlaceholder": "填入这个服务商的 API Key",
-    "apiKeyHintSet": "已设置({masked})，重新填写可以替换",
-    "apiKeyHintUnset": "还没填这个服务商的 key，划词解析、AI 推荐这些功能用不了",
+    "apiKeyHintSet": "已设置（{masked}），重新填写即可替换",
+    "apiKeyHintUnset": "这个服务商还没填 key，不填也可以先用每天的免费额度",
     "aiRelayLabel": "AI 中转站地址（可选）",
     "aiRelayPlaceholder": "例如 https://your-relay.example.com/v1，留空用官方地址",
-    "aiRelayHint": "配置后，四个服务商的请求都会经过该地址（需为 OpenAI 兼容接口）；如不确定可留空",
+    "aiRelayHint": "配置后，所有 AI 服务商的请求都会经过这个地址（需兼容 OpenAI 接口）；不确定就留空",
     "aiRelayModelPlaceholder": "留空则用各服务商的默认模型名",
     "aiRelayModelHint": "如果中转站提示\"不支持的模型名\"，在这里填中转站要求的模型名",
-    "houseTrialLeft": "不填 key 也能先用体验额度，今天还剩 {left}/{total} 次，每天重置",
-    "houseTrialUsedUp": "今天的体验额度用完了（{total}/{total}），明天会重置；要继续用 AI 解析也可以自己填 key",
-    "houseTrialUsedUpIos": "今天的体验额度用完了（{total}/{total}），明天会重置",
-    "sheetsSync": "同步到 Google Sheet",
+    "houseTrialLeft": "不填 key 也能用，今天还剩 {left}/{total} 次免费额度（每天重置）",
+    "houseTrialUsedUp": "今天的 {total} 次免费额度已用完，明天重置；想现在继续用，也可以填自己的 key",
+    "houseTrialUsedUpIos": "今天的 {total} 次免费额度已用完，明天重置",
+    "sheetsSync": "同步到 Google 表格",
     "changeEmail": "找回邮箱",
     "changeEmailHint": "选填，但不填的话一旦忘记密码就没法自助找回（除非你还绑定了 Google 登录）",
     "newEmailPlaceholder": "you@example.com",
@@ -194,22 +194,22 @@
     "googleLinkBtnRelink": "重新关联/换绑",
     "googleLinkedStatus": "已关联：{email}",
     "googleUnlinkedStatus": "还没关联，只能用用户名密码登录",
-    "googleRedirecting": "跳转到 Google 授权页...",
+    "googleRedirecting": "正在跳转到 Google 授权页…",
     "googleLinkFailed": "关联失败：{message}",
-    "googleLinkSuccess": "Google 账号关联成功，以后用 Google 登录也能看到这个账号下的内容",
+    "googleLinkSuccess": "Google 账号关联成功，以后也可以用 Google 登录这个账号",
     "appleLink": "Apple 账号关联",
     "appleLinkBtn": "关联 Apple 账号",
     "appleLinkBtnRelink": "重新关联/换绑",
     "appleLinkedStatus": "已关联：{email}",
     "appleUnlinkedStatus": "还没关联，只能用用户名密码登录",
-    "appleRedirecting": "跳转到 Apple 授权页...",
+    "appleRedirecting": "正在跳转到 Apple 授权页…",
     "appleLinkFailed": "关联失败：{message}",
-    "appleLinkSuccess": "Apple 账号关联成功，以后用 Apple 登录也能看到这个账号下的内容",
+    "appleLinkSuccess": "Apple 账号关联成功，以后也可以用 Apple 登录这个账号",
     "logout": "退出登录",
     "accountData": "账号数据",
     "exportData": "导出我的数据",
     "deleteAccount": "删除账号",
-    "userLine": "登录身份：{name}{ownerTag}",
+    "userLine": "登录账号：{name}{ownerTag}",
     "ownerTag": "（主账号）",
     "notionSync": "同步到 Notion",
     "notionSyncHint": "存下的每个单词和句子笔记，都会变成你选定的那个 Notion 页面下的一个子页面。",
@@ -219,19 +219,19 @@
     "notionConnectedNoTarget": "已连接到工作区「{workspace}」——请在下面选一个页面作为同步目标",
     "notionConnectedWithTarget": "已连接到工作区「{workspace}」——正在同步到「{target}」",
     "notionTargetPlaceholder": "选择一个 Notion 页面…",
-    "notionConnectFailed": "连接 Notion 失败: {message}",
+    "notionConnectFailed": "连接 Notion 失败：{message}",
     "categoryLanguage": "语言与阅读",
     "categoryAI": "AI 服务商",
     "categorySync": "数据同步",
-    "categoryAccount": "账户信息",
-    "categoryDanger": "账户管理",
-    "houseTrialLeftIos": "每天有免费 AI 额度，今天还剩 {left}/{total} 次，每天重置"
+    "categoryAccount": "账号信息",
+    "categoryDanger": "账号管理",
+    "houseTrialLeftIos": "今天还剩 {left}/{total} 次免费 AI 额度（每天重置）"
   },
   "welcome": {
-    "title": "欢迎，账号已经注册好了",
+    "title": "欢迎！账号已经创建好了",
     "tagline": "一个帮助你通过阅读真实文章学习语言的工具。",
-    "body": "以后每次划词或划句都可以用 AI 解析，记得先去设置里填一个你自己的 AI Key。",
-    "houseTrialLine": "不填 key 也没关系，每天有 {count} 次免费体验额度可以先用起来。",
+    "body": "阅读时划选任意单词或句子，就能看到 AI 讲解。",
+    "houseTrialLine": "不填 API Key 也没关系，每天都有 {count} 次免费额度。",
     "feature1Title": "导入文章",
     "feature1Desc": "粘贴文本、上传 PDF/DOCX，或者直接导入网址",
     "feature2Title": "AI 讲解",
@@ -248,7 +248,7 @@
   },
   "login": {
     "title": "登录",
-    "hint": "用户名不限格式，密码至少需要 8 位；首个注册的账号将自动成为主账号",
+    "hint": "用户名可以随便取，密码至少 8 位",
     "username": "用户名",
     "password": "密码",
     "emailOptional": "邮箱（选填，用于找回账号）",
@@ -273,7 +273,8 @@
     "forgotPasswordSent": "如果这个邮箱对应某个账号，重置链接已经发出去了，去邮箱看看",
     "resetPasswordTitle": "设置新密码",
     "setNewPassword": "设置新密码",
-    "resetPasswordDone": "密码已更新，马上跳回登录…"
+    "resetPasswordDone": "密码已更新，马上跳回登录…",
+    "legalSuffix": ""
   },
   "empty": {
     "noDocument": "粘贴一篇文章，或者上传 PDF / DOCX 文件，开始精读",
@@ -325,32 +326,32 @@
     "analyzeSentence": "AI 解析句子"
   },
   "wordPopup": {
-    "delete": "从生词表删除"
+    "delete": "从生词本删除"
   },
   "annotation": {
     "word": "生词",
     "sentence": "句子",
     "analyzing": "AI 分析中...",
-    "saveWordBtn": "存入生词表",
+    "saveWordBtn": "存入生词本",
     "saveSentenceBtn": "存入句子笔记",
     "saved": "已保存",
     "duplicate": "已存过",
-    "duplicateStatus": "生词表里已经有 \"{text}\" 了，没有重复添加",
-    "syncOk": "已同步 Sheet",
-    "syncFail": "Sheet 同步失败(本地已存)",
+    "duplicateStatus": "生词本里已经有「{text}」了，没有重复添加",
+    "syncOk": "已同步到 Google 表格",
+    "syncFail": "Google 表格同步失败（已保存在 App 里）",
     "saving": "保存中...",
-    "saveFailed": "保存失败，重试",
+    "saveFailed": "保存失败，请重试",
     "analyzeFailedPrefix": "分析失败：{message}",
     "retry": "重试",
-    "noResult": "(无解析结果)",
+    "noResult": "（无解析结果）",
     "lemma": "原形：",
     "otherForms": "其他形态："
   },
   "history": {
     "emptyDoc": "这篇文章还没有记录，划选单词或句子即可开始积累",
     "emptyNoDoc": "先添加一篇文章，读完之后可以在这里看到相关的生词和笔记",
-    "deleteConfirm": "确定删除这条{label}记录吗？\n(本地会立即删除；如果之前同步过 Google Sheet，那边已经写入的行不会自动删除，需要手动去表格里清理)",
-    "deleteFailed": "删除失败: {message}",
+    "deleteConfirm": "确定删除这条{label}记录吗？\n（App 里会立即删除；如果已经同步到 Google 表格，那边的行不会自动删除，需要的话请手动清理）",
+    "deleteFailed": "删除失败：{message}",
     "deleteBtn": "删除",
     "jumpMissing": "这篇文章可能已经被删除或改名了，找不到了",
     "editBtn": "编辑",
@@ -368,21 +369,21 @@
   "account": {
     "exporting": "导出中...",
     "exported": "已导出",
-    "exportFailed": "导出失败: {message}",
+    "exportFailed": "导出失败：{message}",
     "deleteConfirm1": "确定要删除账号吗？这会永久删除你保存的所有文章、生词、句子笔记，且无法恢复。\n\n建议先点「导出我的数据」备份一份。",
     "deleteConfirmPrompt": "删除操作无法撤销。请输入\"删除\"两个字确认：",
     "deleteConfirmWord": "删除",
     "deleting": "删除中...",
     "deleted": "账号已删除",
-    "deleteFailed": "删除失败: {message}"
+    "deleteFailed": "删除失败：{message}"
   },
   "upload": {
-    "failed": "上传失败: {message}"
+    "failed": "上传失败：{message}"
   },
   "print": {
     "preparing": "准备中...",
     "failed": "准备打印内容失败：{message}",
-    "vocabTitle": "生词表（共 {count} 个）",
+    "vocabTitle": "生词本（共 {count} 个）",
     "colIndex": "#",
     "colWord": "单词",
     "colIpa": "音标",
@@ -392,7 +393,7 @@
     "sentenceMarkPrefix": "句"
   },
   "adminStats": {
-    "title": "站长统计",
+    "title": "站点统计",
     "totalUsers": "总用户数",
     "totalDocuments": "总文章数",
     "totalVocab": "总生词数",
@@ -402,7 +403,7 @@
   },
   "pro": {
     "title": "升级到 Pro",
-    "subtitle": "Pro 版即将上线。不用配置，不用管理 API Key——开通即用无限量站长托管 AI。",
+    "subtitle": "Pro 版即将上线。不用配置，也不用管理 API Key，开通就能无限量使用 AI。",
     "feature1": "无限量 AI 解析，不需要自己的 API Key",
     "feature2": "更强的默认 AI 模型",
     "feature3": "新功能优先体验",
@@ -426,13 +427,14 @@
     "iapPurchaseFailed": "购买失败：{message}",
     "iapDisclosure": "{price}/月，自动续费。确认购买后从你的 Apple ID 扣款。可随时在 设置 → [你的姓名] → 订阅 中管理或取消，需在续费前至少 24 小时操作。",
     "iapDisclosureNoPrice": "按月自动续费订阅。确认购买后从你的 Apple ID 扣款。可随时在 设置 → [你的姓名] → 订阅 中管理或取消，需在续费前至少 24 小时操作。",
-    "iapAgreePrefix": "订阅即表示你同意"
+    "iapAgreePrefix": "订阅即表示你同意",
+    "iapAgreeSuffix": ""
   },
   "navTour": {
     "recommend": "AI 会按你的水平推荐文章，适合当作起点。",
     "docManager": "你导入过的所有文章都在这里管理。",
     "more": "母语新闻、复习、统计、设置都收在这里。",
-    "next": "下一个",
+    "next": "下一步",
     "done": "知道了",
     "skip": "跳过"
   },
@@ -444,9 +446,9 @@
   },
   "aiConsent": {
     "title": "允许使用 AI 解析吗？",
-    "body": "单词/句子解析、沉浸式阅读和 AI 推荐文章由第三方 AI 服务生成。发送任何内容之前，需要先征得你的同意。",
-    "pointWhat": "发送的内容：你选中的单词或句子（含用于理解语境的前后句子）、学习语言/解释语言。沉浸式阅读还会发送文章正文，以及选词优先策略为生词本时（默认）生词本里最多 80 个单词。阅读理解小测会发送文章正文（最多前约 6000 字）。AI 推荐文章会发送公开的新闻标题和你的阅读水平。推荐卡片上点「AI 总结」会把那篇文章的完整正文（从公开的原网页抓取）发给 AI 生成摘要。",
-    "pointWho": "接收方：免费试用期间为 DeepSeek。如果你在设置里填写了自己的 Key，则是你在那里选择的 AI 服务——DeepSeek、OpenAI、Anthropic Claude、Google Gemini，或你填写为中转地址的任何兼容 OpenAI 接口的服务。仅用于生成解析。",
+    "body": "单词/句子解析、沉浸阅读、AI 推荐和文章摘要由第三方 AI 服务生成。发送任何内容之前，我们会先征求你的同意。",
+    "pointWhat": "发送的内容：你选中的单词或句子（含用于理解语境的前后句子）、学习语言/讲解语言。沉浸阅读还会发送文章正文，以及选词优先策略为生词本时（默认）生词本里最多 80 个单词。阅读理解小测会发送文章正文（最多前约 6000 字）。AI 推荐会发送公开的新闻标题和你的阅读水平。在推荐卡片上点「现在阅读」，会把这篇文章的正文（从公开的原网页获取）发给 AI 生成摘要。",
+    "pointWho": "接收方：DeepSeek（App 提供的 AI 服务）。如果你的账号在网页版填写过自己的 API Key，则发送给该 Key 对应的 AI 服务。仅用于生成解析结果。",
     "pointNot": "不会发送：你的用户名、邮箱、密码或任何其他账号信息。",
     "privacyPrefix": "详细说明：",
     "allow": "允许",
@@ -457,6 +459,6 @@
     "title": "阅读理解小测",
     "regenerate": "换一批",
     "loading": "正在根据这篇文章出题…",
-    "failedPrefix": "出题失败: {message}"
+    "failedPrefix": "出题失败：{message}"
   }
 }

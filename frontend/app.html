@@ -12,7 +12,6 @@
 <meta name="theme-color" content="#0071e3" />
 <link rel="stylesheet" href="style.css" />
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-<script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
 </head>
 <body>
   <div id="offlineBanner" class="hidden" data-i18n="offline.banner">Offline — showing content from the last time you were online</div>
@@ -74,7 +73,7 @@
         <button id="btnRecommendRefresh" class="btn btn-ghost btn-small" data-i18n="recommend.refresh">Refresh</button>
       </div>
       <p id="recommendLangHint"></p>
-      <p class="urlHint" data-i18n="recommend.externalHint">Tapping an article opens the original site in a new tab (we don't copy full articles ourselves, for copyright reasons) — copy the text there and come back to paste it in.</p>
+      <p class="urlHint" data-i18n="recommend.externalHint">"Read at the source" opens the original site. "Read now" saves the article to your personal reading collection so you can read it here.</p>
       <div class="settingsRow">
         <span class="settingsLabel" data-i18n="recommend.levelLabel">Your level</span>
         <select id="recommendLevelSelect" class="doc-select"></select>
@@ -93,7 +92,7 @@
         <button id="btnNativeNewsRefresh" class="btn btn-ghost btn-small" data-i18n="recommend.refresh">Refresh</button>
       </div>
       <p id="nativeNewsLangHint"></p>
-      <p class="urlHint" data-i18n="recommend.externalHint">Tapping an article opens the original site in a new tab (we don't copy full articles ourselves, for copyright reasons) — copy the text there and come back to paste it in.</p>
+      <p class="urlHint" data-i18n="recommend.externalHint">"Read at the source" opens the original site. "Read now" saves the article to your personal reading collection so you can read it here.</p>
       <div id="nativeNewsList"></div>
       <div class="pasteActions">
         <button id="btnNativeNewsClose" class="btn btn-ghost" data-i18n="common.close">Close</button>
@@ -266,7 +265,7 @@
           <button id="btnIapRestore" class="btn btn-ghost" data-i18n="pro.iapRestore">Restore Purchases</button>
         </div>
         <p class="urlHint">
-          <span data-i18n="pro.iapAgreePrefix">By subscribing you agree to the </span><a href="/terms.html" target="_blank" data-i18n="login.terms">Terms of Service</a><span data-i18n="login.and"> and </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a>
+          <span data-i18n="pro.iapAgreePrefix">By subscribing you agree to the </span><a href="/terms.html" target="_blank" data-i18n="login.terms">Terms of Service</a><span data-i18n="login.and"> and </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a><span data-i18n="pro.iapAgreeSuffix">.</span>
         </p>
       </div>
 
@@ -697,7 +696,7 @@
         <div id="appleid-signin" class="loginAppleBtn appleIDButton hidden" data-color="black" data-border="true" data-type="sign in" data-width="280" data-height="44" data-border-radius="10"></div>
         <button id="btnAppleLogin" class="btn btn-ghost loginAppleBtn" data-i18n="login.appleLogin">Sign in with Apple</button>
         <p class="loginLegalLinks">
-          <span data-i18n="login.legalPrefix">By continuing you agree to the </span><a href="/terms.html" target="_blank" data-i18n="login.terms">Terms of Service</a><span data-i18n="login.and"> and </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a>
+          <span data-i18n="login.legalPrefix">By continuing you agree to the </span><a href="/terms.html" target="_blank" data-i18n="login.terms">Terms of Service</a><span data-i18n="login.and"> and </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a><span data-i18n="login.legalSuffix">.</span>
         </p>
       </div>
 

@@ -951,6 +951,7 @@ function setupAppleSignInButton(retries = 25) {
 
   if (appleSigninInitTried) return;
 
+  ensureAppleScript();
   if (!window.AppleID) {
     if (retries > 0) setTimeout(() => setupAppleSignInButton(retries - 1), 200);
     return;
@@ -961,19 +962,53 @@ function setupAppleSignInButton(retries = 25) {
     .then((r) => r.json())
     .then((cfg) => {
       if (!cfg.apple_client_id) return; // 这套部署没配置 Apple 登录，保留纯文字按钮兜底
-      const width = Math.max(130, Math.min(375, Math.round(appleSigninButton.parentElement.clientWidth) || 280));
-      appleSigninButton.dataset.width = String(width);
-      AppleID.auth.init({
-        clientId: cfg.apple_client_id,
-        scope: "name email",
-        redirectURI: API_BASE + "/api/auth/apple/callback",
-        state: "decorative", // 点击行为被上面的捕获监听器拦截了，这个值实际不会被苹果用到
-        usePopup: false,
-      });
+      appleClientId = cfg.apple_client_id;
+      renderAppleButton();
       appleSigninButton.classList.remove("hidden");
       btnAppleLogin.classList.add("hidden");
+      // 系统在深浅色之间切换时，按钮要跟着换颜色(Apple HIG：深色背景用白色按钮)
+      if (window.matchMedia) {
+        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", renderAppleButton);
+      }
     })
     .catch(() => {}); // 拿配置失败就什么都不做，继续用纯文字按钮兜底，登录功能不受影响
+}
+
+// 苹果官方按钮文字的语言由脚本地址里的语言段决定(.../appleid/1/ko_KR/appleid.auth.js)，
+// data-locale 属性传不进去(实测会让按钮整个画不出来)。按 App 当前界面语言取，不然界面是
+// 中文/韩文、按钮却是英文。语言在登录页出现之前就已经选定了，所以只加载一次。
+const APPLE_BUTTON_LOCALES = { zh: "zh_CN", ko: "ko_KR", ja: "ja_JP", fr: "fr_FR", de: "de_DE", es: "es_ES", en: "en_US" };
+let appleClientId = "";
+let appleScriptRequested = false;
+
+function ensureAppleScript() {
+  if (appleScriptRequested || window.AppleID) return;
+  appleScriptRequested = true;
+  const load = (locale, fallback) => {
+    const script = document.createElement("script");
+    script.src = `https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/${locale}/appleid.auth.js`;
+    if (fallback) script.onerror = () => load("en_US", false);
+    document.head.appendChild(script);
+  };
+  const locale = APPLE_BUTTON_LOCALES[currentUiLanguage] || "en_US";
+  load(locale, locale !== "en_US");
+}
+
+// 官方脚本只在 init() 时按 data-* 属性画一次按钮，所以改颜色/语言要清空容器后重新 init
+function renderAppleButton() {
+  if (!appleClientId || !window.AppleID) return;
+  const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const width = Math.max(130, Math.min(375, Math.round(appleSigninButton.parentElement.clientWidth) || 280));
+  appleSigninButton.innerHTML = "";
+  appleSigninButton.dataset.width = String(width);
+  appleSigninButton.dataset.color = dark ? "white" : "black";
+  AppleID.auth.init({
+    clientId: appleClientId,
+    scope: "name email",
+    redirectURI: API_BASE + "/api/auth/apple/callback",
+    state: "decorative", // 点击行为被捕获监听器拦截了，这个值实际不会被苹果用到
+    usePopup: false,
+  });
 }
 
 function resetTurnstile() {
@@ -3148,7 +3183,9 @@ function formatDocDate(isoString) {
   if (!isoString) return "";
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString();
+  // 跟随界面语言格式化，不然中文/韩文界面里会显示成美式 "10/7/2026, 1:55:23 PM"
+  const locale = { zh: "zh-CN", ko: "ko-KR", en: "en-US" }[currentUiLanguage] || undefined;
+  return d.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
 }
 
 function renderDocManagerList() {

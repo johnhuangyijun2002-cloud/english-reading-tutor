@@ -2703,21 +2703,44 @@ async def call_ai_for_user(prompt: str, user: dict, json_mode: bool = False) -> 
         # 换取 App 内继续可用的功能，绕开了 Apple 的 IAP 抽成，审核会按 3.1.1 判定违规
         # (实测踩过)。网页版不受这条审核规则约束，继续照常提示。
         is_ios = user.get("_platform") == "ios"
-        if blocked_reason == "user_limit":
-            if is_ios:
-                raise HTTPException(400, f"You've used today's {HOUSE_FREE_CALLS_PER_DAY} free AI calls — more will be available tomorrow")
-            raise HTTPException(
-                400,
-                f"You've used today's {HOUSE_FREE_CALLS_PER_DAY} free AI calls — "
-                "add your own AI key in Settings to keep going, or try again tomorrow",
-            )
-        if blocked_reason == "global_budget":
-            if is_ios:
-                raise HTTPException(400, "The shared free trial budget is used up for this month — more will be available next month")
-            raise HTTPException(400, "The shared free trial budget is used up for this month — add your own AI key in Settings to keep going")
-        if is_ios:
-            raise HTTPException(400, "AI features aren't available on this account yet")
-        raise HTTPException(400, "No AI API key configured yet — add one in Settings")
+        lang = user.get("ui_language", "en")
+        n = HOUSE_FREE_CALLS_PER_DAY
+        # 这几条是用户最常看到的报错，前端直接原样弹出，所以按界面语言给出本地化文案
+        msgs = {
+            "user_limit_ios": {
+                "en": f"You've used today's {n} free AI calls — they reset tomorrow",
+                "zh": f"今天的 {n} 次免费 AI 额度已用完，明天会重置",
+                "ko": f"오늘 무료 AI {n}회를 다 썼어요. 내일 다시 채워져요",
+            },
+            "user_limit": {
+                "en": f"You've used today's {n} free AI calls — they reset tomorrow, or add your own AI key in Settings to keep going",
+                "zh": f"今天的 {n} 次免费 AI 额度已用完，明天会重置；想现在继续用，可以在设置里填自己的 AI key",
+                "ko": f"오늘 무료 AI {n}회를 다 썼어요. 내일 다시 채워지고, 지금 더 쓰려면 설정에서 본인 AI 키를 등록할 수 있어요",
+            },
+            "global_budget_ios": {
+                "en": "The free AI allowance for this month has run out — it resets next month",
+                "zh": "本月的免费 AI 额度已经用完，下个月会恢复",
+                "ko": "이번 달 무료 AI 이용량이 모두 소진됐어요. 다음 달에 다시 채워져요",
+            },
+            "global_budget": {
+                "en": "The free AI allowance for this month has run out — add your own AI key in Settings to keep going",
+                "zh": "本月的免费 AI 额度已经用完，可以在设置里填自己的 AI key 继续使用",
+                "ko": "이번 달 무료 AI 이용량이 모두 소진됐어요. 설정에서 본인 AI 키를 등록하면 계속 쓸 수 있어요",
+            },
+            "no_key_ios": {
+                "en": "AI features aren't available on this account yet",
+                "zh": "这个账号暂时无法使用 AI 功能",
+                "ko": "이 계정에서는 아직 AI 기능을 쓸 수 없어요",
+            },
+            "no_key": {
+                "en": "No AI API key configured yet — add one in Settings",
+                "zh": "还没有配置 AI API key，请在设置里填写",
+                "ko": "아직 AI API 키가 없어요. 설정에서 등록해 주세요",
+            },
+        }
+        reason = blocked_reason if blocked_reason in ("user_limit", "global_budget") else "no_key"
+        variants = msgs[reason + "_ios"] if is_ios else msgs[reason]
+        raise HTTPException(400, variants.get(lang, variants["en"]))
 
     relay_base_url = "" if house_reason else (user.get("ai_relay_base_url") or "")
     relay_model = "" if house_reason else (user.get("ai_relay_model") or "")
