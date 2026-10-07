@@ -94,7 +94,7 @@ run #16 → run #17 → 现在要提交的是 **run #18 之后**的 build，前�
 - **AI Picks / 母语新闻经常 "Load failed"**（PR #35）：`feedparser.parse(url)` 自己发请求不带超时，一个 RSS 源卡住整个请求就没有时间上限；而且英语 7 个源是顺序抓的，不是并发。改成用 `httpx` 带 8 秒超时抓内容再交给 feedparser 解析，并且所有源改成 `asyncio.gather` 并发抓取
 - **ATT 授权弹窗冷启动经常不出现**（PR #36）：`ContextiaAds.init()` 只检查一次 `window.Capacitor.Plugins.AdMob` 存不存在，App 真冷启动时原生桥可能还没就绪，查不到就直接放弃，退出登录触发 `location.reload()` 之后原生桥已经热了才第一次真正弹出来。改成轮询等待最多 3 秒
 - **设置面板太长、底部"注销账号"贴边**（PR #37）：调整了 padding 和 danger zone 的 margin-top
-- **免费试用额度从 10 次提到 20 次**（PR #30，`HOUSE_FREE_CALLS_PER_USER`）：给审核员/新用户更多空间试用 AI 解析功能不至于刚好用完
+- **免费试用额度**：PR #30 曾从 10 次提到 20 次(一次性总额)；2026-10 第二轮拒审后改成**每人每天 15 次、每天重置**(`HOUSE_FREE_CALLS_PER_DAY`，用 `house_calls_today`/`house_calls_date` 两个字段实现，老的 `house_calls_used` 不再读写)，月预算 `HOUSE_MONTHLY_BUDGET_USD` 提到 30
 
 ### 广告 / AdMob 当前状态
 
@@ -106,7 +106,7 @@ run #16 → run #17 → 现在要提交的是 **run #18 之后**的 build，前�
 - **这个开发环境每次新会话都是全新容器**，之前搭的本地 Postgres/venv/演示账号数据不会保留，重新做截图/本地调试需要重新搭一遍（可以参考本文档"方案 A"一节，或者问上一个会话具体怎么弄的，聊天记录里有完整步骤）
 - **改了 `frontend/` 下的代码（app.js/app.html/style.css/ads.js 等）必须重新触发一次 `ios-release.yml` 才会真的进到下一个提交的 build 里**——纯 `backend/main.py` 的改动不需要，Railway 会自动部署，网页版和原生壳的 API 调用都立刻生效
 - **每次改完代码，走的流程是**：`git fetch origin master <本分支>` 同步 → 改代码 → commit（带 `Co-Authored-By`/`Claude-Session` 那两行，看 system reminder 里最新的版本）→ push → 开 PR → 合并 → 如果涉及前端就 `actions_run_trigger` 触发 `ios-release.yml`
-- **演示/审核账号**：`applereview` / `applereview`，写在 App Store Connect 的登录信息里，给审核员用；确保这个账号还有剩余免费 AI 解析额度（20 次总额），别被之前的测试用完了
+- **演示/审核账号**：`applereview` / `applereview`，写在 App Store Connect 的登录信息里，给审核员用；现在在 Railway 环境变量 `REVIEW_ACCOUNT_USERNAMES=applereview` 里白名单了，不受每日额度/月预算限制，不用再担心被用完；审核通过后可以清空这个变量
 
 
 
@@ -203,7 +203,7 @@ CocoaPods 走的是另一条路：`Podfile` 里 `pod 'Capacitor', :path => '../.
 - `GET /api/entitlement` — 前端查当前订阅状态
 - `POST /api/iap/sync`（登录用户调用，App 内购买成功后前端主动同步一次）——收到 `transaction_id`，调 Apple 的 `get_all_subscription_statuses` 查真实状态(先查 Production，404 就退回 Sandbox 查——沙盒测试交易在生产环境查不到，这是 Apple 官方推荐的处理方式)，用 `SignedDataVerifier` 验证签名(顺着证书链一路验到 Apple 根证书)，写入 `entitlements`
 - `POST /api/iap/notifications` — Apple 的 **App Store Server Notifications V2** webhook，订阅续费/取消/退款时 Apple 主动推给这个接口，不用等用户重新打开 App。没有登录认证，安全性靠验证 `signedPayload` 的签名
-- `resolve_ai_credentials()` 改了：判断顺序变成"自己的 key → iOS Pro 订阅(用站长 key，不限量) → 免费试用额度(10 次/站长月度预算) → 报错"；Pro 订阅走的站长 key 用量**不计入**免费试用的月度预算，两者是分开算的，不然 Pro 用户用多了会把新用户的免费试用额度挤占掉
+- `resolve_ai_credentials()` 改了：判断顺序变成"自己的 key → 审核白名单账号/iOS Pro 订阅(用站长 key，不限量) → 免费试用额度(每天 15 次/站长月度预算) → 报错"；Pro 订阅走的站长 key 用量**不计入**免费试用的月度预算，两者是分开算的，不然 Pro 用户用多了会把新用户的免费试用额度挤占掉
 
 ### 需要的环境变量
 
@@ -419,3 +419,18 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
 
 - 能做：生成/维护 Capacitor 配置和 `ios/` 工程骨架、写前端联调代码（API_BASE 等）、写后端新接口（Apple 登录回调、StoreKit 收据校验等）、靠 CI 验证工程编译能不能过、写好"方案 A"那一整套云端签名+上传 TestFlight 的自动化(`ios-release.yml`)
 - 不能做：任何需要人工点击图形界面的交互测试(登录弹窗、通知权限这些)——这些必须在真机/模拟器上肉眼操作，真机走 TestFlight(方案 A)，模拟器要租 Mac(方案 B)
+
+
+## 2026-10 第二轮拒审(version 1.0 build 28)与处理
+
+苹果提了三条，对应修改（PR #54/#55/#56）：
+
+1. **Guideline 4 - Sign in with Apple 按钮素材**：登录页原来是纯文字按钮。改成用苹果官方 "Sign in with Apple JS"(`appleid.cdn-apple.com`)渲染官方按钮；点击在捕获阶段被我们拦下，仍走 `startOAuthFlow("/api/auth/apple/login")`(原生壳必须开系统浏览器，不能让 App 自己的 WebView 跳走)。`/api/config` 返回 `apple_client_id` 仅用于渲染；脚本没加载/没配置时回退到原来的纯文字按钮。
+2. **Guideline 4 - iPad 布局拥挤**：苹果没给截图。用 Playwright 在 iPad 分辨率(820x1180 / 1180x820)实测，发现新手引导气泡在侧边栏布局下直接盖在文章标题上，已加背景遮罩 `#navTourBackdrop` 并夹紧位置。**其他面板(AI Provider 子页、AI Picks、测验、生词复习等)还没逐个实测**。
+3. **Guideline 3.1.1 - IAP**：判断真实原因是额度用完后提示"去设置填自己的 AI key"，等于引导用户绕开 IAP 直接付费给第三方。处理：额度改每天 15 次重置；iOS 请求带 `X-Platform: ios` 头，后端据此不再返回"填 key"提示；iOS 设置里整块隐藏 key/provider/中转站(`body.nativeNoBYOK .byokOnly`)；隐私政策/条款/支持页同步改了措辞。网页版不受影响。
+
+同时上线的"现在阅读"(推荐卡片按钮，原名"快速了解")：把单篇文章存成正式文档 + 正文下方异步生成 AI 摘要；BBC 系源只存文章、不生成摘要(其 robots.txt 明确禁止)；抓取前检查 robots.txt、`/api/fetch-url` 每天 20 次限流、阅读器顶部固定"原文来自 X · 查看原文"横条、保存前确认弹窗。
+
+**提审备注**要点(App Review Information)：测试账号 `applereview`；每天 15 次免费 AI、无任何应用内/外部付费入口；"现在阅读"是用户主动触发的"稍后阅读"功能(类似 Pocket)；Apple 登录用官方按钮；账号删除在 设置 > 账号管理；广告是 AdMob 测试占位。
+
+**还没做的预判风险**：App 隐私问卷需如实披露发给第三方 AI 的用户内容；App Store 描述/截图里不能出现 iOS 买不到的 Pro；AdMob 测试广告留在包里可能被当占位内容；Apple 按钮深色模式(现写死 black)；iPad 其余面板排查。
