@@ -2816,6 +2816,10 @@ body {
   color: var(--text);
 }
 
+body.nativeNoBYOK .byokOnly {
+  display: none !important;
+}
+
 #aiRelayBlock.hidden {
   display: none;
 }

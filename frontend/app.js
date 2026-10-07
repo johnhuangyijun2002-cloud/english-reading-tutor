@@ -3822,7 +3822,7 @@ async function loadSettingsIntoPanel() {
     const usedUpKey = isNativeApp() ? "settings.houseTrialUsedUpIos" : "settings.houseTrialUsedUp";
     houseTrialHint.textContent =
       left > 0
-        ? t("settings.houseTrialLeft", { left, total: data.house_calls_total })
+        ? t(isNativeApp() ? "settings.houseTrialLeftIos" : "settings.houseTrialLeft", { left, total: data.house_calls_total })
         : t(usedUpKey, { total: data.house_calls_total });
     houseTrialHint.classList.remove("hidden");
   } else {
@@ -4309,7 +4309,7 @@ if (isNativeApp() && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
 function showWelcomeModal(data) {
   welcomeBody.textContent = t("welcome.body");
   if (data.house_trial_enabled) {
-    welcomeHouseTrialLine.textContent = t("welcome.houseTrialLine", { count: data.house_calls_total });
+    welcomeHouseTrialLine.textContent = t(isNativeApp() ? "welcome.houseTrialLineIos" : "welcome.houseTrialLine", { count: data.house_calls_total });
     welcomeHouseTrialLine.classList.remove("hidden");
   } else {
     welcomeHouseTrialLine.classList.add("hidden");
@@ -4415,6 +4415,9 @@ btnLinkApple.addEventListener("click", async () => {
 
 (async () => {
   hideProEntryForNativeIfNoIAP();
+  // iOS 原生壳里整块隐藏"填自己的 AI key / 中转站"——这等于给用户一条绕开 IAP 直接付钱给第三方
+  // AI 服务商的通道，Apple 3.1.1 审核判定过违规；网页版不受约束，继续保留。
+  document.body.classList.toggle("nativeNoBYOK", isNativeApp());
   await loadI18n(currentUiLanguage);
   fixLegalLinksForNative();
   if (isNativeApp() && window.ContextiaAds) {

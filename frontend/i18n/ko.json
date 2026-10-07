@@ -224,7 +224,8 @@
     "categoryAI": "AI 제공업체",
     "categorySync": "동기화",
     "categoryAccount": "계정 정보",
-    "categoryDanger": "계정 관리"
+    "categoryDanger": "계정 관리",
+    "houseTrialLeftIos": "매일 무료 AI 횟수가 있어요 — 오늘 {left}/{total}회 남음, 매일 초기화돼요"
   },
   "welcome": {
     "title": "환영해요 — 계정이 준비됐어요",
@@ -239,7 +240,8 @@
     "feature3Desc": "학습 언어에 맞춰 뉴스 소스를 자동으로 매칭해서 수준에 맞는 글을 골라줘요",
     "feature4Title": "단어장",
     "feature4Desc": "저장한 단어와 노트를 한곳에서 검색해요",
-    "gotIt": "시작하기"
+    "gotIt": "시작하기",
+    "houseTrialLineIos": "매일 무료 AI {count}회를 바로 사용할 수 있어요."
   },
   "languagePicker": {
     "hint": "설정에서 언제든지 바꿀 수 있어요"
