@@ -1593,9 +1593,27 @@ body {
 }
 
 .navItem.navTour-highlight {
+  position: relative;
+  z-index: 291; /* 盖过下面的 #navTourBackdrop，高亮的这个按钮本身不会被压暗 */
   box-shadow: 0 0 0 3px var(--accent-tint), 0 0 0 6px rgba(0, 113, 227, 0.15);
   border-radius: var(--radius-md);
   animation: navTourPulse 1.6s ease-in-out infinite;
+}
+
+/* 新手引导气泡原来直接悬浮在正文上面，没有任何遮罩，在侧边栏窄的屏幕(典型是 iPad 横屏)上
+   气泡会整个盖在文章标题上，文字透过毛玻璃半透明背景隐约看得见、读不清楚，看起来像是
+   布局错位而不是刻意的引导效果——加一层背景遮罩，把正文整体压暗，气泡和被高亮的按钮才是
+   唯一"浮在上面"的内容，不会再有正文字透出来跟气泡打架的问题。*/
+#navTourBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 290;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none; /* 纯视觉压暗，不改变原来"引导期间背后内容仍可点"的行为 */
+}
+
+#navTourBackdrop.hidden {
+  display: none;
 }
 
 @keyframes navTourPulse {
@@ -3062,6 +3080,21 @@ body {
 .loginGoogleBtn,
 .loginAppleBtn {
   width: 100%;
+}
+
+/* 苹果官方 Sign in with Apple JS 渲染出来的按钮是定宽的(JS 运行时按容器宽度动态设置
+   data-width)，不是百分比，这里把容器居中，实际按钮本身的宽度由 app.js 里量好了再填。*/
+.appleIDButton {
+  display: flex;
+  justify-content: center;
+}
+
+.appleIDButton.hidden {
+  display: none;
+}
+
+#btnAppleLogin.hidden {
+  display: none;
 }
 
 /* ---------- 打印(文章 + 生词表 + 句子笔记) ---------- */

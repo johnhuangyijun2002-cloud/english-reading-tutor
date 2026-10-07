@@ -529,6 +529,10 @@ async function apiFetch(url, opts = {}) {
     });
   }
   const headers = { ...(opts.headers || {}), Authorization: `Bearer ${authToken}` };
+  // 原生壳打上这个标记，后端免费额度用完时才知道要不要提"去填自己的 AI key"——iOS 上
+  // 这么提会被苹果判定成"引导用户绕开 IAP 付费"(Apple 审核实测踩过)，网页版不受这条
+  // 审核规则约束，继续可以提。
+  if (isNativeApp()) headers["X-Platform"] = "ios";
   // GET 请求默认可能被浏览器按 URL 缓存，Authorization header 不同也可能命中旧缓存，
   // 导致登出/换账号后读到别人或者已登出状态下的数据 —— 强制不缓存。
   return fetch(API_BASE + url, { ...opts, headers, cache: "no-store" }).then((res) => {
@@ -811,6 +815,7 @@ const loginError = document.getElementById("loginError");
 const btnLoginSubmit = document.getElementById("btnLoginSubmit");
 const btnRegisterSubmit = document.getElementById("btnRegisterSubmit");
 const btnGoogleLogin = document.getElementById("btnGoogleLogin");
+const appleSigninButton = document.getElementById("appleid-signin");
 
 const loginFormView = document.getElementById("loginFormView");
 const forgotPasswordView = document.getElementById("forgotPasswordView");
@@ -911,6 +916,64 @@ function initTurnstile(retries = 25) {
   } else if (retries > 0) {
     setTimeout(() => initTurnstile(retries - 1), 200);
   }
+}
+
+// ---------- 官方 Sign in with Apple 按钮(视觉用苹果自己的 JS 渲染，点击行为还是走我们原来
+// 这套——系统浏览器打开 /api/auth/apple/login，原生壳/网页版都不用改) ----------
+// 苹果审核(Guideline 4)要求这个按钮必须是从"Apple Design Resources"下载的官方样式，不能
+// 自己画一个长得像的——用 Sign in with Apple JS 让苹果自己的脚本去画这个按钮，就不存在
+// "素材来源不对"的问题；但它渲染出来是一段内嵌 SVG/点击事件，不是真的 <a> 链接，点击后
+// 会自己拿 init() 时填的 clientId/redirectURI 直接跳转苹果的登录页——这跟原生壳需要先打开
+// 系统浏览器(而不是直接导航App自己的WebView)的现有逻辑冲突，所以提前在"捕获阶段"把点击
+// 拦下来(写在苹果脚本加载/init 之前，确保我们的监听器比它自己挂的监听器先触发)，改成调用
+// 我们自己原来那套 startOAuthFlow，苹果的脚本就只负责画出这个官方样式的按钮本身。
+let appleSigninListenerAttached = false;
+let appleSigninInitTried = false;
+
+function setupAppleSignInButton(retries = 25) {
+  if (!appleSigninButton) return;
+
+  // 点击劫持监听器只挂一次就够了，不用等苹果脚本加载完——挂上之后不管脚本什么时候
+  // init()，我们的监听器(捕获阶段)永远比它自己挂的监听器先触发。
+  if (!appleSigninListenerAttached) {
+    appleSigninListenerAttached = true;
+    appleSigninButton.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        startOAuthFlow("/api/auth/apple/login");
+      },
+      { capture: true },
+    );
+  }
+
+  if (appleSigninInitTried) return;
+
+  if (!window.AppleID) {
+    if (retries > 0) setTimeout(() => setupAppleSignInButton(retries - 1), 200);
+    return;
+  }
+  appleSigninInitTried = true;
+
+  fetch(API_BASE + "/api/config", { cache: "no-store" })
+    .then((r) => r.json())
+    .then((cfg) => {
+      if (!cfg.apple_client_id) return; // 这套部署没配置 Apple 登录，保留纯文字按钮兜底
+      const width = Math.max(130, Math.min(375, Math.round(appleSigninButton.parentElement.clientWidth) || 280));
+      appleSigninButton.dataset.width = String(width);
+      AppleID.auth.init({
+        clientId: cfg.apple_client_id,
+        scope: "name email",
+        redirectURI: API_BASE + "/api/auth/apple/callback",
+        state: "decorative", // 点击行为被上面的捕获监听器拦截了，这个值实际不会被苹果用到
+        usePopup: false,
+      });
+      appleSigninButton.classList.remove("hidden");
+      btnAppleLogin.classList.add("hidden");
+    })
+    .catch(() => {}); // 拿配置失败就什么都不做，继续用纯文字按钮兜底，登录功能不受影响
 }
 
 function resetTurnstile() {
@@ -3754,10 +3817,13 @@ async function loadSettingsIntoPanel() {
 
   if (data.house_trial_enabled) {
     const left = Math.max(0, data.house_calls_total - data.house_calls_used);
+    // iOS 原生壳上不能出现"去填自己的 key"这种措辞(等于引导用户绕开 IAP 直接付钱给第三方
+    // AI 服务商，Apple 审核 3.1.1 实测判定过违规)，用完额度就只提示明天重置，不提兜底方案。
+    const usedUpKey = isNativeApp() ? "settings.houseTrialUsedUpIos" : "settings.houseTrialUsedUp";
     houseTrialHint.textContent =
       left > 0
         ? t("settings.houseTrialLeft", { left, total: data.house_calls_total })
-        : t("settings.houseTrialUsedUp", { total: data.house_calls_total });
+        : t(usedUpKey, { total: data.house_calls_total });
     houseTrialHint.classList.remove("hidden");
   } else {
     houseTrialHint.classList.add("hidden");
@@ -4092,6 +4158,7 @@ const NAV_TOUR_STEPS = [
   { target: "btnNavMore", textKey: "navTour.more" },
 ];
 let navTourIndex = 0;
+const navTourBackdrop = document.getElementById("navTourBackdrop");
 const navTourTooltip = document.getElementById("navTourTooltip");
 const navTourText = document.getElementById("navTourText");
 const navTourStepLabel = document.getElementById("navTourStep");
@@ -4115,7 +4182,9 @@ function positionNavTour(targetEl) {
   } else {
     const top = Math.max(12, Math.min(rect.top + rect.height / 2 - 40, window.innerHeight - 140));
     navTourTooltip.style.top = `${top}px`;
-    navTourTooltip.style.left = `${rect.right + 12}px`;
+    // 侧边栏窄的屏幕上 rect.right + 12 可能已经超出视口了，夹一下不让气泡被截断/跑出屏幕外
+    const left = Math.min(rect.right + 12, window.innerWidth - 260 - 12);
+    navTourTooltip.style.left = `${left}px`;
   }
 }
 
@@ -4133,11 +4202,13 @@ function showNavTourStep(i) {
   navTourStepLabel.textContent = `${i + 1} / ${NAV_TOUR_STEPS.length}`;
   navTourNext.textContent = i === NAV_TOUR_STEPS.length - 1 ? t("navTour.done") : t("navTour.next");
   positionNavTour(targetEl);
+  navTourBackdrop.classList.remove("hidden");
   navTourTooltip.classList.remove("hidden");
 }
 
 function finishNavTour() {
   clearNavTourHighlight();
+  navTourBackdrop.classList.add("hidden");
   navTourTooltip.classList.add("hidden");
   localStorage.setItem(NAV_TOUR_SEEN_KEY, "1");
 }
@@ -4389,6 +4460,7 @@ btnLinkApple.addEventListener("click", async () => {
     loginOverlay.classList.remove("hidden");
     loginUsernameInput.focus();
     initTurnstile();
+    setupAppleSignInButton();
   }
 
   // 匿名访问、还没登录过的情况下，第一次打开才弹语言选择；选过一次之后
