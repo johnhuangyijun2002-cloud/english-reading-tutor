@@ -434,3 +434,10 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
 **提审备注**要点(App Review Information)：测试账号 `applereview`；每天 15 次免费 AI、无任何应用内/外部付费入口；"现在阅读"是用户主动触发的"稍后阅读"功能(类似 Pocket)；Apple 登录用官方按钮；账号删除在 设置 > 账号管理；广告是 AdMob 测试占位。
 
 **还没做的预判风险**：App 隐私问卷需如实披露发给第三方 AI 的用户内容；App Store 描述/截图里不能出现 iOS 买不到的 Pro；AdMob 测试广告留在包里可能被当占位内容；Apple 按钮深色模式(现写死 black)；iPad 其余面板排查。
+
+**2026-10-08 更新：广告已关闭**——`frontend/ads.js` 的 `ADS_ENABLED = false`：不弹 ATT、不初始化 AdMob、不展示任何横幅，privacy.html 的广告一节改成"当前版本不展示广告、不请求追踪授权"。AdMob 插件/Podfile/Info.plist(`GADApplicationIdentifier`、`NSUserTrackingUsageDescription`)仍保留(SDK 没被调用)，重新开启只需改回开关。**你需要同步做的**：App Store Connect 的 App 隐私问卷里撤掉"用于广告/追踪"的申报(申报追踪却不弹 ATT 会被拒)；这一版的审核备注里不要再写"AdMob test ad"那句。
+
+**2026-10-08 其他改动**：
+- Apple 登录按钮：深色模式自动换白色按钮；按钮文字语言通过加载对应语言的官方脚本(`.../appleid/1/ko_KR/appleid.auth.js`)实现——`data-locale` 属性实测会让按钮画不出来，不要用。
+- iPad 全面板排查(820x1180 / 1180x820，Playwright)：只发现阅读设置(Aa)弹层半透明导致底下文字透出，已改成不透明背景；其他面板未见拥挤。
+- 三语本地化审校：韩语统一成해요체、"사용자 이름"→"아이디"等；去掉了欢迎页/AI 授权弹窗里"去填自己的 key"的措辞、登录页"首个注册账号成为主账号"的内部说明、推荐面板"我们不会抓取全文"这句已过时的说明；登录页/订阅页的条款句子加了 `legalSuffix`/`iapAgreeSuffix`(韩语语序需要)；文章管理日期按界面语言格式化；韩语开启 `word-break: keep-all`；后端 AI 额度相关报错按 `ui_language` 返回中/英/韩。其余后端报错仍是英文。

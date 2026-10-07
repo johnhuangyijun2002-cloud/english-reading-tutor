@@ -16,7 +16,10 @@
 //   3. mobile/ios/App/App/Info.plist 里的 SKAdNetworkItems 换成 Google 文档当前的完整列表
 //      (现在只放了 Google 自己那一条，够测试用，不够生产用)
 
-const ADS_ENABLED = true;
+// 2026-10 第二轮拒审后关闭广告：测试广告留在包里可能被当占位内容(2.1)，而且关掉后不再弹 ATT、
+// 不初始化 AdMob SDK、不向 Google 发请求。想重新打开：把 ADS_ENABLED 改回 true，并把 privacy.html 的
+// "Advertising (iOS)" 一节和 App 隐私问卷的"追踪/广告"申报同步改回去。
+const ADS_ENABLED = false;
 const USE_TEST_ADS = true;
 
 // Google 官方文档公开的测试专用广告位 ID，任何开发者都能直接用，iOS 和 Android 是两套不同的

@@ -259,9 +259,9 @@ body {
   top: calc(100% + 8px);
   right: 0;
   width: 260px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  /* 不透明背景：这个弹层盖在正文/右侧历史栏上面，半透明毛玻璃会让底下的文字透出来跟
+     设置项叠在一起(iPad 横屏实测)，读不清楚。 */
+  background: var(--surface);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--glass-border);
@@ -2024,6 +2024,12 @@ body {
 .readerQuickSummaryLabel {
   font-weight: 600;
   color: var(--accent);
+}
+
+/* 韩语按词(어절)换行，不然浏览器会把一个词从中间断开("주세/요.")，读起来很别扭 */
+html:lang(ko) body {
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 #viewerContent {
