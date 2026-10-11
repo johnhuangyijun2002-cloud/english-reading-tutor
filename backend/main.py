@@ -131,11 +131,11 @@ TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 # 完全不影响"必须自己填 key"这个原有行为。
 HOUSE_AI_PROVIDER = os.environ.get("HOUSE_AI_PROVIDER", "deepseek")
 HOUSE_AI_API_KEY = os.environ.get("HOUSE_AI_API_KEY", "")
-HOUSE_FREE_CALLS_PER_DAY = 15
+HOUSE_FREE_CALLS_PER_DAY = 30
 HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "30"))
 
 
-# 给 App Review 审核员用的专用测试账号：审核员会连点各种 AI 功能，每天 15 次很容易用完，
+# 给 App Review 审核员用的专用测试账号：审核员会连点各种 AI 功能，每天 30 次也可能用完，
 # 被判"功能不工作"。名单里的用户名走站长 key，不受每日额度/月度预算限制，也不计入体验用量。
 # 靠环境变量配置(逗号分隔的用户名)，不写死在代码里，审核结束后清空这个变量就恢复正常。
 REVIEW_ACCOUNT_USERNAMES = {
@@ -2490,10 +2490,21 @@ async def record_api_call(user_id: str, provider: str = "", input_tokens: int = 
 async def get_usage(user: dict = Depends(get_current_user)):
     month_key = datetime.now().strftime("%Y-%m")
     month_usage = await db_get_usage(user["id"], month_key)
+    # 顶栏要显示"今天还剩几次"——只有真正在用每日免费额度的账号才有这个概念：自己填了 key 的、
+    # 审核白名单账号、Pro 订阅都不受每日次数限制，daily_limit 返回 None，前端退回显示本月次数。
+    provider = user.get("ai_provider", "deepseek")
+    on_daily_quota = (
+        bool(HOUSE_AI_API_KEY)
+        and not user.get("ai_api_keys", {}).get(provider, "")
+        and not _is_review_account(user)
+        and not await db_has_active_entitlement(user["id"])
+    )
     return {
         "month": month_key,
         "count": month_usage.get("calls", 0),
         "cost_usd": round(month_usage.get("cost_usd", 0.0), 4),
+        "daily_limit": HOUSE_FREE_CALLS_PER_DAY if on_daily_quota else None,
+        "daily_used": _house_calls_used_today(user) if on_daily_quota else None,
     }
 
 

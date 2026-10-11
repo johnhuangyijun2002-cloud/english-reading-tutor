@@ -320,7 +320,9 @@
   "usage": {
     "cost": "~{cost} spent this month",
     "count": "{count} AI calls this month",
-    "costDetail": "Estimated from each provider's public pricing — not a real bill, for reference only."
+    "costDetail": "Estimated from each provider's public pricing — not a real bill, for reference only.",
+    "todayLeft": "{left}/{total} free AI calls left today",
+    "todayLeftHint": "Free AI calls reset every day"
   },
   "toolbar": {
     "saveWord": "Save word",
