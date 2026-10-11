@@ -13,7 +13,8 @@
     "pronounce": "발음 듣기",
     "off": "끄기",
     "on": "켜기",
-    "skip": "건너뛰기"
+    "skip": "건너뛰기",
+    "savedToFiles": "{name}(으)로 저장했어요. 파일 앱 › 나의 iPhone/iPad › Contextia에서 확인할 수 있어요"
   },
   "topbar": {
     "addArticle": "글 추가",

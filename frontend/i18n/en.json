@@ -13,7 +13,8 @@
     "pronounce": "Pronounce",
     "off": "Off",
     "on": "On",
-    "skip": "Skip"
+    "skip": "Skip",
+    "savedToFiles": "Saved as {name} — find it in the Files app under On My iPhone/iPad › Contextia"
   },
   "topbar": {
     "addArticle": "Add Article",

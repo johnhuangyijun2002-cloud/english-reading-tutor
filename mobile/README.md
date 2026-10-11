@@ -443,3 +443,18 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
 - 三语本地化审校：韩语统一成해요체、"사용자 이름"→"아이디"等；去掉了欢迎页/AI 授权弹窗里"去填自己的 key"的措辞、登录页"首个注册账号成为主账号"的内部说明、推荐面板"我们不会抓取全文"这句已过时的说明；登录页/订阅页的条款句子加了 `legalSuffix`/`iapAgreeSuffix`(韩语语序需要)；文章管理日期按界面语言格式化；韩语开启 `word-break: keep-all`；后端 AI 额度相关报错按 `ui_language` 返回中/英/韩。其余后端报错仍是英文。
 
 **2026-10-11 更新：AdMob SDK 已彻底移除**——删除了 `@capacitor-community/admob` 依赖(package.json / package-lock.json)、Podfile 里的 pod、Info.plist 的 `GADApplicationIdentifier` / `NSUserTrackingUsageDescription` / `SKAdNetworkItems`、AndroidManifest 的 AdMob `APPLICATION_ID`、Android 的插件引用，以及 `frontend/ads.js` 和 `#adBannerSlot`。原因：只关开关时 SDK 仍在包里，它自带的隐私清单会声明追踪，和 App 隐私问卷"不追踪"对不上。上面"广告变现"一节描述的是移除前的状态，以后真要接广告需要重新安装插件、恢复这些配置，并同步改隐私政策和问卷。
+
+
+## 版权方下架处理(2026-10-11)
+
+使用条款里写了：权利人可以发邮件要求某个来源不再出现在这些功能里，我们会停止抓取并删除通过这些功能保存的副本，通常几天内处理完。收到邮件后按顺序做：
+
+1. **停止抓取**：Railway 环境变量 `BLOCKED_SOURCE_DOMAINS` 加上对方域名(逗号分隔，比如 `example.com`，子域名自动包含)，保存后会重新部署。生效后该来源不再出现在 AI 推荐/母语新闻，网址导入和"现在阅读"都会拒绝抓取，也不会生成 AI 摘要。
+2. **如果是固定 RSS 源**：同时从 `backend/main.py` 的 `LANGUAGE_SOURCES` 里删掉那个源(屏蔽名单已经能挡住，这一步是为了不再白白去请求它)。
+3. **删除已保存的副本**(Supabase SQL 编辑器里执行，先跑 SELECT 确认数量)：
+   ```sql
+   SELECT count(*) FROM documents WHERE source_url ILIKE '%://example.com/%' OR source_url ILIKE '%.example.com/%';
+   DELETE FROM documents WHERE source_url ILIKE '%://example.com/%' OR source_url ILIKE '%.example.com/%';
+   ```
+   这只删文章正文；用户从这些文章里存的生词/句子笔记是用户自己的学习记录，保留。
+4. **回复对方**：说明已完成的处理和日期。
