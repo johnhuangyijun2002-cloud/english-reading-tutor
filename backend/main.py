@@ -131,11 +131,11 @@ TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 # 完全不影响"必须自己填 key"这个原有行为。
 HOUSE_AI_PROVIDER = os.environ.get("HOUSE_AI_PROVIDER", "deepseek")
 HOUSE_AI_API_KEY = os.environ.get("HOUSE_AI_API_KEY", "")
-HOUSE_FREE_CALLS_PER_DAY = 15
+HOUSE_FREE_CALLS_PER_DAY = 30
 HOUSE_MONTHLY_BUDGET_USD = float(os.environ.get("HOUSE_MONTHLY_BUDGET_USD", "30"))
 
 
-# 给 App Review 审核员用的专用测试账号：审核员会连点各种 AI 功能，每天 15 次很容易用完，
+# 给 App Review 审核员用的专用测试账号：审核员会连点各种 AI 功能，每天 30 次也可能用完，
 # 被判"功能不工作"。名单里的用户名走站长 key，不受每日额度/月度预算限制，也不计入体验用量。
 # 靠环境变量配置(逗号分隔的用户名)，不写死在代码里，审核结束后清空这个变量就恢复正常。
 REVIEW_ACCOUNT_USERNAMES = {

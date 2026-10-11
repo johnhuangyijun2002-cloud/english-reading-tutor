@@ -94,7 +94,7 @@ run #16 → run #17 → 现在要提交的是 **run #18 之后**的 build，前�
 - **AI Picks / 母语新闻经常 "Load failed"**（PR #35）：`feedparser.parse(url)` 自己发请求不带超时，一个 RSS 源卡住整个请求就没有时间上限；而且英语 7 个源是顺序抓的，不是并发。改成用 `httpx` 带 8 秒超时抓内容再交给 feedparser 解析，并且所有源改成 `asyncio.gather` 并发抓取
 - **ATT 授权弹窗冷启动经常不出现**（PR #36）：`ContextiaAds.init()` 只检查一次 `window.Capacitor.Plugins.AdMob` 存不存在，App 真冷启动时原生桥可能还没就绪，查不到就直接放弃，退出登录触发 `location.reload()` 之后原生桥已经热了才第一次真正弹出来。改成轮询等待最多 3 秒
 - **设置面板太长、底部"注销账号"贴边**（PR #37）：调整了 padding 和 danger zone 的 margin-top
-- **免费试用额度**：PR #30 曾从 10 次提到 20 次(一次性总额)；2026-10 第二轮拒审后改成**每人每天 15 次、每天重置**(`HOUSE_FREE_CALLS_PER_DAY`，用 `house_calls_today`/`house_calls_date` 两个字段实现，老的 `house_calls_used` 不再读写)，月预算 `HOUSE_MONTHLY_BUDGET_USD` 提到 30
+- **免费试用额度**：PR #30 曾从 10 次提到 20 次(一次性总额)；2026-10 第二轮拒审后改成**每人每天 15 次、每天重置**(2026-10-11 再调到 30 次)(`HOUSE_FREE_CALLS_PER_DAY`，用 `house_calls_today`/`house_calls_date` 两个字段实现，老的 `house_calls_used` 不再读写)，月预算 `HOUSE_MONTHLY_BUDGET_USD` 提到 30
 
 ### 广告 / AdMob 当前状态
 
@@ -203,7 +203,7 @@ CocoaPods 走的是另一条路：`Podfile` 里 `pod 'Capacitor', :path => '../.
 - `GET /api/entitlement` — 前端查当前订阅状态
 - `POST /api/iap/sync`（登录用户调用，App 内购买成功后前端主动同步一次）——收到 `transaction_id`，调 Apple 的 `get_all_subscription_statuses` 查真实状态(先查 Production，404 就退回 Sandbox 查——沙盒测试交易在生产环境查不到，这是 Apple 官方推荐的处理方式)，用 `SignedDataVerifier` 验证签名(顺着证书链一路验到 Apple 根证书)，写入 `entitlements`
 - `POST /api/iap/notifications` — Apple 的 **App Store Server Notifications V2** webhook，订阅续费/取消/退款时 Apple 主动推给这个接口，不用等用户重新打开 App。没有登录认证，安全性靠验证 `signedPayload` 的签名
-- `resolve_ai_credentials()` 改了：判断顺序变成"自己的 key → 审核白名单账号/iOS Pro 订阅(用站长 key，不限量) → 免费试用额度(每天 15 次/站长月度预算) → 报错"；Pro 订阅走的站长 key 用量**不计入**免费试用的月度预算，两者是分开算的，不然 Pro 用户用多了会把新用户的免费试用额度挤占掉
+- `resolve_ai_credentials()` 改了：判断顺序变成"自己的 key → 审核白名单账号/iOS Pro 订阅(用站长 key，不限量) → 免费试用额度(每天 30 次/站长月度预算) → 报错"；Pro 订阅走的站长 key 用量**不计入**免费试用的月度预算，两者是分开算的，不然 Pro 用户用多了会把新用户的免费试用额度挤占掉
 
 ### 需要的环境变量
 
@@ -431,7 +431,7 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
 
 同时上线的"现在阅读"(推荐卡片按钮，原名"快速了解")：把单篇文章存成正式文档 + 正文下方异步生成 AI 摘要；BBC 系源只存文章、不生成摘要(其 robots.txt 明确禁止)；抓取前检查 robots.txt、`/api/fetch-url` 每天 20 次限流、阅读器顶部固定"原文来自 X · 查看原文"横条、保存前确认弹窗。
 
-**提审备注**要点(App Review Information)：测试账号 `applereview`；每天 15 次免费 AI、无任何应用内/外部付费入口；"现在阅读"是用户主动触发的"稍后阅读"功能(类似 Pocket)；Apple 登录用官方按钮；账号删除在 设置 > 账号管理；广告是 AdMob 测试占位。
+**提审备注**要点(App Review Information)：测试账号 `applereview`；每天 30 次免费 AI、无任何应用内/外部付费入口；"现在阅读"是用户主动触发的"稍后阅读"功能(类似 Pocket)；Apple 登录用官方按钮；账号删除在 设置 > 账号管理；广告是 AdMob 测试占位。
 
 **还没做的预判风险**：App 隐私问卷需如实披露发给第三方 AI 的用户内容；App Store 描述/截图里不能出现 iOS 买不到的 Pro；AdMob 测试广告留在包里可能被当占位内容；Apple 按钮深色模式(现写死 black)；iPad 其余面板排查。
 
