@@ -320,7 +320,9 @@
   "usage": {
     "cost": "本月约花费 {cost}",
     "count": "本月已调用 {count} 次",
-    "costDetail": "花销是按各服务商公开定价估算的，不是真实账单，仅供参考"
+    "costDetail": "花销是按各服务商公开定价估算的，不是真实账单，仅供参考",
+    "todayLeft": "今天还剩 {left}/{total} 次免费 AI",
+    "todayLeftHint": "免费 AI 次数每天重置"
   },
   "toolbar": {
     "saveWord": "记录生词",

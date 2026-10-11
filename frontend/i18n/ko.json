@@ -320,7 +320,9 @@
   "usage": {
     "cost": "이번 달 약 {cost} 사용",
     "count": "이번 달 {count}회 사용",
-    "costDetail": "각 서비스의 공개 요금으로 추정한 금액이에요. 실제 청구 금액이 아니니 참고만 해 주세요."
+    "costDetail": "각 서비스의 공개 요금으로 추정한 금액이에요. 실제 청구 금액이 아니니 참고만 해 주세요.",
+    "todayLeft": "오늘 무료 AI {left}/{total}회 남음",
+    "todayLeftHint": "무료 AI 횟수는 매일 초기화돼요"
   },
   "toolbar": {
     "saveWord": "단어 저장",

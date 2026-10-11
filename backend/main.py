@@ -2490,10 +2490,21 @@ async def record_api_call(user_id: str, provider: str = "", input_tokens: int = 
 async def get_usage(user: dict = Depends(get_current_user)):
     month_key = datetime.now().strftime("%Y-%m")
     month_usage = await db_get_usage(user["id"], month_key)
+    # 顶栏要显示"今天还剩几次"——只有真正在用每日免费额度的账号才有这个概念：自己填了 key 的、
+    # 审核白名单账号、Pro 订阅都不受每日次数限制，daily_limit 返回 None，前端退回显示本月次数。
+    provider = user.get("ai_provider", "deepseek")
+    on_daily_quota = (
+        bool(HOUSE_AI_API_KEY)
+        and not user.get("ai_api_keys", {}).get(provider, "")
+        and not _is_review_account(user)
+        and not await db_has_active_entitlement(user["id"])
+    )
     return {
         "month": month_key,
         "count": month_usage.get("calls", 0),
         "cost_usd": round(month_usage.get("cost_usd", 0.0), 4),
+        "daily_limit": HOUSE_FREE_CALLS_PER_DAY if on_daily_quota else None,
+        "daily_used": _house_calls_used_today(user) if on_daily_quota else None,
     }
 
 

@@ -569,6 +569,8 @@ async function apiFetch(url, opts = {}) {
       localStorage.removeItem("authToken");
       location.reload();
     }
+    // 任何一次 AI 调用之后都刷新顶栏的剩余次数(划词、测验、沉浸、推荐、摘要都会扣额度)
+    if (res.ok && AI_CONSENT_PATHS.some((p) => url.startsWith(p))) setTimeout(loadUsage, 0);
     return res;
   });
 }
@@ -1398,6 +1400,14 @@ async function loadUsage() {
   try {
     const res = await apiFetch("/api/usage");
     const data = await res.json();
+    // 用每日免费额度的账号显示"今天还剩 x/15 次"——额度是按天算的，显示本月次数会让人搞不清
+    // 今天还能用多少；自己填 key / 不限次数的账号(daily_limit 为 null)才显示本月用量。
+    if (data.daily_limit) {
+      const left = Math.max(0, data.daily_limit - (data.daily_used || 0));
+      usageBadge.textContent = t("usage.todayLeft", { left, total: data.daily_limit });
+      usageBadge.title = t("usage.todayLeftHint");
+      return;
+    }
     const cost = data.cost_usd || 0;
     const costText = cost > 0 && cost < 0.001 ? "<$0.001" : `$${cost.toFixed(3)}`;
     // 原生壳里不显示美元花费——iOS 用户用的是免费额度，看到"本月花费 $0.003"容易误以为在付费，
