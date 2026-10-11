@@ -441,3 +441,5 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
 - Apple 登录按钮：深色模式自动换白色按钮；按钮文字语言通过加载对应语言的官方脚本(`.../appleid/1/ko_KR/appleid.auth.js`)实现——`data-locale` 属性实测会让按钮画不出来，不要用。
 - iPad 全面板排查(820x1180 / 1180x820，Playwright)：只发现阅读设置(Aa)弹层半透明导致底下文字透出，已改成不透明背景；其他面板未见拥挤。
 - 三语本地化审校：韩语统一成해요체、"사용자 이름"→"아이디"等；去掉了欢迎页/AI 授权弹窗里"去填自己的 key"的措辞、登录页"首个注册账号成为主账号"的内部说明、推荐面板"我们不会抓取全文"这句已过时的说明；登录页/订阅页的条款句子加了 `legalSuffix`/`iapAgreeSuffix`(韩语语序需要)；文章管理日期按界面语言格式化；韩语开启 `word-break: keep-all`；后端 AI 额度相关报错按 `ui_language` 返回中/英/韩。其余后端报错仍是英文。
+
+**2026-10-11 更新：AdMob SDK 已彻底移除**——删除了 `@capacitor-community/admob` 依赖(package.json / package-lock.json)、Podfile 里的 pod、Info.plist 的 `GADApplicationIdentifier` / `NSUserTrackingUsageDescription` / `SKAdNetworkItems`、AndroidManifest 的 AdMob `APPLICATION_ID`、Android 的插件引用，以及 `frontend/ads.js` 和 `#adBannerSlot`。原因：只关开关时 SDK 仍在包里，它自带的隐私清单会声明追踪，和 App 隐私问卷"不追踪"对不上。上面"广告变现"一节描述的是移除前的状态，以后真要接广告需要重新安装插件、恢复这些配置，并同步改隐私政策和问卷。
