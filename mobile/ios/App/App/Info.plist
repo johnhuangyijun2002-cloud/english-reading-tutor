@@ -56,21 +56,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<!-- 广告(AdMob)相关配置——App ID 是用户真实注册的 AdMob 账号下的 App ID(不涉及金钱)，
-	     但实际请求的广告位仍然是 Google 官方测试广告位(见 frontend/ads.js 的 USE_TEST_ADS)，
-	     不会有真实广告展示，也不会产生真实收入。真正上线前还要把下面的 SKAdNetworkItems 换成
-	     Google 官方文档当前的完整列表(这里先只放 Google 自己那一条，够测试用；完整列表要去
-	     https://developers.google.com/admob/ios/quick-start 现查，会随时间变化，不能抄旧的)。 -->
-	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-7356124481466705~7289853108</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>This identifier will be used to show you more relevant ads. You can decline without affecting any other feature of the app.</string>
-	<key>SKAdNetworkItems</key>
-	<array>
-		<dict>
-			<key>SKAdNetworkIdentifier</key>
-			<string>cstr6suwn9.skadnetwork</string>
-		</dict>
-	</array>
 </dict>
 </plist>
