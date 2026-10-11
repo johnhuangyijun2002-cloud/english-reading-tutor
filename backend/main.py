@@ -2770,7 +2770,7 @@ def build_word_prompt(word: str, context: str, learning_language: str, explain_l
         f"单词/词语：{word}\n"
         f"该词所在的例句：{context or '（无）'}\n\n"
         f"请结合例句的语境，以 JSON 格式返回，包含以下字段，不要输出任何多余文字：\n"
-        f'{{"chinese_meaning": "这个词在该语境下的准确释义，用{explain_label}表达，简洁，不超过15个字", '
+        f'{{"meaning": "这个词在该语境下的准确释义，必须用{explain_label}书写(不要用中文，除非{explain_label}就是中文)，简洁，不超过15个字/词", '
         f'"ipa": "这个词的注音标记(比如{learn_label}有对应的音标/拼音/罗马音等系统就给出，不带斜杠符号；如果这门语言没有这类概念就留空字符串)", '
         f'"pos": "词性缩写，如 n. / v. / adj. / adv. / prep. 等；如果这门语言没有对应概念就留空字符串", '
         f'"lemma": "这个词的词典基本形式/原形(比如所选是动词过去式就给动词原形，所选是名词复数就给单数形式；如果所选本身已经是基本形式，就原样返回这个词本身；用原语言书写，不要翻译；如果{learn_label}没有"基本形式"这种概念，就返回这个词本身)", '
@@ -2821,7 +2821,9 @@ async def analyze_selection(request: Request, req: AnalyzeRequest, user: dict = 
             parsed = {}
         return AnalyzeResponse(
             mode="word",
-            chinese_meaning=parsed.get("chinese_meaning", ""),
+            # prompt 里用中性的 "meaning" 字段名——叫 "chinese_meaning" 时模型会被字段名带偏，
+            # 讲解语言是英文/韩文也经常返回中文释义；对外接口和数据库字段名保持不变。
+            chinese_meaning=parsed.get("meaning") or parsed.get("chinese_meaning", ""),
             ipa=parsed.get("ipa", ""),
             pos=parsed.get("pos", ""),
             lemma=parsed.get("lemma", ""),
