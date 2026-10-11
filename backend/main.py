@@ -3280,13 +3280,29 @@ EXCERPT_CHAR_LIMIT = 500
 NO_AI_SUMMARY_DOMAINS = ("bbc.co.uk", "bbc.com", "bbci.co.uk")
 
 
-def _is_ai_summary_blocked(url: str) -> bool:
+# 权利人要求下架时用的屏蔽名单(逗号分隔的域名，比如 "example.com,news.example.org")：
+# 名单里的域名不再出现在推荐/母语新闻里，也不能通过网址导入或"现在阅读"抓取。配在 Railway
+# 环境变量里，改完重新部署即生效，不用改代码。已经存进用户账号的副本按 mobile/README.md
+# "版权方下架处理"一节的 SQL 删除。
+BLOCKED_SOURCE_DOMAINS = tuple(
+    d.strip().lower() for d in os.environ.get("BLOCKED_SOURCE_DOMAINS", "").split(",") if d.strip()
+)
+
+
+def _host_matches(url: str, domains) -> bool:
     try:
-        host = urlparse(url).hostname or ""
+        host = (urlparse(url).hostname or "").lower()
     except Exception:
         return False
-    host = host.lower()
-    return any(host == d or host.endswith("." + d) for d in NO_AI_SUMMARY_DOMAINS)
+    return any(host == d or host.endswith("." + d) for d in domains)
+
+
+def _is_source_blocked(url: str) -> bool:
+    return _host_matches(url, BLOCKED_SOURCE_DOMAINS)
+
+
+def _is_ai_summary_blocked(url: str) -> bool:
+    return _host_matches(url, NO_AI_SUMMARY_DOMAINS) or _is_source_blocked(url)
 
 
 # 抓取正文存成文档之前，先看一眼目标站点的 robots.txt 有没有明确禁止——这是审核/合规层面
@@ -3298,6 +3314,8 @@ ROBOTS_CACHE_SECONDS = 24 * 60 * 60
 
 
 async def _is_fetch_allowed(url: str) -> bool:
+    if _is_source_blocked(url):
+        return False
     try:
         parsed = urlparse(url)
         origin = f"{parsed.scheme}://{parsed.netloc}"
@@ -3425,7 +3443,7 @@ async def fetch_headlines(learning_language: str) -> list:
     results = await asyncio.gather(*(_fetch_rss_headlines(s["name"], s["url"]) for s in sources))
     items = []
     for r in results:
-        items.extend(r)
+        items.extend(it for it in r if not _is_source_blocked(it["url"]))
     return items
 
 

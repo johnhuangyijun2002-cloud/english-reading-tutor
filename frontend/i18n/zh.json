@@ -13,7 +13,8 @@
     "pronounce": "朗读发音",
     "off": "关",
     "on": "开",
-    "skip": "跳过"
+    "skip": "跳过",
+    "savedToFiles": "已保存为 {name}，可以在「文件」App → 我的 iPhone/iPad → Contextia 中找到"
   },
   "topbar": {
     "addArticle": "添加文章",

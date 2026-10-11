@@ -62,6 +62,31 @@ async function offlineCacheWrite(key, data) {
   }
 }
 
+// 网页版用 <a download> 下载；iOS 的 WKWebView 不支持这种下载(点了没反应)，原生壳里改成
+// 写进 App 的 Documents 目录——Info.plist 开了 UIFileSharingEnabled，用户能在「文件」App 里找到。
+// 返回 true 表示走的是原生保存，调用方据此提示文件保存在哪里。
+async function saveTextFileForUser(filename, text, mime) {
+  if (isNativeApp() && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+    await window.Capacitor.Plugins.Filesystem.writeFile({
+      path: filename,
+      data: text,
+      directory: "DOCUMENTS",
+      encoding: "utf8",
+    });
+    return true;
+  }
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return false;
+}
+
 async function offlineCacheRead(key) {
   if (!isNativeApp()) return null;
   try {
@@ -389,7 +414,8 @@ async function loadI18n(lang) {
 const RELAY_HINT_SHOWN_KEY = "relayHintShown";
 
 function maybeShowRelayHint(lang) {
-  if (lang !== "zh" || localStorage.getItem(RELAY_HINT_SHOWN_KEY)) return;
+  // 原生壳里中转站设置整块隐藏了(Apple 3.1.1)，提示了也找不到，而且等于在 iOS 上提"自己配 AI"
+  if (isNativeApp() || lang !== "zh" || localStorage.getItem(RELAY_HINT_SHOWN_KEY)) return;
   localStorage.setItem(RELAY_HINT_SHOWN_KEY, "1");
   alert("提示：如果访问 AI 接口不稳定，可以在「设置」中填写「AI 中转站地址」以替代官方地址。");
 }
@@ -1078,7 +1104,8 @@ function loadDocument(doc) {
   currentDocLearningLanguage = doc.learning_language || "en";
   resetImmersionSessionState();
   btnReaderSettings.classList.remove("hidden");
-  btnPrint.classList.remove("hidden");
+  // iOS 的 WKWebView 不支持 window.print()，点了没有任何反应，原生壳里直接不显示这个按钮
+  btnPrint.classList.toggle("hidden", isNativeApp());
   renderHistoryForDoc(doc.filename);
   renderTextDocument(doc.content, doc.filename, doc.source_url);
 
@@ -1373,8 +1400,11 @@ async function loadUsage() {
     const data = await res.json();
     const cost = data.cost_usd || 0;
     const costText = cost > 0 && cost < 0.001 ? "<$0.001" : `$${cost.toFixed(3)}`;
-    usageBadge.textContent = cost > 0 ? t("usage.cost", { cost: costText }) : t("usage.count", { count: data.count });
-    usageBadge.title = `${data.count} · ${t("usage.costDetail")}`;
+    // 原生壳里不显示美元花费——iOS 用户用的是免费额度，看到"本月花费 $0.003"容易误以为在付费，
+    // 审核员也可能据此怀疑有 IAP 之外的计费(3.1.1)；只显示调用次数。
+    usageBadge.textContent =
+      cost > 0 && !isNativeApp() ? t("usage.cost", { cost: costText }) : t("usage.count", { count: data.count });
+    usageBadge.title = isNativeApp() ? "" : `${data.count} · ${t("usage.costDetail")}`;
   } catch (err) {
     // 统计接口失败不影响主功能，静默忽略
   }
@@ -3462,15 +3492,12 @@ btnSearchExport.addEventListener("click", () => {
     return;
   }
   const csv = buildVocabCsv(currentSearchMatches);
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `contextia-vocab-export-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const filename = `contextia-vocab-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  saveTextFileForUser(filename, "\ufeff" + csv, "text/csv;charset=utf-8;")
+    .then((native) => {
+      if (native) alert(t("common.savedToFiles", { name: filename }));
+    })
+    .catch((err) => alert(t("account.exportFailed", { message: err.message })));
 });
 
 btnSearchSelectToggle.addEventListener("click", () => {
@@ -4073,16 +4100,9 @@ btnExportData.addEventListener("click", async () => {
     const res = await apiFetch("/api/account/export");
     if (!res.ok) throw new Error(await apiErrorText(res));
     const data = await res.json();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(settingsDataCache && settingsDataCache.name) || "my"}-data-export.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    accountDataStatus.textContent = t("account.exported");
+    const filename = `${(settingsDataCache && settingsDataCache.name) || "my"}-data-export.json`.replace(/[\\/:*?"<>|]/g, "_");
+    const native = await saveTextFileForUser(filename, JSON.stringify(data, null, 2), "application/json");
+    accountDataStatus.textContent = native ? t("common.savedToFiles", { name: filename }) : t("account.exported");
   } catch (err) {
     accountDataStatus.textContent = t("account.exportFailed", { message: err.message });
   } finally {
