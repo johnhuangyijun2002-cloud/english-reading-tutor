@@ -458,3 +458,15 @@ Apple 审核订阅类 App 时会专门查两件事：隐私政策有没有覆盖
    ```
    这只删文章正文；用户从这些文章里存的生词/句子笔记是用户自己的学习记录，保留。
 4. **回复对方**：说明已完成的处理和日期。
+
+## 2026-10-24 第三轮拒审：iPhone 17 Pro Max 上"界面拥挤"(Guideline 4，build 34)
+
+苹果这次只剩这一条，设备是 iPhone(之前只测过 iPad)。他们附的 4 张截图显示：页面比屏幕宽(正文被右边截断、底部导航"更多"被挤出屏幕、顶栏标题左边被截)、正文滚进状态栏下面跟时间重叠、历史记录页文字压在状态栏上、顶栏占了三行。处理：
+- **页面变宽**：手机上"历史记录"抽屉平时用 `translateX(100%)` 藏在屏幕右侧外面，iOS WebView 仍把它算进页面宽度。收起时加 `visibility: hidden`。
+- **文档本身能滚**：≤860px 时 `html/body` 改成 `overflow:hidden`、`body` 用 `position:fixed; inset:0`，只有文章区/弹层自己滚。
+- **状态栏/底部横条**：`capacitor.config.json` 的 `ios.contentInset` 由 `always` 改成 `never`，`viewport` 加 `viewport-fit=cover`，顶栏、历史抽屉、底部导航用 `env(safe-area-inset-*)` 自己避让(底部导航高度要把 34px 横条算进去，否则图标被挤扁)。网页版这些值是 0，不受影响。
+- **顶栏**：手机上按钮和文章下拉排成一行(原来换成三行占 213px)，徽章字号缩小。
+- **iPhone 只支持竖屏**(`Info.plist` 的 `UISupportedInterfaceOrientations`，iPad 不变)：横屏会走桌面布局，侧栏 6 个入口在 440px 高的屏幕里放不下。
+- **之前漏的 bug**：`#btnPrint` / `#btnSaveAll` / `.readerSettingsBtn` 没有 `.hidden` 样式规则，JS 里 `classList.add("hidden")` 一直没生效(所以之前"iOS 隐藏打印按钮"是无效的)，已补规则。朗读条/沉浸加载条在手机上被底部导航盖住，已抬高。
+
+验证方式：Playwright 在 440x956、375x667 下截图，并把 `env(safe-area-inset-*)` 替换成 62px/34px 模拟刘海和底部横条；没有真机，WKWebView 的细节(如状态栏)只能靠 TestFlight 实测。
