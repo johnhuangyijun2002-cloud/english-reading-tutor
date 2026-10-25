@@ -173,7 +173,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 24px;
+  /* 原生壳用 viewport-fit=cover 铺满全屏(含刘海/灵动岛、底部横条下面)，顶栏要自己让出状态栏 */
+  padding: calc(14px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) 14px calc(24px + env(safe-area-inset-left));
   background: rgba(245, 245, 247, 0.72);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -228,6 +229,14 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* 这几个按钮之前一直没有 .hidden 的样式规则，app.js 里 classList.add("hidden") 实际没效果
+   (原生壳里隐藏打印按钮、没打开文章时隐藏 Aa 都是白写的) */
+#btnPrint.hidden,
+#btnSaveAll.hidden,
+.readerSettingsBtn.hidden {
+  display: none;
 }
 
 .doc-select {
@@ -3228,23 +3237,61 @@ body.nativeNoBYOK .byokOnly {
   /* 顶栏在窄屏下可能换行变成两行，高度不再是固定的 57px，#main 也就不能再用
      calc(100vh - 57px) 这种写死的算法——改成让 body 用 flex 竖着排列，
      顶栏按实际内容撑开高度，#main 自动吃掉剩下的空间，不用猜顶栏到底多高。 */
+  /* 手机上整个文档不允许滚动(只有文章区/弹层自己在里面滚)：之前文档本身能滚，iPhone 真机上
+     正文会一路滚到状态栏底下、顶栏被滚没，屏幕外的历史记录抽屉还会把页面撑宽，造成左右也能拖。 */
+  html,
   body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    position: fixed;
+    inset: 0;
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: auto;
   }
 
   #topbar {
     flex-shrink: 0;
-    padding: 12px 16px;
+    padding: calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left));
     flex-wrap: wrap;
     row-gap: 8px;
   }
 
+  /* 顶栏第二行：按钮 + 文章下拉一行排完，下拉框吃掉剩余宽度，不再把 Aa 挤到第三行 */
   .topbar-actions {
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .topbar-actions .btn {
+    flex-shrink: 0;
+    padding: 7px 12px;
+    font-size: 13px;
+  }
+
+  .topbar-actions .doc-select {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .topbar-brand {
     flex-wrap: wrap;
-    row-gap: 8px;
-    justify-content: flex-end;
+    row-gap: 6px;
+    gap: 8px;
+  }
+
+  .usageBadge {
+    font-size: 10.5px;
+    padding: 2px 8px;
+  }
+
+  .quickReadSourceBanner {
+    padding: 8px 16px;
   }
 
   /* 高度交给上面的 body flex 布局自动算，这里只需要额外用 padding-bottom
@@ -3254,6 +3301,8 @@ body.nativeNoBYOK .byokOnly {
     flex: 1;
     min-height: 0; /* 让里面 #viewer 的 overflow:auto 在 flex 容器里正常生效 */
     padding-bottom: calc(64px + env(safe-area-inset-bottom));
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
     box-sizing: border-box;
   }
 
@@ -3265,12 +3314,13 @@ body.nativeNoBYOK .byokOnly {
     bottom: 0;
     top: auto;
     width: 100%;
-    height: 64px;
+    /* 底部横条(Home Indicator)那一块算进高度，不然 padding 吃掉 34px，图标和文字被挤扁 */
+    height: calc(64px + env(safe-area-inset-bottom));
     flex-direction: row;
     align-items: stretch;
     justify-content: space-around;
     gap: 0;
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    padding: 6px calc(6px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));
     border-right: none;
     border-top: 1px solid var(--glass-border);
     z-index: 150;
@@ -3326,12 +3376,25 @@ body.nativeNoBYOK .byokOnly {
     background: var(--surface);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    padding-top: calc(20px + env(safe-area-inset-top));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
     transform: translateX(100%);
-    transition: transform 0.25s var(--spring-ease);
+    /* 收起时必须 visibility:hidden：只靠 translateX 移到屏幕右侧外面，iOS WebView 仍会把它算进页面
+       宽度，整个页面变宽、能左右拖，底部导航最右边的"更多"被挤出屏幕(App Review 截图里就是这样) */
+    visibility: hidden;
+    transition: transform 0.25s var(--spring-ease), visibility 0s linear 0.25s;
   }
 
   #sidebar.mobile-open {
     transform: translateX(0);
+    visibility: visible;
+    transition: transform 0.25s var(--spring-ease), visibility 0s;
+  }
+
+  /* 朗读条/沉浸加载条原来贴着 bottom:24px，在手机上正好被底部导航栏盖住 */
+  #readAloudBar,
+  #immersionLoadingBar {
+    bottom: calc(64px + env(safe-area-inset-bottom) + 12px);
   }
 
   #btnCloseSidebar {

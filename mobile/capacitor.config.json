@@ -3,7 +3,7 @@
   "appName": "Contextia",
   "webDir": "www",
   "ios": {
-    "contentInset": "always"
+    "contentInset": "never"
   },
   "server": {
     "androidScheme": "https"
