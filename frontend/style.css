@@ -1494,6 +1494,22 @@ body {
   overflow-y: auto;
 }
 
+.aiConsentMore {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.aiConsentMore summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.aiConsentMore p {
+  margin: 6px 0 0;
+}
+
 .aiConsentList {
   margin: 0;
   padding-left: 20px;
@@ -2835,6 +2851,14 @@ body.nativeNoBYOK .byokOnly {
   display: none !important;
 }
 
+.nativeOnly {
+  display: none;
+}
+
+body.nativeNoBYOK .nativeOnly {
+  display: list-item;
+}
+
 #aiRelayBlock.hidden {
   display: none;
 }
@@ -3417,7 +3441,24 @@ body.nativeNoBYOK .byokOnly {
   /* "Aa" 阅读设置下拉写死 260px 宽、靠右绝对定位，窄屏下没有任何兜底——
      跟原来的 260px 取更小的那个，宽屏不受影响，窄屏不会顶到屏幕外面去。 */
   #readerSettingsPanel {
+    width: 300px;
     max-width: calc(100vw - 32px);
+  }
+
+  /* 韩语/德语等标签比中文长，"标签 + 4 个选项"一行放不下时，选项换到下一行，
+     不然最后一个选项会伸出弹层、顶到屏幕边缘(iPhone 17 Pro Max 440pt 宽实测)。 */
+  #readerSettingsPanel .settingsRow {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  #readerSettingsPanel .settingsOptions {
+    max-width: 100%;
+  }
+
+  #readerSettingsPanel .settingsOptions button {
+    padding: 5px 9px;
+    white-space: nowrap;
   }
 
   /* 这几个弹层外层容器本来就用 min(Npx, 90vw) 不会横向溢出，但高度这块从来没

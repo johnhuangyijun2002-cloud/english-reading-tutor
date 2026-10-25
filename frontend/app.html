@@ -348,9 +348,14 @@
       <p class="urlHint" data-i18n="aiConsent.body"></p>
       <ul class="aiConsentList">
         <li data-i18n="aiConsent.pointWhat"></li>
-        <li data-i18n="aiConsent.pointWho"></li>
+        <li class="byokOnly" data-i18n="aiConsent.pointWho"></li>
+        <li class="nativeOnly" data-i18n="aiConsent.pointWhoNative"></li>
         <li data-i18n="aiConsent.pointNot"></li>
       </ul>
+      <details class="aiConsentMore">
+        <summary data-i18n="aiConsent.moreToggle">What each feature sends</summary>
+        <p data-i18n="aiConsent.more"></p>
+      </details>
       <p class="urlHint"><span data-i18n="aiConsent.privacyPrefix">Details: </span><a href="/privacy.html" target="_blank" data-i18n="login.privacy">Privacy Policy</a></p>
       <div class="pasteActions">
         <button id="btnAiConsentDecline" class="btn btn-ghost" data-i18n="aiConsent.decline">Not now</button>
