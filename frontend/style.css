@@ -1494,6 +1494,22 @@ body {
   overflow-y: auto;
 }
 
+.aiConsentMore {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.aiConsentMore summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.aiConsentMore p {
+  margin: 6px 0 0;
+}
+
 .aiConsentList {
   margin: 0;
   padding-left: 20px;
