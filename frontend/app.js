@@ -1184,14 +1184,92 @@ function updateQuickReadSourceBanner(sourceUrl) {
 
 // ---------- 文章头部(标题 / 来源 / 字数 / 预计阅读时长) ----------
 
+// 标题就地编辑：h1 换成输入框，回车/保存提交，Esc/取消放弃。改完后重新拉文章列表，
+// 下拉框、历史记录、已存生词的"来源"都会跟着新标题刷新(后端会把这篇文章名下的生词和句子笔记一起改名)。
+function startTitleEdit(titleRow, titleEl, editBtn) {
+  const docId = currentDocId;
+  const form = document.createElement("form");
+  form.className = "articleTitleForm";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "articleTitleInput";
+  input.maxLength = 200;
+  input.value = currentDocName;
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "submit";
+  saveBtn.className = "btn btn-primary btn-small";
+  saveBtn.textContent = t("common.save");
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "btn btn-ghost btn-small";
+  cancelBtn.textContent = t("common.cancel");
+  form.append(input, saveBtn, cancelBtn);
+
+  const restore = () => {
+    form.remove();
+    titleEl.classList.remove("hidden");
+    editBtn.classList.remove("hidden");
+  };
+  titleEl.classList.add("hidden");
+  editBtn.classList.add("hidden");
+  titleRow.appendChild(form);
+  // 不要 input.select()：全选输入框里的文字会触发阅读区的"选中文字→AI 分析"浮层
+  input.focus();
+
+  cancelBtn.addEventListener("click", restore);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") restore();
+  });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const next = input.value.trim();
+    if (!next) {
+      alert(t("article.titleEmpty"));
+      return;
+    }
+    if (next === currentDocName) {
+      restore();
+      return;
+    }
+    saveBtn.disabled = true;
+    try {
+      const res = await apiFetch(`/api/documents/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: next }),
+      });
+      if (!res.ok) throw new Error(await apiErrorText(res));
+    } catch (err) {
+      saveBtn.disabled = false;
+      alert(t("article.renameFailed", { message: err.message }));
+      return;
+    }
+    await refreshDocuments(docId);
+  });
+}
+
 function buildArticleHeader(content, title, sourceUrl) {
   const header = document.createElement("div");
   header.className = "articleHeader";
 
+  const titleRow = document.createElement("div");
+  titleRow.className = "articleTitleRow";
   const titleEl = document.createElement("h1");
   titleEl.className = "articleTitle";
   titleEl.textContent = title || "";
-  header.appendChild(titleEl);
+  titleRow.appendChild(titleEl);
+  // 推荐文章"现在阅读"之类还没有存成文档的临时视图没有 currentDocId，这时不给改名
+  if (currentDocId) {
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "articleTitleEdit";
+    editBtn.title = t("article.editTitle");
+    editBtn.setAttribute("aria-label", t("article.editTitle"));
+    editBtn.innerHTML = iconHTML("pencil");
+    editBtn.addEventListener("click", () => startTitleEdit(titleRow, titleEl, editBtn));
+    titleRow.appendChild(editBtn);
+  }
+  header.appendChild(titleRow);
 
   const meta = document.createElement("div");
   meta.className = "articleMeta";

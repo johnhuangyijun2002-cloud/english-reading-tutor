@@ -676,6 +676,23 @@ async def db_delete_document(doc_id: str):
     await pool.execute("DELETE FROM documents WHERE id=$1", doc_id)
 
 
+async def db_rename_document(user_id: str, doc_id: str, old_name: str, new_name: str):
+    """改文章标题。生词/句子笔记是按标题(source_doc)关联的，所以标题改了，这篇文章名下已存的
+    生词和句子笔记要一起改成新标题，不然"从哪篇文章划的"就对不上了。
+    如果这个用户还有另一篇同名文章，旧标题仍然有人在用，就不动生词/笔记(它们本来就是按标题模糊归属的)。"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            others = await conn.fetchval(
+                "SELECT COUNT(*) FROM documents WHERE user_id=$1 AND filename=$2 AND id<>$3",
+                user_id, old_name, doc_id,
+            )
+            await conn.execute("UPDATE documents SET filename=$1 WHERE id=$2 AND user_id=$3", new_name, doc_id, user_id)
+            if not others:
+                await conn.execute("UPDATE vocab SET source_doc=$1 WHERE user_id=$2 AND source_doc=$3", new_name, user_id, old_name)
+                await conn.execute("UPDATE sentence_notes SET source_doc=$1 WHERE user_id=$2 AND source_doc=$3", new_name, user_id, old_name)
+
+
 async def db_save_document_quiz(doc_id: str, quiz_json: str):
     pool = await get_pool()
     await pool.execute("UPDATE documents SET quiz_json=$1 WHERE id=$2", quiz_json, doc_id)
@@ -2391,6 +2408,26 @@ async def fetch_url_document(request: Request, req: UrlFetchRequest, user: dict 
 @app.get("/api/documents")
 async def list_documents(user: dict = Depends(get_current_user)):
     return await db_list_documents(user["id"])
+
+
+class RenameDocumentRequest(BaseModel):
+    filename: str
+
+
+@app.patch("/api/documents/{doc_id}")
+async def rename_document(doc_id: str, req: RenameDocumentRequest, user: dict = Depends(get_current_user)):
+    new_name = " ".join(req.filename.split())
+    if not new_name:
+        raise HTTPException(400, "Article title can't be empty")
+    if len(new_name) > 200:
+        raise HTTPException(400, "Article title is too long (200 characters max)")
+    target = await db_get_document(doc_id)
+    if not target or target.get("user_id") != user["id"]:
+        raise HTTPException(404, "Article not found")
+    old_name = target.get("filename") or ""
+    if new_name != old_name:
+        await db_rename_document(user["id"], doc_id, old_name, new_name)
+    return await db_get_document(doc_id)
 
 
 @app.delete("/api/documents/{doc_id}")

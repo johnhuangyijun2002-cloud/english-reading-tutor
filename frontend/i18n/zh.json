@@ -306,6 +306,9 @@
     "th": "泰语"
   },
   "article": {
+    "editTitle": "编辑标题",
+    "titleEmpty": "标题不能为空",
+    "renameFailed": "修改标题失败：{message}",
     "charCount": "约 {count} 字",
     "wordCount": "约 {count} 词",
     "readTime": "预计阅读 {minutes} 分钟",

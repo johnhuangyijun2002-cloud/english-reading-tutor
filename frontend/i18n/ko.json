@@ -306,6 +306,9 @@
     "th": "태국어"
   },
   "article": {
+    "editTitle": "제목 수정",
+    "titleEmpty": "제목을 입력해 주세요",
+    "renameFailed": "제목을 바꾸지 못했어요: {message}",
     "charCount": "약 {count}자",
     "wordCount": "약 {count}단어",
     "readTime": "약 {minutes}분 분량",

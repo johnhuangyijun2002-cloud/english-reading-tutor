@@ -2157,6 +2157,67 @@ html:lang(ko) body {
   color: var(--text);
 }
 
+.articleTitleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.articleTitleRow .articleTitle {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.articleTitleEdit {
+  flex-shrink: 0;
+  margin-top: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  display: inline-flex;
+  opacity: 0.7;
+}
+
+.articleTitleEdit:hover {
+  opacity: 1;
+  background: var(--surface-2);
+}
+
+.articleTitleEdit .inline-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.articleTitleRow .hidden {
+  display: none;
+}
+
+.articleTitleForm {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.articleTitleInput {
+  flex: 1 1 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+}
+
 .articleMeta {
   display: flex;
   flex-wrap: wrap;
