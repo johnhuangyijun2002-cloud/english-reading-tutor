@@ -385,6 +385,14 @@
     "failed": "업로드하지 못했어요: {message}"
   },
   "print": {
+    "optionsTitle": "인쇄할 내용",
+    "optionsHint": "본문은 항상 인쇄돼요. 함께 인쇄할 내용을 골라 주세요.",
+    "optWords": "표시한 단어",
+    "optWordsDesc": "단어 옆에 뜻과 본문에서 나온 문장이 함께 나와요",
+    "optSentences": "표시한 문장",
+    "optSentencesDesc": "각 문장 아래에 AI 해설이 나와요",
+    "go": "인쇄",
+    "colContext": "본문 속 문장",
     "preparing": "준비 중...",
     "failed": "인쇄를 준비하지 못했어요: {message}",
     "vocabTitle": "단어장 (총 {count}개)",

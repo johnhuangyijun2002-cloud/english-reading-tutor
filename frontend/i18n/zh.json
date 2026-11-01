@@ -385,6 +385,14 @@
     "failed": "上传失败：{message}"
   },
   "print": {
+    "optionsTitle": "选择打印内容",
+    "optionsHint": "文章正文一定会打印，下面选择要附上的内容。",
+    "optWords": "划过的单词",
+    "optWordsDesc": "每个单词旁边是释义和它在原文里的句子",
+    "optSentences": "不熟悉的句子",
+    "optSentencesDesc": "每个句子下面是 AI 解析",
+    "go": "打印",
+    "colContext": "原文中的句子",
     "preparing": "准备中...",
     "failed": "准备打印内容失败：{message}",
     "vocabTitle": "生词本（共 {count} 个）",

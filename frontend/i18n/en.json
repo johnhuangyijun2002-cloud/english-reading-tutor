@@ -385,6 +385,14 @@
     "failed": "Upload failed: {message}"
   },
   "print": {
+    "optionsTitle": "What to print",
+    "optionsHint": "The article is always printed. Pick what to add to it.",
+    "optWords": "Highlighted words",
+    "optWordsDesc": "Meaning next to each word, with the sentence it came from",
+    "optSentences": "Sentences you marked",
+    "optSentencesDesc": "Each sentence with its AI explanation underneath",
+    "go": "Print",
+    "colContext": "In the article",
     "preparing": "Preparing...",
     "failed": "Failed to prepare print content: {message}",
     "vocabTitle": "Vocabulary ({count} words)",

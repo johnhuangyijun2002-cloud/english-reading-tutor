@@ -858,6 +858,25 @@
     <span data-i18n="immersion.loading">Generating immersion version...</span>
   </div>
 
+  <div id="printOptionsOverlay" class="hidden">
+    <div id="printOptionsPanel" role="dialog" aria-modal="true" aria-labelledby="printOptionsTitle">
+      <h2 id="printOptionsTitle" data-i18n="print.optionsTitle">What to print</h2>
+      <p class="urlHint" data-i18n="print.optionsHint"></p>
+      <label class="printOption">
+        <input type="checkbox" id="printOptWords" checked />
+        <span><strong data-i18n="print.optWords">Highlighted words</strong><small data-i18n="print.optWordsDesc"></small></span>
+      </label>
+      <label class="printOption">
+        <input type="checkbox" id="printOptSentences" checked />
+        <span><strong data-i18n="print.optSentences">Sentences you marked</strong><small data-i18n="print.optSentencesDesc"></small></span>
+      </label>
+      <div class="pasteActions">
+        <button id="btnPrintOptionsCancel" class="btn btn-ghost" data-i18n="common.cancel">Cancel</button>
+        <button id="btnPrintOptionsGo" class="btn btn-primary" data-i18n="print.go">Print</button>
+      </div>
+    </div>
+  </div>
+
   <div id="printArea"></div>
 
   <script src="native-config.js"></script>
