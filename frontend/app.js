@@ -1325,7 +1325,7 @@ viewer.addEventListener("scroll", updateReadingProgress);
 // ---------- 字号 / 版式 / 字体设置 ----------
 
 const READER_SETTINGS_KEY = "readerSettings";
-const READER_SETTINGS_DEFAULTS = { fontSize: "17", maxWidth: "700", fontFamily: "sans" };
+const READER_SETTINGS_DEFAULTS = { fontSize: "17", maxWidth: "700", fontFamily: "sans", wordGloss: "on" };
 const FONT_FAMILY_VALUES = {
   sans: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif`,
   serif: `"New York", Georgia, "Songti SC", serif`,
@@ -1344,6 +1344,7 @@ function applyReaderSettings(settings) {
   document.documentElement.style.setProperty("--reader-font-size", settings.fontSize + "px");
   document.documentElement.style.setProperty("--reader-max-width", settings.maxWidth + "px");
   document.documentElement.style.setProperty("--reader-font-family", FONT_FAMILY_VALUES[settings.fontFamily]);
+  document.body.classList.toggle("showGloss", settings.wordGloss !== "off");
 
   readerSettingsPanel.querySelectorAll(".settingsOptions:not(.immersionToggle)").forEach((group) => {
     const key = group.dataset.setting;
@@ -1754,6 +1755,25 @@ function lemmatizeCandidates(lowerWord) {
   return candidates;
 }
 
+// 行间释义：释义很长时只取第一段并截断，免得一个词把整行撑得很散。
+const GLOSS_MAX_CHARS = 14;
+
+function shortGloss(record) {
+  const raw = ((record && record.chinese_meaning) || "").split(/[;；\n]/)[0].trim();
+  if (!raw) return "";
+  const chars = [...raw];
+  return chars.length > GLOSS_MAX_CHARS ? chars.slice(0, GLOSS_MAX_CHARS - 1).join("") + "…" : raw;
+}
+
+// 已存生词的 <mark>。释义放在 <rt> 的 data-gloss 里、由 CSS ::before 画出来，<rt> 本身没有文字节点，
+// 所以划词/复制/朗读拿到的文本不会混进释义；关掉"词义标注"时 <rt> 直接 display:none。
+function knownWordMarkHtml(key, shownWord) {
+  const gloss = shortGloss(knownWordsMap.get(key));
+  const word = escapeHtml(shownWord);
+  const inner = gloss ? `<ruby>${word}<rt data-gloss="${escapeHtml(gloss)}"></rt></ruby>` : word;
+  return `<mark class="known-word" data-word="${escapeHtml(key)}">${inner}</mark>`;
+}
+
 function highlightKnownWords(text) {
   if (knownWords.size === 0) return escapeHtml(text);
 
@@ -1771,7 +1791,7 @@ function highlightKnownWords(text) {
       matchedKey = lemmatizeCandidates(lower).find((c) => knownWords.has(c)) || null;
     }
     if (matchedKey) {
-      result += `<mark class="known-word" data-word="${escapeHtml(matchedKey)}">${escapeHtml(word)}</mark>`;
+      result += knownWordMarkHtml(matchedKey, word);
     } else {
       result += escapeHtml(word);
     }
