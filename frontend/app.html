@@ -21,7 +21,12 @@
       <button id="btnAddArticle" class="btn btn-ghost" data-i18n="topbar.addArticle">Add Article</button>
       <label for="fileInput" class="btn btn-ghost" data-i18n="topbar.upload">Upload File</label>
       <input type="file" id="fileInput" accept=".pdf,.docx" class="visually-hidden" />
-      <select id="docSelect" class="doc-select"></select>
+      <!-- 原生 <select> 点开是系统下拉，换成盖一层透明按钮，点击直接打开"文章管理"弹窗；
+           <select> 本身还留着，只用来显示当前文章名、保存当前选中的 id。 -->
+      <div class="docSelectWrap">
+        <select id="docSelect" class="doc-select" tabindex="-1" aria-hidden="true"></select>
+        <button type="button" id="docSelectOpen" class="docSelectOpen" data-i18n-title="docManager.title" title="Manage Articles"></button>
+      </div>
       <div class="readerSettingsWrap">
         <button id="btnReaderSettings" class="btn btn-ghost readerSettingsBtn hidden">Aa</button>
         <div id="readerSettingsPanel" class="hidden">

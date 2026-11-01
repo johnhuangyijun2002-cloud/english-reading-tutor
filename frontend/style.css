@@ -239,6 +239,30 @@ body {
   display: none;
 }
 
+.docSelectWrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 220px;
+}
+
+.docSelectWrap .doc-select {
+  width: 100%;
+  min-width: 0;
+  /* 点击由上面盖着的透明按钮接管，<select> 自己不响应，也就不会弹系统下拉 */
+  pointer-events: none;
+}
+
+.docSelectOpen {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  padding: 0;
+}
+
 .doc-select {
   padding: 8px 14px;
   border-radius: var(--radius-pill);
@@ -916,6 +940,62 @@ body {
   border: none;
   cursor: pointer;
   transition: background var(--ease) 0.15s, color var(--ease) 0.15s;
+}
+
+.docCard-current {
+  border-color: var(--accent);
+}
+
+.docCard-rename {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.docCard-rename:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.docCard-rename .inline-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.docCard-editing .docCard-info {
+  flex: 1;
+}
+
+.docCard-renameForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.docCard-renameInput {
+  flex: 1 1 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 15px;
+  padding: 7px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.docCard-info .hidden {
+  display: none;
+}
+
+.docCard-actions.hidden {
+  display: none;
 }
 
 .docCard-open {
@@ -3474,6 +3554,12 @@ body.nativeNoBYOK .nativeOnly {
     flex-shrink: 0;
     padding: 7px 12px;
     font-size: 13px;
+  }
+
+  .topbar-actions .docSelectWrap {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
   }
 
   .topbar-actions .doc-select {
