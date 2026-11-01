@@ -597,6 +597,7 @@ let currentDocId = null;
 let currentDocName = "";
 let currentDocContent = "";
 let currentDocSourceUrl = "";
+let currentDocUploadedAt = "";
 let currentDocLearningLanguage = "en";
 let knownWords = new Set();
 let knownWordsMap = new Map(); // 小写单词 -> 生词记录（用于点击高亮词弹出释义）
@@ -1103,6 +1104,7 @@ function loadDocument(doc) {
   currentDocName = doc.filename;
   currentDocContent = doc.content;
   currentDocSourceUrl = doc.source_url || "";
+  currentDocUploadedAt = doc.uploaded_at || "";
   currentDocLearningLanguage = doc.learning_language || "en";
   resetImmersionSessionState();
   btnReaderSettings.classList.remove("hidden");
@@ -3768,12 +3770,34 @@ function buildPrintArea(vocab, notes) {
   titleEl.textContent = currentDocName;
   container.appendChild(titleEl);
 
+  // 文章顶部：导入日期、打印日期、导入来源。网址导入的显示站点名 + 完整链接；
+  // 粘贴文本和上传文件在库里没有区分(都没有 source_url)，统一写"手动导入"。
+  const metaRows = [];
+  const importedAt = formatDocDate(currentDocUploadedAt);
+  if (importedAt) metaRows.push([t("print.importedOn"), importedAt]);
+  metaRows.push([t("print.printedOn"), formatDocDate(new Date().toISOString())]);
+  let sourceText = t("print.sourceManual");
   if (currentDocSourceUrl) {
-    const meta = document.createElement("p");
-    meta.className = "printMeta";
-    meta.textContent = currentDocSourceUrl;
-    container.appendChild(meta);
+    try {
+      const host = new URL(currentDocSourceUrl).hostname.replace(/^www\./, "");
+      sourceText = `${displaySourceName(host)} · ${currentDocSourceUrl}`;
+    } catch (err) {
+      sourceText = currentDocSourceUrl;
+    }
   }
+  metaRows.push([t("print.importSource"), sourceText]);
+  const meta = document.createElement("dl");
+  meta.className = "printMeta";
+  metaRows.forEach(([label, value]) => {
+    const row = document.createElement("div");
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    row.append(dt, dd);
+    meta.appendChild(row);
+  });
+  container.appendChild(meta);
 
   const articleBody = document.createElement("div");
   articleBody.className = "printArticleBody";

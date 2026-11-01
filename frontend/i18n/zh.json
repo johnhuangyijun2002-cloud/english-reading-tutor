@@ -385,6 +385,10 @@
     "failed": "上传失败：{message}"
   },
   "print": {
+    "importedOn": "导入日期",
+    "printedOn": "打印日期",
+    "importSource": "导入来源",
+    "sourceManual": "手动导入（粘贴文本或上传文件）",
     "optionsTitle": "选择打印内容",
     "optionsHint": "文章正文一定会打印，下面选择要附上的内容。",
     "optWords": "划过的单词",
