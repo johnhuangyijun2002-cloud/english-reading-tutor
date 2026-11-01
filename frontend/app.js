@@ -3684,15 +3684,48 @@ btnSaveAll.addEventListener("click", async () => {
 
 // ---------- 打印(文章正文 + 划过的生词表 + 不熟悉的句子) ----------
 
-btnPrint.addEventListener("click", async () => {
+const PRINT_OPTIONS_KEY = "printOptions";
+const printOptionsOverlay = document.getElementById("printOptionsOverlay");
+const printOptWords = document.getElementById("printOptWords");
+const printOptSentences = document.getElementById("printOptSentences");
+
+function loadPrintOptions() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PRINT_OPTIONS_KEY) || "{}");
+    return { words: saved.words !== false, sentences: saved.sentences !== false };
+  } catch (err) {
+    return { words: true, sentences: true };
+  }
+}
+
+// 点"打印"先让用户选要不要附上单词表/句子解析，选择记在本机，下次默认沿用。
+btnPrint.addEventListener("click", () => {
   if (!currentDocName) return;
+  const opts = loadPrintOptions();
+  printOptWords.checked = opts.words;
+  printOptSentences.checked = opts.sentences;
+  printOptionsOverlay.classList.remove("hidden");
+});
+
+document.getElementById("btnPrintOptionsCancel").addEventListener("click", () => {
+  printOptionsOverlay.classList.add("hidden");
+});
+
+document.getElementById("btnPrintOptionsGo").addEventListener("click", async () => {
+  const opts = { words: printOptWords.checked, sentences: printOptSentences.checked };
+  try {
+    localStorage.setItem(PRINT_OPTIONS_KEY, JSON.stringify(opts));
+  } catch (err) {
+    // 存不了就算了，只是下次不记得
+  }
+  printOptionsOverlay.classList.add("hidden");
   btnPrint.disabled = true;
   const originalLabel = btnPrint.textContent;
   btnPrint.textContent = t("print.preparing");
   try {
     const { vocab: allVocab, notes: allNotes } = await getVocabAndNotes();
-    const vocab = allVocab.filter((v) => v.source_doc === currentDocName);
-    const notes = allNotes.filter((n) => n.source_doc === currentDocName);
+    const vocab = opts.words ? allVocab.filter((v) => v.source_doc === currentDocName) : [];
+    const notes = opts.sentences ? allNotes.filter((n) => n.source_doc === currentDocName) : [];
     buildPrintArea(vocab, notes);
     window.print();
   } catch (err) {
@@ -3702,6 +3735,15 @@ btnPrint.addEventListener("click", async () => {
     btnPrint.textContent = originalLabel;
   }
 });
+
+// 原文例句里把这个单词加粗，一眼能看出是哪个词、在什么语境下划的。
+function contextWithWordBold(sentence, word) {
+  const text = sentence || "";
+  const w = (word || "").trim();
+  const idx = w ? text.toLowerCase().indexOf(w.toLowerCase()) : -1;
+  if (idx === -1) return escapeHtml(text);
+  return `${escapeHtml(text.slice(0, idx))}<b>${escapeHtml(text.slice(idx, idx + w.length))}</b>${escapeHtml(text.slice(idx + w.length))}`;
+}
 
 function buildPrintArea(vocab, notes) {
   const vocabMap = new Map(); // 小写单词 -> {..., index}(打印用的编号，对应下面表格的行)
@@ -3750,7 +3792,7 @@ function buildPrintArea(vocab, notes) {
 
     const table = document.createElement("table");
     table.className = "printVocabTable";
-    table.innerHTML = `<thead><tr><th>${t("print.colIndex")}</th><th>${t("print.colWord")}</th><th>${t("print.colIpa")}</th><th>${t("print.colPos")}</th><th>${t("print.colMeaning")}</th></tr></thead><tbody></tbody>`;
+    table.innerHTML = `<thead><tr><th>${t("print.colIndex")}</th><th>${t("print.colWord")}</th><th>${t("print.colIpa")}</th><th>${t("print.colPos")}</th><th>${t("print.colMeaning")}</th><th>${t("print.colContext")}</th></tr></thead><tbody></tbody>`;
     const tbody = table.querySelector("tbody");
     [...vocabMap.values()]
       .sort((a, b) => a.index - b.index)
@@ -3762,6 +3804,7 @@ function buildPrintArea(vocab, notes) {
           <td>${escapeHtml(v.ipa || "")}</td>
           <td>${escapeHtml(v.pos || "")}</td>
           <td>${escapeHtml(v.chinese_meaning || "")}</td>
+          <td class="printVocabContext">${contextWithWordBold(v.sentence, v.word)}</td>
         `;
         tbody.appendChild(tr);
       });

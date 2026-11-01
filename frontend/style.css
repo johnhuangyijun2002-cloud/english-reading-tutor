@@ -1441,6 +1441,7 @@ body {
 /* ---------- 沉浸阅读结束后的"保存本次生词"确认弹层 ---------- */
 
 #immersionSaveOverlay,
+#printOptionsOverlay,
 #aiConsentOverlay {
   position: fixed;
   inset: 0;
@@ -1461,11 +1462,13 @@ body {
 }
 
 #immersionSaveOverlay.hidden,
+#printOptionsOverlay.hidden,
 #aiConsentOverlay.hidden {
   display: none;
 }
 
 #immersionSavePanel,
+#printOptionsPanel,
 #aiConsentPanel {
   width: min(480px, 90vw);
   max-height: 78vh;
@@ -1483,6 +1486,7 @@ body {
 }
 
 #immersionSavePanel h2,
+#printOptionsPanel h2,
 #aiConsentPanel h2 {
   margin: 0;
   font-size: 19px;
@@ -1492,6 +1496,38 @@ body {
 
 #aiConsentPanel {
   overflow-y: auto;
+}
+
+.printOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.printOption input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.printOption span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+}
+
+.printOption small {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .aiConsentMore {
@@ -3253,6 +3289,14 @@ body.nativeNoBYOK .nativeOnly {
   background: #f2f2f2;
 }
 
+.printVocabContext {
+  color: #444;
+}
+
+.printVocabContext b {
+  color: #0071e3;
+}
+
 .printSentenceList {
   font-size: 12px;
   line-height: 1.6;
@@ -3289,6 +3333,13 @@ body.nativeNoBYOK .nativeOnly {
   body {
     overflow: visible !important;
     height: auto !important;
+  }
+
+  /* 手机宽度的布局(≤860px)里 body 是 position:fixed 的，而打印页宽也落在这个范围里——
+     不改回来的话内容又会被当成"只有一屏高"，只打印第一页。 */
+  body {
+    position: static !important;
+    display: block !important;
   }
 
   body > *:not(#printArea) {
