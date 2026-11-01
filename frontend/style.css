@@ -2284,6 +2284,51 @@ html:lang(ko) body {
   cursor: pointer;
 }
 
+/* 行间释义(设置里的"词义标注")：释义用 ruby 放在词下面，占自己的行距，不会盖住下一行；
+   <rt> 里没有文字节点，释义由 ::before 画出来，所以选中/复制/朗读不会带上它。 */
+.known-word ruby {
+  ruby-position: under;
+  /* 不加这个，行尾的带释义单词会被从中间拆成两行(underlyi / ng) */
+  white-space: nowrap;
+}
+
+.known-word rt {
+  display: none;
+}
+
+/* 释义要占一点行距，整体放松一点，不然释义会贴到下一行文字上 */
+body.showGloss .text-para {
+  line-height: 2.15;
+}
+
+body.showGloss .known-word {
+  /* 释义在词下面，原来的 border-bottom 会画在释义上面压住它，改成只给词本身加下划线 */
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+body.showGloss .known-word ruby {
+  ruby-align: center;
+  text-decoration: underline;
+  text-decoration-color: rgba(52, 199, 89, 0.55);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+body.showGloss .known-word rt {
+  display: ruby-text;
+  font-size: 0.58em;
+  line-height: 1.25;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-decoration: none;
+  color: var(--text-secondary);
+}
+
+body.showGloss .known-word rt::before {
+  content: attr(data-gloss);
+}
+
 /* 沉浸模式里 AI 自动替换的词——虚线下划线，跟已经存进生词本的实线 .known-word 区分开，
    一眼能看出"这个还没学"跟"这个已经学过了"的区别 */
 .immersion-word {

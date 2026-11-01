@@ -56,6 +56,7 @@
     "font": "글꼴",
     "sans": "고딕체",
     "serif": "명조체",
+    "wordGloss": "단어 뜻 표시",
     "immersion": "몰입 모드",
     "immersionRatio": "단어 교체 비율"
   },
