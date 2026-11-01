@@ -597,6 +597,7 @@ let currentDocId = null;
 let currentDocName = "";
 let currentDocContent = "";
 let currentDocSourceUrl = "";
+let currentDocUploadedAt = "";
 let currentDocLearningLanguage = "en";
 let knownWords = new Set();
 let knownWordsMap = new Map(); // 小写单词 -> 生词记录（用于点击高亮词弹出释义）
@@ -614,6 +615,7 @@ let immersionClickedWords = new Set(); // 本次阅读点开看过的沉浸替�
 
 const fileInput = document.getElementById("fileInput");
 const docSelect = document.getElementById("docSelect");
+const docSelectOpen = document.getElementById("docSelectOpen");
 const viewer = document.getElementById("viewer");
 const viewerContent = document.getElementById("viewerContent");
 const readingProgressFill = document.getElementById("readingProgressFill");
@@ -1103,6 +1105,7 @@ function loadDocument(doc) {
   currentDocName = doc.filename;
   currentDocContent = doc.content;
   currentDocSourceUrl = doc.source_url || "";
+  currentDocUploadedAt = doc.uploaded_at || "";
   currentDocLearningLanguage = doc.learning_language || "en";
   resetImmersionSessionState();
   btnReaderSettings.classList.remove("hidden");
@@ -1182,14 +1185,100 @@ function updateQuickReadSourceBanner(sourceUrl) {
 
 // ---------- 文章头部(标题 / 来源 / 字数 / 预计阅读时长) ----------
 
+// 改文章标题的接口调用，阅读页标题和"文章管理"列表共用；失败时弹提示并返回 false。
+async function renameDocument(docId, newTitle) {
+  try {
+    const res = await apiFetch(`/api/documents/${docId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: newTitle }),
+    });
+    if (!res.ok) throw new Error(await apiErrorText(res));
+    return true;
+  } catch (err) {
+    alert(t("article.renameFailed", { message: err.message }));
+    return false;
+  }
+}
+
+// 标题就地编辑：h1 换成输入框，回车/保存提交，Esc/取消放弃。改完后重新拉文章列表，
+// 下拉框、历史记录、已存生词的"来源"都会跟着新标题刷新(后端会把这篇文章名下的生词和句子笔记一起改名)。
+function startTitleEdit(titleRow, titleEl, editBtn) {
+  const docId = currentDocId;
+  const form = document.createElement("form");
+  form.className = "articleTitleForm";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "articleTitleInput";
+  input.maxLength = 200;
+  input.value = currentDocName;
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "submit";
+  saveBtn.className = "btn btn-primary btn-small";
+  saveBtn.textContent = t("common.save");
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "btn btn-ghost btn-small";
+  cancelBtn.textContent = t("common.cancel");
+  form.append(input, saveBtn, cancelBtn);
+
+  const restore = () => {
+    form.remove();
+    titleEl.classList.remove("hidden");
+    editBtn.classList.remove("hidden");
+  };
+  titleEl.classList.add("hidden");
+  editBtn.classList.add("hidden");
+  titleRow.appendChild(form);
+  // 不要 input.select()：全选输入框里的文字会触发阅读区的"选中文字→AI 分析"浮层
+  input.focus();
+
+  cancelBtn.addEventListener("click", restore);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") restore();
+  });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const next = input.value.trim();
+    if (!next) {
+      alert(t("article.titleEmpty"));
+      return;
+    }
+    if (next === currentDocName) {
+      restore();
+      return;
+    }
+    saveBtn.disabled = true;
+    if (!(await renameDocument(docId, next))) {
+      saveBtn.disabled = false;
+      return;
+    }
+    await refreshDocuments(docId);
+  });
+}
+
 function buildArticleHeader(content, title, sourceUrl) {
   const header = document.createElement("div");
   header.className = "articleHeader";
 
+  const titleRow = document.createElement("div");
+  titleRow.className = "articleTitleRow";
   const titleEl = document.createElement("h1");
   titleEl.className = "articleTitle";
   titleEl.textContent = title || "";
-  header.appendChild(titleEl);
+  titleRow.appendChild(titleEl);
+  // 推荐文章"现在阅读"之类还没有存成文档的临时视图没有 currentDocId，这时不给改名
+  if (currentDocId) {
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "articleTitleEdit";
+    editBtn.title = t("article.editTitle");
+    editBtn.setAttribute("aria-label", t("article.editTitle"));
+    editBtn.innerHTML = iconHTML("pencil");
+    editBtn.addEventListener("click", () => startTitleEdit(titleRow, titleEl, editBtn));
+    titleRow.appendChild(editBtn);
+  }
+  header.appendChild(titleRow);
 
   const meta = document.createElement("div");
   meta.className = "articleMeta";
@@ -3248,6 +3337,71 @@ function formatDocDate(isoString) {
   return d.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
 }
 
+// "文章管理"列表里的就地改名：标题换成输入框，保存后刷新文章列表和当前阅读的文章。
+function startDocCardRename(card, doc) {
+  const info = card.querySelector(".docCard-info");
+  const titleEl = card.querySelector(".docCard-title");
+  const metaEl = card.querySelector(".docCard-meta");
+  const actions = card.querySelector(".docCard-actions");
+  const form = document.createElement("form");
+  form.className = "docCard-renameForm";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "docCard-renameInput";
+  input.maxLength = 200;
+  input.value = doc.filename || "";
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "submit";
+  saveBtn.className = "btn btn-primary btn-small";
+  saveBtn.textContent = t("common.save");
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "btn btn-ghost btn-small";
+  cancelBtn.textContent = t("common.cancel");
+  form.append(input, saveBtn, cancelBtn);
+
+  const restore = () => {
+    form.remove();
+    titleEl.classList.remove("hidden");
+    metaEl.classList.remove("hidden");
+    actions.classList.remove("hidden");
+    card.classList.remove("docCard-editing");
+  };
+  titleEl.classList.add("hidden");
+  metaEl.classList.add("hidden");
+  actions.classList.add("hidden");
+  card.classList.add("docCard-editing");
+  info.appendChild(form);
+  input.focus();
+
+  cancelBtn.addEventListener("click", restore);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      restore();
+    }
+  });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const next = input.value.trim();
+    if (!next) {
+      alert(t("article.titleEmpty"));
+      return;
+    }
+    if (next === doc.filename) {
+      restore();
+      return;
+    }
+    saveBtn.disabled = true;
+    if (!(await renameDocument(doc.id, next))) {
+      saveBtn.disabled = false;
+      return;
+    }
+    await refreshDocuments(currentDocId || doc.id);
+    renderDocManagerList();
+  });
+}
+
 function renderDocManagerList() {
   docManagerList.innerHTML = "";
   if (!allDocs || allDocs.length === 0) {
@@ -3265,11 +3419,14 @@ function renderDocManagerList() {
         <div class="docCard-meta"></div>
       </div>
       <div class="docCard-actions">
+        <button type="button" class="docCard-rename" title="${t("article.editTitle")}" aria-label="${t("article.editTitle")}">${iconHTML("pencil")}</button>
         <button type="button" class="docCard-open">${t("docManager.open")}</button>
         <button type="button" class="docCard-delete">${t("docManager.delete")}</button>
       </div>
     `;
+    card.classList.toggle("docCard-current", doc.id === currentDocId);
     card.querySelector(".docCard-title").textContent = doc.filename || "";
+    card.querySelector(".docCard-rename").addEventListener("click", () => startDocCardRename(card, doc));
     const langLabel = t(`languages.${doc.learning_language}`) || (doc.learning_language || "en").toUpperCase();
     card.querySelector(".docCard-meta").textContent = `${langLabel} · ${formatDocDate(doc.uploaded_at)}`;
     card.querySelector(".docCard-open").addEventListener("click", () => {
@@ -3294,6 +3451,9 @@ function renderDocManagerList() {
     docManagerList.appendChild(card);
   });
 }
+
+// 顶栏的文章选择框：点击直接打开"文章管理"弹窗，不再弹系统下拉
+docSelectOpen.addEventListener("click", () => btnDocManager.click());
 
 btnDocManager.addEventListener("click", () => {
   renderDocManagerList();
@@ -3768,12 +3928,34 @@ function buildPrintArea(vocab, notes) {
   titleEl.textContent = currentDocName;
   container.appendChild(titleEl);
 
+  // 文章顶部：导入日期、打印日期、导入来源。网址导入的显示站点名 + 完整链接；
+  // 粘贴文本和上传文件在库里没有区分(都没有 source_url)，统一写"手动导入"。
+  const metaRows = [];
+  const importedAt = formatDocDate(currentDocUploadedAt);
+  if (importedAt) metaRows.push([t("print.importedOn"), importedAt]);
+  metaRows.push([t("print.printedOn"), formatDocDate(new Date().toISOString())]);
+  let sourceText = t("print.sourceManual");
   if (currentDocSourceUrl) {
-    const meta = document.createElement("p");
-    meta.className = "printMeta";
-    meta.textContent = currentDocSourceUrl;
-    container.appendChild(meta);
+    try {
+      const host = new URL(currentDocSourceUrl).hostname.replace(/^www\./, "");
+      sourceText = `${displaySourceName(host)} · ${currentDocSourceUrl}`;
+    } catch (err) {
+      sourceText = currentDocSourceUrl;
+    }
   }
+  metaRows.push([t("print.importSource"), sourceText]);
+  const meta = document.createElement("dl");
+  meta.className = "printMeta";
+  metaRows.forEach(([label, value]) => {
+    const row = document.createElement("div");
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    row.append(dt, dd);
+    meta.appendChild(row);
+  });
+  container.appendChild(meta);
 
   const articleBody = document.createElement("div");
   articleBody.className = "printArticleBody";

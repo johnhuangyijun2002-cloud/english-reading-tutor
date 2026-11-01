@@ -239,6 +239,30 @@ body {
   display: none;
 }
 
+.docSelectWrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 220px;
+}
+
+.docSelectWrap .doc-select {
+  width: 100%;
+  min-width: 0;
+  /* 点击由上面盖着的透明按钮接管，<select> 自己不响应，也就不会弹系统下拉 */
+  pointer-events: none;
+}
+
+.docSelectOpen {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  padding: 0;
+}
+
 .doc-select {
   padding: 8px 14px;
   border-radius: var(--radius-pill);
@@ -916,6 +940,62 @@ body {
   border: none;
   cursor: pointer;
   transition: background var(--ease) 0.15s, color var(--ease) 0.15s;
+}
+
+.docCard-current {
+  border-color: var(--accent);
+}
+
+.docCard-rename {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.docCard-rename:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.docCard-rename .inline-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.docCard-editing .docCard-info {
+  flex: 1;
+}
+
+.docCard-renameForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.docCard-renameInput {
+  flex: 1 1 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 15px;
+  padding: 7px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.docCard-info .hidden {
+  display: none;
+}
+
+.docCard-actions.hidden {
+  display: none;
 }
 
 .docCard-open {
@@ -2157,6 +2237,67 @@ html:lang(ko) body {
   color: var(--text);
 }
 
+.articleTitleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.articleTitleRow .articleTitle {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.articleTitleEdit {
+  flex-shrink: 0;
+  margin-top: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  display: inline-flex;
+  opacity: 0.7;
+}
+
+.articleTitleEdit:hover {
+  opacity: 1;
+  background: var(--surface-2);
+}
+
+.articleTitleEdit .inline-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.articleTitleRow .hidden {
+  display: none;
+}
+
+.articleTitleForm {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.articleTitleInput {
+  flex: 1 1 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+}
+
 .articleMeta {
   display: flex;
   flex-wrap: wrap;
@@ -3236,6 +3377,28 @@ body.nativeNoBYOK .nativeOnly {
   font-size: 12px;
   color: #555;
   margin: 0 0 20px;
+  padding: 8px 0 10px;
+  border-top: 1px solid #ccc;
+  border-bottom: 1px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.printMeta div {
+  display: flex;
+  gap: 8px;
+}
+
+.printMeta dt {
+  flex: 0 0 auto;
+  min-width: 5.5em;
+  font-weight: 600;
+  color: #333;
+}
+
+.printMeta dd {
+  margin: 0;
   word-break: break-all;
 }
 
@@ -3391,6 +3554,12 @@ body.nativeNoBYOK .nativeOnly {
     flex-shrink: 0;
     padding: 7px 12px;
     font-size: 13px;
+  }
+
+  .topbar-actions .docSelectWrap {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
   }
 
   .topbar-actions .doc-select {

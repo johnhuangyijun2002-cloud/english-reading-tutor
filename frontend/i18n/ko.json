@@ -306,6 +306,9 @@
     "th": "태국어"
   },
   "article": {
+    "editTitle": "제목 수정",
+    "titleEmpty": "제목을 입력해 주세요",
+    "renameFailed": "제목을 바꾸지 못했어요: {message}",
     "charCount": "약 {count}자",
     "wordCount": "약 {count}단어",
     "readTime": "약 {minutes}분 분량",
@@ -385,6 +388,10 @@
     "failed": "업로드하지 못했어요: {message}"
   },
   "print": {
+    "importedOn": "가져온 날짜",
+    "printedOn": "인쇄한 날짜",
+    "importSource": "가져온 곳",
+    "sourceManual": "직접 추가 (붙여넣기 또는 파일 업로드)",
     "optionsTitle": "인쇄할 내용",
     "optionsHint": "본문은 항상 인쇄돼요. 함께 인쇄할 내용을 골라 주세요.",
     "optWords": "표시한 단어",

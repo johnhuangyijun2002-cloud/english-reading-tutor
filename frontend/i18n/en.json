@@ -306,6 +306,9 @@
     "th": "Thai"
   },
   "article": {
+    "editTitle": "Edit title",
+    "titleEmpty": "The title can't be empty",
+    "renameFailed": "Couldn't rename the article: {message}",
     "charCount": "~{count} characters",
     "wordCount": "~{count} words",
     "readTime": "~{minutes} min read",
@@ -385,6 +388,10 @@
     "failed": "Upload failed: {message}"
   },
   "print": {
+    "importedOn": "Imported",
+    "printedOn": "Printed",
+    "importSource": "Source",
+    "sourceManual": "Added manually (pasted text or uploaded file)",
     "optionsTitle": "What to print",
     "optionsHint": "The article is always printed. Pick what to add to it.",
     "optWords": "Highlighted words",
